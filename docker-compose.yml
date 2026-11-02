@@ -33,8 +33,32 @@ services:
       DATABASE_URL: postgresql+psycopg://triosteum_app:${APP_DB_PASSWORD}@db:5432/triosteum
       COOKIE_SECURE: ${COOKIE_SECURE:-1}
       TRUST_PROXY: ${TRUST_PROXY:-0}
+      # ИИ: пусто — выключен; openai — своя модель (Ollama/vLLM); yandex — YandexGPT по ключу
+      AI_PROVIDER: ${AI_PROVIDER:-}
+      AI_BASE_URL: ${AI_BASE_URL:-http://ollama:11434/v1}
+      AI_MODEL: ${AI_MODEL:-}
+      AI_API_KEY: ${AI_API_KEY:-}
+      YANDEX_API_KEY: ${YANDEX_API_KEY:-}
+      YANDEX_FOLDER_ID: ${YANDEX_FOLDER_ID:-}
     ports:
       - "${PORT:-8000}:8000"
 
+  # своя модель на этом же сервере (нужна видеокарта NVIDIA или много памяти):
+  #   docker compose --profile ai up -d
+  #   docker compose exec ollama ollama pull qwen2.5-coder:14b
+  # и в .env: AI_PROVIDER=openai, AI_MODEL=qwen2.5-coder:14b
+  ollama:
+    image: ollama/ollama
+    profiles: ["ai"]
+    restart: unless-stopped
+    volumes:
+      - ollama:/root/.ollama
+    # для видеокарты NVIDIA раскомментируйте:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices: [{ driver: nvidia, count: all, capabilities: [gpu] }]
+
 volumes:
   pgdata:
+  ollama:

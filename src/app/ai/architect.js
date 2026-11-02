@@ -36,7 +36,7 @@
         h('button', { type:'button', 'class':'btn primary', text:ARC.busy ? 'ИИ проектирует…' : 'Собрать схему', disabled:(ARC.busy || aiOff || aiWait) ? 'disabled' : null, on:{ click:buildArc } }),
         h('span', { 'class':'bld-stat', text:(IS_MAC ? '⌘' : 'Ctrl') + '+Enter' })
       ]),
-      aiOff ? h('div', { 'class':'bld-issue warn', text:'ИИ доступен, когда среда открыта в claude.ai.' }) : null
+      aiOff ? h('div', { 'class':'bld-issue warn', text:aiOffText() }) : null
     ].filter(Boolean))));
     if(ARC.busy) b.appendChild(h('div', { 'class':'arc-prog' }, [ h('span', { 'class':'arc-spin', 'aria-hidden':'true' }), h('span', { 'class':'arc-pt', text:(isDocs() ? 'ИИ подбирает шаблоны, пишет недостающие и составляет регламент… ' : 'ИИ подбирает плагины, пишет недостающие и собирает бэкенд… ') + (ARC.chars ? ARC.chars + ' симв.' : '') }) ]));
     if(ARC.err) b.appendChild(h('div', { 'class':'bld-issue err', text:ARC.err }));
@@ -95,7 +95,7 @@
       ctxBoard ? '\n' + ctxBoard : '',
       '', 'Задача пользователя: ' + q
     ].join('\n');
-    AI.api(prompt, { cache:false, onText:function(ev){ ARC.chars = ev.text.length; var s = $('arcBody').querySelector('.arc-pt'); if(s) s.textContent = 'ИИ подбирает плагины, пишет недостающие и собирает бэкенд… ' + ARC.chars + ' симв.'; } })
+    AI.api(prompt, { task:'architect', cache:false, onText:function(ev){ ARC.chars = ev.text.length; var s = $('arcBody').querySelector('.arc-pt'); if(s) s.textContent = 'ИИ подбирает плагины, пишет недостающие и собирает бэкенд… ' + ARC.chars + ' симв.'; } })
       .then(function(r){
         ARC.busy = false;
         try{ ARC.res = parseArc(r.text); if(!ARC.res.blocks.length) throw new Error('empty'); }

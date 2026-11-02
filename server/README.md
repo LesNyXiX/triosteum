@@ -36,7 +36,7 @@ DATABASE_URL=postgresql+psycopg://triosteum_app:app@localhost/triosteum COOKIE_S
 
 ```bash
 cd server
-TEST_ADMIN_URL=postgresql://postgres@localhost/postgres pytest     # 28 тестов API на временной базе
+TEST_ADMIN_URL=postgresql://postgres@localhost/postgres pytest     # 38 тестов API на временной базе
 cd .. && TRIOSTEUM_URL=http://localhost:8000 npm run test:server   # сквозная проверка в браузере
 TRIOSTEUM_URL=http://localhost:8000 node tests/team-e2e.mjs         # команда и история версий в браузере
 ```
@@ -59,6 +59,19 @@ TRIOSTEUM_URL=http://localhost:8000 node tests/team-e2e.mjs         # коман
 | `LOGIN_ATTEMPTS_PER_MIN` | попыток входа в минуту на IP и на почту | `10` |
 | `CLIENT_HTML` | путь к собранному приложению | `../docs/index.html` |
 
+## ИИ
+
+Окна «AI», «Конструктор», «Целостный код схемы», ИИ у блока и ИИ-помощник Офиса работают через сервер: браузер отправляет задачу на `/api/ai/complete`, а сервер обращается к модели. Модель задаётся в `.env`:
+
+| Вариант | Настройки | Особенности |
+|---|---|---|
+| Своя модель (Ollama, vLLM) | `AI_PROVIDER=openai`, `AI_MODEL=qwen2.5-coder:14b`, `AI_BASE_URL` (по умолчанию контейнер `ollama`) | Бесплатно, данные не покидают сервер. Нужна видеокарта или много памяти. Запуск: `docker compose --profile ai up -d`, затем `docker compose exec ollama ollama pull qwen2.5-coder:14b` |
+| YandexGPT | `AI_PROVIDER=yandex`, `YANDEX_API_KEY`, `YANDEX_FOLDER_ID`, `AI_MODEL=yandexgpt` | Ключ сервисного аккаунта с ролью `ai.languageModels.user` в Yandex AI Studio. Адаптер пока не проверен на настоящем ключе |
+| Заглушка | `AI_PROVIDER=echo` | Для проверок |
+| Выключен | `AI_PROVIDER=` | В окнах ИИ появится пояснение |
+
+У каждой организации есть месячный лимит токенов (`organizations.ai_budget_tokens`, по умолчанию 2 млн), расход виден владельцу в окне «Команда».
+
 ## Продакшен
 
 - Поставьте перед сервером nginx или caddy с HTTPS, а в `.env` задайте `COOKIE_SECURE=1` и `TRUST_PROXY=1`.
@@ -69,5 +82,5 @@ TRIOSTEUM_URL=http://localhost:8000 node tests/team-e2e.mjs         # коман
 ## Что дальше
 
 - Отправка приглашений письмом (сейчас владелец копирует ссылку сам).
-- ИИ-прокси: YandexGPT и GigaChat вместо Claude, с лимитами по организации (таблица `ai_requests` уже есть).
+- Проверить адаптер YandexGPT на настоящем ключе, добавить GigaChat.
 - Совместная правка в реальном времени (WebSocket + Yjs).

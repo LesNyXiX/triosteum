@@ -131,7 +131,7 @@
         disabled:(SC.busy || aiOff || !G.nodes.length) ? 'disabled' : null, on:{ click:genBackend } }) : null
     ].filter(Boolean));
     bar.appendChild(acts);
-    if(SC.tab === 'ai' && aiOff) b.appendChild(h('div', { 'class':'bld-issue warn', text:'ИИ доступен, когда среда открыта в claude.ai.' }));
+    if(SC.tab === 'ai' && aiOff) b.appendChild(h('div', { 'class':'bld-issue warn', text:aiOffText() }));
     if(SC.err) b.appendChild(h('div', { 'class':'bld-issue err', text:SC.err }));
     if(SC.out){ var o = h('pre', { 'class':'sc-out', 'aria-live':'polite' }); o.textContent = SC.out; b.appendChild(o); }
   }
@@ -176,7 +176,7 @@
       'Напиши целостный бэкенд-код схемы «' + curProj().name + '» по блокам ниже.', BACKEND_RULES,
       'Ответь кратко (1–2 предложения) и затем ПОЛНЫЙ код одним блоком ' + FENCE + 'python.', '', blocksForPrompt(60)
     ].join('\n');
-    AI.api(prompt, { cache:false }).then(function(r){
+    AI.api(prompt, { task:'scheme', cache:false }).then(function(r){
       SC.busy = false;
       var code = extractCode(r.text);
       if(!code){ SC.err = 'ИИ не прислал ответ в нужном виде. Попробуйте ещё раз.'; }

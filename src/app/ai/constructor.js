@@ -55,7 +55,7 @@
       wish,
       h('button', { type:'button', 'class':'btn primary', text:BLD.busy ? 'ИИ анализирует…' : 'Проанализировать',
         disabled:(few || BLD.busy || aiOff || aiWait) ? 'disabled' : null, on:{ click:analyzeAI } }),
-      aiOff ? h('div', { 'class':'bld-issue warn', text:'ИИ доступен, когда среда открыта в claude.ai.' }) : null
+      aiOff ? h('div', { 'class':'bld-issue warn', text:aiOffText() }) : null
     ].filter(Boolean));
     b.appendChild(section('Выберите режим', h('div', { 'class':'bld-cards' }, [c1, c2])));
     if(few) b.appendChild(h('div', { 'class':'bld-stat', text:'Нужно хотя бы два блока на доске.' }));
@@ -122,7 +122,7 @@
       plan.cyclic.length ? 'В замкнутом круге: ' + plan.cyclic.map(function(n){ return n.name; }).join(', ') : '',
       BLD.wish.trim() ? 'Пожелание пользователя: ' + BLD.wish.trim() : ''
     ].join('\n');
-    AI.api(prompt, { cache:false, onText:function(ev){ BLD.text = ev.text; var s = $('bldBody').querySelector('.bld-res .bld-stat'); if(s) s.textContent = 'ИИ читает схему и код блоков… получено ' + ev.text.length + ' симв.'; } })
+    AI.api(prompt, { task:'constructor', cache:false, onText:function(ev){ BLD.text = ev.text; var s = $('bldBody').querySelector('.bld-res .bld-stat'); if(s) s.textContent = 'ИИ читает схему и код блоков… получено ' + ev.text.length + ' симв.'; } })
       .then(function(r){ BLD.busy = false; try{ BLD.res = parseAI(r.text); }catch(e){ BLD.err = 'ИИ ответил в неожиданном формате. Попробуйте ещё раз.'; } if(!$('builder').hidden) renderBuilder(); },
             function(err){ BLD.busy = false; BLD.err = aiFail(err); if(!$('builder').hidden) renderBuilder(); });
   }

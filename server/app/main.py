@@ -4,19 +4,22 @@
 Запуск для разработки:  uvicorn app.main:app --reload  (из папки server/)
 """
 import ipaddress
-from contextlib import asynccontextmanager
 import json
+import os
 import re
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
+import httpx
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 
+from . import ai as ai_mod
 from . import migrate
 from .config import settings
 from .db import tx
@@ -31,6 +34,8 @@ async def lifespan(_app):
 
 app = FastAPI(title="Triosteum", docs_url="/api/docs", openapi_url="/api/openapi.json", redoc_url=None, lifespan=lifespan)
 login_limiter = RateLimiter(settings.login_attempts_per_min)
+ai_limiter = RateLimiter(int(os.environ.get("AI_REQUESTS_PER_MIN", "20")))
+AI = ai_mod.from_env()
 
 COOKIE = "tsid"
 SPACE_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
@@ -172,7 +177,8 @@ def index(request: Request):
         prefs = {r["name"]: r["value"] for r in c.execute(
             text("SELECT name, value FROM prefs WHERE user_id = :u"), {"u": w.user_id}).mappings()}
     boot = {"user": {"id": w.user_id, "email": w.email, "name": w.name}, "org": {"id": w.org_id, "name": w.org_name},
-            "role": w.role, "cur": prefs.get("cur"), "prefs": prefs, "spaces": spaces}
+            "role": w.role, "cur": prefs.get("cur"), "prefs": prefs, "spaces": spaces,
+            "ai": {"enabled": AI is not None, "provider": AI.name if AI else None, "model": AI.model if AI else None}}
     # «<» в данных экранируем, чтобы строка внутри JSON не смогла закрыть тег <script>
     tag = "<script>window.TRIOSTEUM_BOOT = " + json.dumps(boot, ensure_ascii=False).replace("<", "\\u003c") + ";</script>"
     html = read_html(settings.client_html).replace("<!--@@BOOT@@-->", tag, 1)
@@ -584,6 +590,75 @@ def get_version(space_id: str, version_id: int, w: Who = Depends(need)):
     if not r:
         raise HTTPException(404, "Нет такой версии")
     return {"id": r["id"], "rev": r["rev"], "label": r["label"], "created_at": r["created_at"].isoformat(), "content": r["content"]}
+
+
+# ---------- ИИ ----------
+
+AI_SYSTEM = ("Ты — ИИ-помощник в Triosteum, платформе для автоматизации и аналитики производственных компаний. "
+             "Отвечай по-русски, точно и по делу. Следуй формату ответа, который задан в запросе.")
+AI_TASKS = {"block", "architect", "constructor", "scheme", "office", "other"}
+
+
+class AIIn(BaseModel):
+    prompt: str = Field(min_length=1, max_length=200_000)
+    task: str = Field(default="other", max_length=20)
+    max_tokens: int = Field(default=4000, ge=16, le=8000)
+
+
+def month_tokens(c) -> int:
+    return c.execute(text("""SELECT coalesce(sum(tokens_in + tokens_out), 0) FROM ai_requests
+                             WHERE created_at >= date_trunc('month', now())""")).scalar_one()
+
+
+@app.get("/api/ai/status")
+def ai_status(w: Who = Depends(need)):
+    with tx(w.org_id) as c:
+        used = month_tokens(c)
+        budget = c.execute(text("SELECT ai_budget_tokens FROM organizations WHERE id = :o"), {"o": w.org_id}).scalar_one()
+    return {"enabled": AI is not None, "provider": AI.name if AI else None, "model": AI.model if AI else None,
+            "used_tokens": int(used), "budget_tokens": int(budget)}
+
+
+@app.post("/api/ai/complete")
+def ai_complete(body: AIIn, w: Who = Depends(need)):
+    if AI is None:
+        raise HTTPException(503, "ИИ на этом сервере не подключён")
+    if w.role == "viewer":
+        raise HTTPException(403, "Наблюдателю ИИ недоступен")
+    if not ai_limiter.hit("user:" + w.user_id):
+        raise HTTPException(429, "Слишком много запросов к ИИ — подождите минуту")
+    with tx(w.org_id) as c:
+        used = month_tokens(c)
+        budget = c.execute(text("SELECT ai_budget_tokens FROM organizations WHERE id = :o"), {"o": w.org_id}).scalar_one()
+    if used >= budget:
+        raise HTTPException(402, "Лимит ИИ организации на этот месяц исчерпан")
+    task = body.task if body.task in AI_TASKS else "other"
+    result = ai_mod.Result()
+    provider = AI
+
+    def gen():
+        failed = None
+        try:
+            for piece in provider.stream(AI_SYSTEM, body.prompt, body.max_tokens, result):
+                yield piece
+        except ai_mod.AIError as e:
+            failed = str(e)
+        except httpx.HTTPError:
+            failed = "Модель недоступна — проверьте, что она запущена"
+        if failed:
+            # ошибку отдаём отдельной строкой-маркером: браузер покажет её вместо ответа
+            yield "\n\u0000ERR:" + failed
+        try:
+            with tx(w.org_id) as c:
+                c.execute(text("""INSERT INTO ai_requests (org_id, user_id, task, model, tokens_in, tokens_out)
+                                  VALUES (:o, :u, :t, :m, :i, :out)"""),
+                          {"o": w.org_id, "u": w.user_id, "t": task, "m": provider.model,
+                           "i": result.usage.tokens_in, "out": result.usage.tokens_out})
+        except Exception:
+            pass
+
+    return StreamingResponse(gen(), media_type="text/plain; charset=utf-8",
+                             headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
 
 
 # ---------- настройки и перенос ----------

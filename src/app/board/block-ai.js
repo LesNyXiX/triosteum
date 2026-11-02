@@ -1,9 +1,45 @@
   /* ---------- ИИ-помощник для блока ---------- */
   var AI = { api:undefined, state:{} };   // state[nodeId] = { busy, text, err, code }
-  if(window.claude && typeof window.claude.use === 'function'){
+  // где работает ИИ: на своём сервере (модель подключена к серверу Triosteum) или в claude.ai
+  if(SERVER && window.TRIOSTEUM_BOOT.ai && window.TRIOSTEUM_BOOT.ai.enabled){
+    AI.api = serverAI;
+  } else if(!SERVER && window.claude && typeof window.claude.use === 'function'){
     window.claude.use('sample').then(function(s){ AI.api = s || null; if(S.pop && S.sel && S.sel.type === 'node') renderPop(); },
                                        function(){ AI.api = null; if(S.pop && S.sel && S.sel.type === 'node') renderPop(); });
   } else AI.api = null;
+
+  function aiOffText(){
+    return SERVER ? 'ИИ на этом сервере не подключён. Его включает администратор: модель указывается в настройках сервера (AI_PROVIDER).'
+                  : 'ИИ работает, когда Triosteum открыт в claude.ai или с сервера, к которому подключена модель.';
+  }
+  // запрос к ИИ через сервер Triosteum: ответ приходит по частям, как печатается
+  function serverAI(prompt, opts){
+    opts = opts || {};
+    return fetch('/api/ai/complete', { method:'POST', credentials:'same-origin', headers:{ 'Content-Type':'application/json' },
+      body:JSON.stringify({ prompt:prompt, task:opts.task || 'other' }) }).then(function(r){
+      if(!r.ok) return r.json().catch(function(){ return {}; }).then(function(d){
+        var e = new Error(d.detail || ('ошибка ' + r.status)); if(r.status === 429) e.code = 'rate_limited'; throw e;
+      });
+      var text = '', dec = new TextDecoder();
+      function done(){
+        var k = text.indexOf('\u0000ERR:');
+        if(k >= 0){ throw new Error(text.slice(k + 5)); }
+        return { text:text };
+      }
+      if(!r.body || !r.body.getReader) return r.text().then(function(t){ text = t; return done(); });
+      var rd = r.body.getReader();
+      function pump(){
+        return rd.read().then(function(x){
+          if(x.done){ text += dec.decode(); return done(); }
+          text += dec.decode(x.value, { stream:true });
+          var shown = text.split('\n\u0000ERR:')[0];
+          if(opts.onText) try{ opts.onText({ text:shown }); }catch(e){}
+          return pump();
+        });
+      }
+      return pump();
+    });
+  }
 
   var FENCE = String.fromCharCode(96, 96, 96);
   function extractCode(text){
@@ -70,7 +106,7 @@
       'Запрос пользователя: ' + question.trim()
     ]).join('\n');
     AI.api(prompt, {
-      cache:false,
+      task:'block', cache:false,
       onText:function(ev){
         st.text = ev.text;
         var box = el.pop.querySelector('.ai-out');
@@ -89,7 +125,7 @@
     var box = h('div', { 'class':'ai' });
     box.appendChild(h('div', { 'class':'flabel', style:'margin:0', text:'ИИ-помощник' }));
     if(AI.api === null){
-      box.appendChild(h('div', { 'class':'ai-note', text:'ИИ работает, когда Triosteum открыт на claude.ai.' }));
+      box.appendChild(h('div', { 'class':'ai-note', text:aiOffText() }));
       return box;
     }
     if(AI.api === undefined){

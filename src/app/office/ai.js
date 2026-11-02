@@ -13,7 +13,7 @@
     var k = oaKind(), f = ofFile(OF.tab);
     p.appendChild(h('div', { 'class':'oa-h' }, [ h('b', { text:'AI-помощник' }), h('span', { text:f ? FT[f.type].name + ' «' + f.name + '»' : 'Рабочий стол: создам файлы по задаче' }),
       h('button', { type:'button', 'class':'icon-btn', 'aria-label':'Закрыть помощника', html:SVGI('<path d="M6 6l12 12M18 6L6 18"/>', 14), on:{ click:function(){ OF.ai = false; ofRender(); } } }) ]));
-    if(AI.api === null){ p.appendChild(h('div', { 'class':'bld-issue warn', text:'ИИ работает, когда Triosteum открыт в claude.ai.' })); return; }
+    if(AI.api === null){ p.appendChild(h('div', { 'class':'bld-issue warn', text:aiOffText() })); return; }
     var chips = h('div', { 'class':'arc-ex' });
     (OA_QUICK[k] || []).forEach(function(q){ chips.appendChild(h('button', { type:'button', 'class':'chip', text:q[0], disabled:OA.busy ? 'disabled' : null, on:{ click:function(){ if(/: $/.test(q[1])){ ta.value = q[1]; ta.focus(); } else { ta.value = q[1]; oaAsk(ta.value); } } } })); });
     var ta = h('textarea', { 'class':'bld-wish', rows:'4', placeholder:k === 'desk' ? 'Опишите задачу: какие файлы нужны и что в них должно быть…' : 'Что сделать с файлом?', 'aria-label':'Запрос к ИИ' });
@@ -66,7 +66,7 @@
       'Если файл нужно изменить или создать содержимое — 1–2 предложения о правках, затем ПОЛНОЕ новое содержимое одним блоком ' + FENCE + (k === 'doc' ? 'html' : 'json') + '. Если нужен только ответ на вопрос — без блока кода.',
       others ? 'Другие таблицы (на них можно ссылаться в формулах):\n' + others : '',
       'Текущее содержимое:', FENCE + (k === 'doc' ? 'html' : 'json'), oaContent(f), FENCE, '', 'Запрос: ' + q ].join('\n');
-    AI.api(prompt, { cache:false, onText:function(ev){ OA.text = ev.text; var s = $('ofAi').querySelector('.oa-pt'); if(s) s.textContent = 'Готовлю ответ… ' + ev.text.length + ' симв.'; } }).then(function(r){
+    AI.api(prompt, { task:'office', cache:false, onText:function(ev){ OA.text = ev.text; var s = $('ofAi').querySelector('.oa-pt'); if(s) s.textContent = 'Готовлю ответ… ' + ev.text.length + ' симв.'; } }).then(function(r){
       OA.busy = false; OA.text = r.text;
       try{ OA.res = oaParse(r.text, k); }catch(e){ OA.res = null; if(extractCode(r.text)) OA.err = 'Не удалось разобрать ответ ИИ. Попробуйте ещё раз.'; }
       renderOfAi();

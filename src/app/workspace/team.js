@@ -45,6 +45,13 @@
         list.appendChild(row);
       });
       body.appendChild(list);
+      var aiLine = h('p', { 'class':'tm-hint' }); body.appendChild(aiLine);
+      SERVER.api('GET', '/ai/status').then(function(x){
+        if(x.status !== 200) return;
+        var a = x.data;
+        aiLine.textContent = a.enabled ? 'ИИ: ' + a.model + ' · в этом месяце ' + a.used_tokens.toLocaleString('ru-RU') + ' из ' + a.budget_tokens.toLocaleString('ru-RU') + ' токенов'
+                                       : 'ИИ на сервере не подключён.';
+      });
       if(!owner){ body.appendChild(h('p', { 'class':'tm-hint', text:'Приглашать коллег и менять роли может владелец организации.' })); return; }
       if(d.invites.length){
         var inv = h('div', { 'class':'tm-sec' }, [ h('h3', { text:'Ждут ответа' }) ]);
