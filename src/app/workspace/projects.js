@@ -124,7 +124,11 @@
   }
   // вход в облако: кто вошёл, перенос из браузера, выход
   function accountItems(){
-    if(!SERVER) return [];
+    if(!SERVER){
+      var lp = localProfile(); if(!lp) return [];
+      return [{ sep:true }, { head:lp.name + ' · ' + lp.org }, { label:'Профиль…', icon:'user', act:function(){ showWelcome(true); } },
+        { label:'Выйти', icon:'logout', act:localLogout }];
+    }
     var u = SERVER.user || {}, items = [{ sep:true }, { head:(u.name || u.email || 'Аккаунт') + (SERVER.org ? ' · ' + SERVER.org.name : '') }];
     if(SERVER.localCount()) items.push({ label:'Перенести пространства из этого браузера…', icon:'cloud', act:importLocal });
     items.push({ label:'Выйти', icon:'logout', act:function(){ SERVER.logout(); } });

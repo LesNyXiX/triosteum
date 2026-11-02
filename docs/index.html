@@ -800,6 +800,26 @@
     .status > div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
     #stRight{display:none}
   }
+  /* --- первый вход: «Добро пожаловать» --- */
+  .welcome{position:fixed;inset:0;z-index:200;display:grid;place-items:center;padding:24px;overflow:auto;
+    background:radial-gradient(1100px 600px at 18% -10%,color-mix(in srgb,var(--red) 22%,transparent),transparent 70%),var(--bg)}
+  .welcome .wc-card{width:100%;max-width:420px;background:var(--panel);border:1px solid var(--line2);border-radius:22px;padding:32px 28px;box-shadow:0 24px 60px rgba(0,0,0,.45)}
+  .wc-brand{display:flex;align-items:center;gap:10px;margin-bottom:22px;font-weight:700;font-size:18px;color:var(--ink-strong)}
+  .wc-logo{width:28px;height:28px;border-radius:8px;background:var(--red)}
+  .welcome h1{margin:0 0 6px;font-size:22px;color:var(--ink-strong)}
+  .welcome .wc-sub{margin:0 0 22px;color:var(--dim);font-size:14px;line-height:1.5}
+  .welcome label{display:block;margin:0 0 6px;font-size:13px;color:var(--dim)}
+  .welcome input{width:100%;box-sizing:border-box;padding:11px 12px;margin-bottom:14px;border-radius:10px;border:1px solid var(--line2);background:var(--bg);color:var(--ink-strong);font:inherit;font-size:15px}
+  .welcome input:focus{outline:2px solid color-mix(in srgb,var(--red) 60%,transparent);outline-offset:1px;border-color:transparent}
+  .wc-go{width:100%;padding:12px;margin-top:6px;border:0;border-radius:11px;background:var(--red-btn,var(--red));color:var(--on-accent,#fff);font:inherit;font-size:15px;font-weight:700;cursor:pointer;transition:filter .15s}
+  .wc-go:hover{filter:brightness(1.1)}
+  .wc-err{min-height:20px;margin:2px 0 0;color:var(--red-soft);font-size:13px}
+  .wc-note{margin:18px 0 0;font-size:12px;line-height:1.5;color:var(--dim);text-align:center}
+  body:not(.noanim) .welcome .wc-card{animation:wcIn .55s cubic-bezier(.16,1,.3,1)}
+  body:not(.noanim) .welcome.leaving{animation:wcOut .5s cubic-bezier(.55,0,.75,.2) forwards}
+  @keyframes wcIn{from{opacity:0;transform:translateY(16px) scale(.98)}to{opacity:1;transform:none}}
+  @keyframes wcOut{to{opacity:0;transform:scale(1.03);filter:blur(4px)}}
+
 </style>
 </head>
 <body>
@@ -4688,7 +4708,11 @@ public class MovingAverage : IBlock
   }
   // вход в облако: кто вошёл, перенос из браузера, выход
   function accountItems(){
-    if(!SERVER) return [];
+    if(!SERVER){
+      var lp = localProfile(); if(!lp) return [];
+      return [{ sep:true }, { head:lp.name + ' · ' + lp.org }, { label:'Профиль…', icon:'user', act:function(){ showWelcome(true); } },
+        { label:'Выйти', icon:'logout', act:localLogout }];
+    }
     var u = SERVER.user || {}, items = [{ sep:true }, { head:(u.name || u.email || 'Аккаунт') + (SERVER.org ? ' · ' + SERVER.org.name : '') }];
     if(SERVER.localCount()) items.push({ label:'Перенести пространства из этого браузера…', icon:'cloud', act:importLocal });
     items.push({ label:'Выйти', icon:'logout', act:function(){ SERVER.logout(); } });
@@ -8225,6 +8249,59 @@ public class MovingAverage : IBlock
     document.documentElement.addEventListener('mouseleave', function(){ g.classList.remove('on'); });
     window.addEventListener('blur', function(){ g.classList.remove('on'); });
   })();
+  /* ---------- первый вход без сервера: «Добро пожаловать» ---------- */
+  // На GitHub Pages и при открытии файла с диска сервера нет, поэтому настоящих аккаунтов нет.
+  // При первом открытии спрашиваем имя и организацию, храним в этом браузере и переходим в Triosteum.
+  // Когда Triosteum работает с сервера (SERVER), вместо этого экрана — настоящий вход /login.
+  function localProfile(){ var p = Repo.pref('profile', null); return p && p.name ? p : null; }
+  function showWelcome(editing){
+    if(SERVER || $('welcome')) return;
+    var prof = localProfile() || {};
+    var box = h('div', { 'class':'welcome', id:'welcome', role:'dialog', 'aria-modal':'true', 'aria-labelledby':'wcTitle' });
+    var name = h('input', { id:'wcName', autocomplete:'name', maxlength:'80', placeholder:'Иван Петров' }); name.value = prof.name || '';
+    var org = h('input', { id:'wcOrg', autocomplete:'organization', maxlength:'120', placeholder:'ООО «Завод»' }); org.value = prof.org || '';
+    var err = h('p', { 'class':'wc-err', role:'alert' });
+    var form = h('form', { novalidate:'novalidate' }, [
+      h('label', { 'for':'wcName', text:'Ваше имя' }), name,
+      h('label', { 'for':'wcOrg', text:'Организация' }), org,
+      err,
+      h('button', { 'class':'wc-go', type:'submit', text:editing ? 'Сохранить' : 'Начать работу' })
+    ]);
+    box.appendChild(h('main', { 'class':'wc-card' }, [
+      h('div', { 'class':'wc-brand' }, [ h('span', { 'class':'wc-logo', 'aria-hidden':'true' }), h('span', { text:'Triosteum' }) ]),
+      h('h1', { id:'wcTitle', text:editing ? 'Профиль' : 'Добро пожаловать' }),
+      h('p', { 'class':'wc-sub', text:editing ? 'Имя и организация видны в меню пространств.' : 'Платформа для предприятия: блоки кода, документы, таблицы и маршруты согласования в одном месте. Представьтесь, чтобы начать.' }),
+      form,
+      h('p', { 'class':'wc-note', text:'Профиль и пространства хранятся только в этом браузере. Вход по паролю и общая работа с коллегами появятся, когда Triosteum заработает на сервере.' })
+    ]));
+    form.addEventListener('submit', function(e){
+      e.preventDefault();
+      var n = name.value.trim(), o = org.value.trim();
+      if(!n){ err.textContent = 'Как вас зовут?'; name.focus(); return; }
+      if(!o){ err.textContent = 'Укажите организацию'; org.focus(); return; }
+      var first = !localProfile();
+      Repo.setPref('profile', { name:n, org:o, since:prof.since || new Date().toISOString() });
+      closeWelcome(function(){
+        if(first){ toast('Добро пожаловать, ' + n.split(' ')[0] + '! Выберите среду, с которой начнёте'); openEco(); }
+        else toast('Профиль сохранён');
+      });
+    });
+    if(editing) box.addEventListener('keydown', function(e){ if(e.key === 'Escape'){ e.stopPropagation(); closeWelcome(); } });
+    document.body.appendChild(box);
+    setTimeout(function(){ (name.value ? org : name).focus(); }, 60);
+  }
+  function closeWelcome(after){
+    var box = $('welcome'); if(!box) return;
+    var done = function(){ if(box.parentNode) box.remove(); if(after) after(); };
+    if(document.body.classList.contains('noanim')) return done();
+    box.classList.add('leaving'); setTimeout(done, 480);
+  }
+  function localLogout(){
+    Repo.setPref('profile', null);
+    toast('Вы вышли. Пространства остались в этом браузере');
+    showWelcome(false);
+  }
+
   setEnv(curProj().env || 'code');
   if(hist.last === null) commitHist();      // исходное состояние — чтобы первое действие можно было отменить
   applyTheme();
@@ -8238,6 +8315,9 @@ public class MovingAverage : IBlock
   if(SERVER && SERVER.localCount() && !Repo.pref('imported', false)){
     setTimeout(function(){ toastAct('В этом браузере есть пространства (' + SERVER.localCount() + '). Перенести их в облако?', 'Перенести', function(){ Repo.setPref('imported', true); importLocal(); }); }, 1200);
   }
+  // первый вход без сервера — экран «Добро пожаловать»
+  if(!SERVER && !localProfile()) showWelcome(false);
+
 })();
 </script>
 </body>

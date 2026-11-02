@@ -11,3 +11,5 @@
   if(SERVER && SERVER.localCount() && !Repo.pref('imported', false)){
     setTimeout(function(){ toastAct('В этом браузере есть пространства (' + SERVER.localCount() + '). Перенести их в облако?', 'Перенести', function(){ Repo.setPref('imported', true); importLocal(); }); }, 1200);
   }
+  // первый вход без сервера — экран «Добро пожаловать»
+  if(!SERVER && !localProfile()) showWelcome(false);

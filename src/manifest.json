@@ -8,7 +8,8 @@
     "styles/workspace.css",
     "styles/ecosystem.css",
     "styles/office.css",
-    "styles/animations.css"
+    "styles/animations.css",
+    "styles/welcome.css"
   ],
   "js": [
     "app/core/langs-plugins.js",
@@ -77,6 +78,7 @@
     "app/office/boot-office.js",
     "app/ui/close-anim.js",
     "app/ui/cursor-glow.js",
+    "app/workspace/welcome.js",
     "app/main.js"
   ]
 }

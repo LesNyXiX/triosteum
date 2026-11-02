@@ -21,6 +21,7 @@ await ctx.addInitScript((g) => {
   if (localStorage.getItem('triosteum.projects')) return;
   localStorage.setItem('triosteum.projects', JSON.stringify({ cur: 'p1', list: [{ id: 'p1', name: 'Тест', t: Date.now() }] }));
   localStorage.setItem('triosteum.proj.p1', JSON.stringify(g));
+  localStorage.setItem('triosteum.profile', JSON.stringify({ name: 'Тест', org: 'Завод' }));
 }, seed);
 const page = await ctx.newPage();
 const errors = [];
@@ -42,6 +43,13 @@ check(Math.abs(saved - 240) < 2, 'позиция сохранена через S
 await page.mouse.click(box.x + 160, box.y + 90, { button: 'right' }); await page.waitForTimeout(300);
 check(await page.evaluate(() => !document.getElementById('pop').hidden), 'ПКМ открывает настройки блока');
 await page.keyboard.press('Escape');
+
+console.log('Первый вход');
+const fresh = await (await browser.newContext()).newPage();
+await fresh.goto(URL); await fresh.waitForTimeout(500);
+check(await fresh.isVisible('#welcome'), 'новый посетитель видит «Добро пожаловать»');
+await fresh.fill('#wcName', 'Иван'); await fresh.fill('#wcOrg', 'Завод'); await fresh.click('.wc-go'); await fresh.waitForTimeout(800);
+check(!(await fresh.$('#welcome')) && await fresh.isVisible('.eco'), 'после входа — выбор среды');
 
 console.log('Среды');
 await page.click('#ecoBtn'); await page.waitForTimeout(300);

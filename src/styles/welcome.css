@@ -1,0 +1,19 @@
+  /* --- первый вход: «Добро пожаловать» --- */
+  .welcome{position:fixed;inset:0;z-index:200;display:grid;place-items:center;padding:24px;overflow:auto;
+    background:radial-gradient(1100px 600px at 18% -10%,color-mix(in srgb,var(--red) 22%,transparent),transparent 70%),var(--bg)}
+  .welcome .wc-card{width:100%;max-width:420px;background:var(--panel);border:1px solid var(--line2);border-radius:22px;padding:32px 28px;box-shadow:0 24px 60px rgba(0,0,0,.45)}
+  .wc-brand{display:flex;align-items:center;gap:10px;margin-bottom:22px;font-weight:700;font-size:18px;color:var(--ink-strong)}
+  .wc-logo{width:28px;height:28px;border-radius:8px;background:var(--red)}
+  .welcome h1{margin:0 0 6px;font-size:22px;color:var(--ink-strong)}
+  .welcome .wc-sub{margin:0 0 22px;color:var(--dim);font-size:14px;line-height:1.5}
+  .welcome label{display:block;margin:0 0 6px;font-size:13px;color:var(--dim)}
+  .welcome input{width:100%;box-sizing:border-box;padding:11px 12px;margin-bottom:14px;border-radius:10px;border:1px solid var(--line2);background:var(--bg);color:var(--ink-strong);font:inherit;font-size:15px}
+  .welcome input:focus{outline:2px solid color-mix(in srgb,var(--red) 60%,transparent);outline-offset:1px;border-color:transparent}
+  .wc-go{width:100%;padding:12px;margin-top:6px;border:0;border-radius:11px;background:var(--red-btn,var(--red));color:var(--on-accent,#fff);font:inherit;font-size:15px;font-weight:700;cursor:pointer;transition:filter .15s}
+  .wc-go:hover{filter:brightness(1.1)}
+  .wc-err{min-height:20px;margin:2px 0 0;color:var(--red-soft);font-size:13px}
+  .wc-note{margin:18px 0 0;font-size:12px;line-height:1.5;color:var(--dim);text-align:center}
+  body:not(.noanim) .welcome .wc-card{animation:wcIn .55s cubic-bezier(.16,1,.3,1)}
+  body:not(.noanim) .welcome.leaving{animation:wcOut .5s cubic-bezier(.55,0,.75,.2) forwards}
+  @keyframes wcIn{from{opacity:0;transform:translateY(16px) scale(.98)}to{opacity:1;transform:none}}
+  @keyframes wcOut{to{opacity:0;transform:scale(1.03);filter:blur(4px)}}
