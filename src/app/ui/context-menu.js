@@ -37,21 +37,30 @@
   var subEl = null;
   function closeSub(){ if(subEl){ animRemove(subEl, 200); subEl = null; } Array.prototype.forEach.call(ctxEl.querySelectorAll('.ctx-i.open'), function(x){ x.classList.remove('open'); }); }
   // Ставит меню рядом с прямоугольником r (пункт родительского меню): справа, если помещается, иначе слева,
-  // и всегда целиком в пределах экрана. Положение и размер меряются по факту на экране,
+  // и всегда целиком в пределах экрана. Положение и размер проверяются по факту на экране на самом месте,
   // поэтому не зависят от масштаба окон, масштаба браузера и того, как браузер считает zoom.
   function placeNear(m, r, again){
-    var anim = m.style.animation; if(!again) m.style.animation = 'none';          // анимация появления искажает размеры
-    m.style.left = '0px'; m.style.top = '0px';
-    var a = m.getBoundingClientRect();
-    m.style.left = '100px'; m.style.top = '100px';
-    var b = m.getBoundingClientRect();
-    var kx = (b.left - a.left) / 100 || 1, ky = (b.top - a.top) / 100 || 1;   // экранных точек на 1px стиля
-    var w = b.width, hh = b.height, vw = window.innerWidth, vh = window.innerHeight, x, y = r.top - 6;
-    if(r.right + 4 + w <= vw - 8) x = r.right + 4;
-    else if(r.left - 4 - w >= 8) x = r.left - 4 - w;
-    else x = vw - w - 8;
-    x = Math.max(8, Math.min(x, vw - w - 8)); y = Math.max(8, Math.min(y, vh - hh - 8));
-    m.style.left = ((x - a.left) / kx) + 'px'; m.style.top = ((y - a.top) / ky) + 'px';
+    var anim = m.style.animation; if(!again) m.style.animation = 'none';     // анимация появления искажает размеры
+    var z = (UI.scale || 100) / 100;
+    // поставить левый верхний угол в экранную точку (tx, ty) и проверить по факту, поправив при расхождении
+    function moveTo(tx, ty){
+      m.style.left = (tx / z) + 'px'; m.style.top = (ty / z) + 'px';
+      for(var i = 0; i < 3; i++){
+        var b = m.getBoundingClientRect(), dx = tx - b.left, dy = ty - b.top;
+        if(Math.abs(dx) < 1 && Math.abs(dy) < 1) return b;
+        var k = (b.width / (m.offsetWidth || b.width)) || 1;
+        m.style.left = (parseFloat(m.style.left) + dx / k) + 'px'; m.style.top = (parseFloat(m.style.top) + dy / k) + 'px';
+      }
+      return m.getBoundingClientRect();
+    }
+    var vw = window.innerWidth, vh = window.innerHeight, y = r.top - 6;
+    var b = moveTo(r.right + 4, y);                       // справа от пункта — размеры меряем уже на месте
+    if(b.right > vw - 8){                                 // справа не помещается — слева, иначе прижать к краю
+      var x = r.left - 4 - b.width;
+      if(x < 8) x = vw - b.width - 8;
+      b = moveTo(Math.max(8, x), y);
+    }
+    if(b.bottom > vh - 8) b = moveTo(b.left, Math.max(8, vh - b.height - 8));
     if(!again){ void m.offsetWidth; m.style.animation = anim; }        // вернуть анимацию появления
   }
   function openSub(btn, items){

@@ -54,8 +54,15 @@
   }
   el.search.addEventListener('input', function(){ S.q = el.search.value; renderList(); });
   (function libWindow(){
-    var geo = load('triosteum.libgeo', null), libEl = el.lib;
-    function apply(){ if(geo){ libEl.style.left = geo.l + 'px'; libEl.style.top = geo.t + 'px'; libEl.style.width = geo.w + 'px'; libEl.style.height = geo.h + 'px'; } }
+    var geo = cleanGeo(load('triosteum.libgeo', null)), libEl = el.lib;
+    if(geo && (geo.l === undefined || geo.w === undefined)) geo = null;
+    function apply(){
+      if(!geo || window.innerWidth <= 640) return;
+      var vw = window.innerWidth, vh = window.innerHeight, w = Math.min(geo.w, vw - 16), hh = Math.min(geo.h, vh - 64);
+      libEl.style.width = w + 'px'; libEl.style.height = hh + 'px';
+      libEl.style.left = Math.max(8, Math.min(vw - w - 8, geo.l)) + 'px'; libEl.style.top = Math.max(52, Math.min(vh - hh - 8, geo.t)) + 'px';
+    }
+    window.addEventListener('resize', apply);
     function remember(){ if(libEl.hidden || libEl.classList.contains('max') || window.innerWidth <= 640) return; var r = libEl.getBoundingClientRect(); geo = { l:r.left, t:r.top, w:r.width, h:r.height }; save('triosteum.libgeo', geo); }
     apply();
     if(window.ResizeObserver) new ResizeObserver(function(){ remember(); }).observe(libEl);
