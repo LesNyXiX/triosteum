@@ -42,7 +42,13 @@
   }
   function fsRow(label, ctl){ return h('div', { 'class':'fsrow' }, [ h('span', { text:label }), ctl ]); }
 
-  var UI = load('triosteum.ui', { scale:100, code:14, note:14 });
+  var UI = load('triosteum.ui', null);
+  // настройки могли сохраниться старой версией без каких-то полей — дополняем значениями по умолчанию,
+  // иначе расчёты положения окон и меню получают «не число»
+  if(!UI || typeof UI !== 'object' || Array.isArray(UI)) UI = {};
+  [['scale', 100, 80, 160], ['code', 14, 10, 28], ['note', 14, 8, 72]].forEach(function(d){
+    var v = Number(UI[d[0]]); UI[d[0]] = isFinite(v) && v >= d[2] && v <= d[3] ? v : d[1];
+  });
   function applyUI(){
     document.documentElement.style.setProperty('--ui', UI.scale / 100);
     document.documentElement.style.setProperty('--code-fs', UI.code + 'px');
