@@ -1,0 +1,26 @@
+  /* ---------- заметки ---------- */
+  .note{position:absolute;width:max-content;min-width:140px;max-width:360px;min-height:22px;padding:10px 12px;border-radius:10px;
+    background:var(--tint,rgba(170,160,165,.16));border:1px solid rgba(255,255,255,.14);
+    -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);color:var(--ink-strong);
+    font-size:var(--fs,14px);line-height:1.45;white-space:pre-wrap;word-break:break-word;cursor:grab;outline:none}
+  .note.sel{box-shadow:0 0 0 2px color-mix(in srgb,var(--red-soft) 65%,transparent)}
+  .note.editing{cursor:text;user-select:text;-webkit-user-select:text;box-shadow:0 0 0 2px var(--red-soft)}
+  .note:empty::before{content:attr(data-ph);color:var(--dim)}
+
+  /* ---------- комментарии к блокам ---------- */
+  .xbtn{position:absolute;right:6px;top:6px;width:20px;height:20px;padding:0;border:0;border-radius:6px;background:transparent;color:var(--dim);
+    display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:3}
+  .xbtn::before{content:"";position:absolute;inset:-6px}
+  .xbtn:hover{background:rgba(170,160,165,.22);color:var(--ink-strong)}
+  .cbtn{z-index:3;position:absolute;left:-32px;top:2px;width:24px;height:24px;padding:0;border-radius:7px;
+    background:color-mix(in srgb,var(--muted) 22%,transparent);border:1px solid var(--line2);color:var(--ink);
+    display:flex;align-items:center;justify-content:center;cursor:pointer}
+  .cbtn::before{content:"";position:absolute;inset:-8px}
+  .cbtn:hover{background:color-mix(in srgb,var(--muted) 38%,transparent);color:var(--ink-strong)}
+  .cbtn.open{background:color-mix(in srgb,var(--muted) 42%,transparent)}
+  .cbtn svg{transition:transform .15s ease}
+  .cbtn.open svg{transform:rotate(180deg)}
+  .cbtn .cnt{position:absolute;top:-7px;left:-7px;min-width:15px;height:15px;padding:0 3px;border-radius:8px;background:var(--red-btn);
+    color:var(--on-accent);font-size:10px;font-weight:700;line-height:15px;text-align:center}
+  .note.comment{border-style:dashed;max-width:240px}
+  .clink{fill:none;stroke:rgba(200,190,195,.45);stroke-width:1.5;stroke-dasharray:4 4;pointer-events:none}

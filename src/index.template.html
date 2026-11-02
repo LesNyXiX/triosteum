@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Triosteum — пространство</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+<!--@@CSS@@-->
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header class="top">
+    <div class="brand">
+      <button class="brand-btn" type="button" id="ecoBtn" aria-label="Экосистема Triosteum — все среды" title="Экосистема: все среды работы"><span class="logo" aria-hidden="true"></span><b>Triosteum</b></button>
+      <div class="sep" aria-hidden="true"></div>
+      <button class="env-chip" type="button" id="envChip" title="Сменить среду"><i id="envDot"></i><span id="envName">Разработка</span></button>
+      <button class="proj-btn" type="button" id="projBtn" aria-haspopup="menu" aria-expanded="false" title="Пространства: переключить, создать, переименовать">
+        <span class="proj" id="projName">Новое пространство</span>
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+      <div class="saved" id="saved">сохранено</div>
+    </div>
+    <div class="actions">
+      <button class="btn cmdk-btn" type="button" id="cmdBtn" aria-label="Поиск и команды"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg><span class="t">Поиск и команды</span><kbd id="cmdKb">Ctrl K</kbd></button>
+      <button class="btn" type="button" id="shareBtn" aria-haspopup="menu" aria-expanded="false">Поделиться</button>
+      <button class="btn primary" type="button" id="topRun" title="Ctrl+R">Запустить</button>
+    </div>
+  </header>
+
+  <div class="otabs" id="otabs" role="tablist" aria-label="Вкладки офиса" hidden>
+    <button class="otab fixed" type="button" role="tab" data-tab="desk"><span class="ic"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-7 9 7v9a1 1 0 01-1 1h-5v-6H9v6H4a1 1 0 01-1-1z"/></svg></span><span class="nm">Рабочий стол</span></button>
+    <button class="otab fixed" type="button" role="tab" data-tab="auto"><span class="ic"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="6" height="5" rx="1"/><rect x="15" y="4" width="6" height="5" rx="1"/><rect x="15" y="15" width="6" height="5" rx="1"/><path d="M9 6.5h6M18 9v6"/></svg></span><span class="nm">Автоматизация</span></button>
+    <div class="otab-files" id="otabFiles"></div>
+    <button class="otab-ai" type="button" id="ofAiBtn" aria-pressed="false"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M12 2l1.9 5.6L19.5 9.5l-5.6 1.9L12 17l-1.9-5.6L4.5 9.5l5.6-1.9zM19 14l.9 2.6 2.6.9-2.6.9L19 21l-.9-2.6-2.6-.9 2.6-.9z"/></svg>AI-помощник</button>
+  </div>
+  <div class="row">
+    <nav class="tools" aria-label="Инструменты">
+      <button class="tool ofr" type="button" id="ofrFiles" aria-label="Проводник" aria-pressed="true" data-tip="Проводник|Папки и файлы слева"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a1 1 0 011-1h5l2 2h8a1 1 0 011 1v9a1 1 0 01-1 1H4a1 1 0 01-1-1z"/></svg></button>
+      <button class="tool ofr" type="button" id="ofrNew" aria-label="Создать файл" aria-haspopup="menu" data-tip="Создать|Документ, таблица, презентация, форма или папка"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+      <button class="tool ofr" type="button" id="ofrTpl" aria-label="Шаблоны" data-tip="Шаблоны|Договоры, реестры, отчёты, формы"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg></button>
+      <button class="tool ofr" type="button" id="ofrImport" aria-label="Открыть с компьютера" data-tip="Открыть с компьютера|Word, Excel, CSV — или перетащите на стол"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20V9M7 14l5-5 5 5M5 4h14"/></svg></button>
+      <button class="tool" type="button" id="bLib" aria-label="Библиотека плагинов" data-tip="Библиотека плагинов|Готовые и ваши плагины" aria-pressed="false">
+        <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><path d="M16.5 13.5v6M13.5 16.5h6"/></svg>
+      </button>
+      <button class="tool" type="button" id="bScheme" aria-label="Целостный код схемы" aria-pressed="false" data-tip="Целостный код схемы|Бэкенд всей схемы: собранный из блоков и написанный ИИ">
+        <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h9l5 5v11H5z"/><path d="M14 4v5h5M9 13l-2 2 2 2M13 13l2 2-2 2"/></svg>
+      </button>
+      <button class="tool" type="button" id="bCreate" aria-label="Создать плагин" data-tip="Создать плагин|Задайте название и язык" aria-pressed="false">
+        <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5M14 4l-4 16"/></svg>
+      </button>
+      <div class="div" aria-hidden="true"></div>
+      <button class="tool" type="button" data-tool="select" aria-label="Выбор и перемещение" data-tip="Выбор и перемещение|Тяните блок или пустое место"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3l14 8-6 2-2 6z"/></svg></button>
+      <button class="tool" type="button" id="bAdd" aria-label="Добавление элементов" aria-haspopup="menu" aria-expanded="false" aria-controls="addMenu" data-tip="Добавление элементов|Блоки и связующие точки на доску"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="3"/><path d="M12 9v6M9 12h6"/></svg></button>
+      <button class="tool" type="button" id="bBuild" aria-label="Конструктор схемы" aria-pressed="false" data-tip="Конструктор|Выровнять блоки по связям — сами или с правками ИИ"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="6" height="5" rx="1"/><rect x="15" y="4" width="6" height="5" rx="1"/><rect x="15" y="15" width="6" height="5" rx="1"/><path d="M9 6.5h6M18 9v6"/></svg></button>
+      <button class="tool" type="button" data-tool="text" aria-label="Текст" data-tip="Текст|Нажмите на доску, чтобы добавить заметку"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6h14M12 6v13"/></svg></button>
+      <button class="tool" type="button" id="bTextSize" aria-label="Размер текста" aria-haspopup="dialog" aria-expanded="false" data-tip="Размер текста|Масштаб текста в окнах, коде и новых заметках"><span aria-hidden="true" style="font-weight:700;font-size:14px;letter-spacing:-.02em">Aa</span></button>
+      <button class="tool opt" type="button" data-opt="run" id="bRun" aria-label="Компиляция доски" data-tip="Компиляция доски|Выполнить все блоки по порядку связей" hidden><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5l12 7-12 7z"/></svg></button>
+      <button class="tool opt" type="button" data-opt="undo" id="bUndo" aria-label="Отменить" data-tip="Отменить|Последнее действие на доске" hidden><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7L4 12l5 5M4 12h11a5 5 0 010 10h-2"/></svg></button>
+      <button class="tool opt" type="button" data-opt="redo" id="bRedo" aria-label="Повторить" data-tip="Повторить|Вернуть отменённое действие" hidden><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 7l5 5-5 5M20 12H9a5 5 0 000 10h2"/></svg></button>
+      <button class="tool opt" type="button" data-opt="all" id="bAll" aria-label="Выделить всё" data-tip="Выделить всё|Все блоки и заметки на доске" hidden><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2" stroke-dasharray="3 3"/><path d="M9 12l2 2 4-4"/></svg></button>
+      <button class="tool opt" type="button" data-opt="fit" id="bFit" aria-label="Вписать всё в экран" data-tip="Вписать в экран|Показать всю схему целиком" hidden><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg></button>
+      <button class="tool opt" type="button" data-opt="grid" id="bGrid" aria-label="Сетка доски" data-tip="Сетка доски|Точки, линии или без сетки" hidden><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h16M4 15h16M9 4v16M15 4v16"/></svg></button>
+      <button class="tool opt" type="button" data-opt="pers" id="bPers" aria-label="Персонализация" data-tip="Персонализация|Тема, цвета, панель инструментов" hidden><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg></button>
+      <button class="tool" type="button" id="bKeys" aria-label="Горячие клавиши" data-tip="Горячие клавиши|" style="margin-top:auto"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h.01M11 10h.01M15 10h.01M7 14h10"/></svg></button>
+    </nav>
+
+
+    <main class="canvas" id="canvas" aria-label="Доска">
+      <div class="world" id="world">
+        <svg class="edges" id="edges" aria-hidden="true"><defs id="edgeDefs"></defs><g id="edgeLayer"></g><g id="tempLayer"></g></svg>
+        <div id="notes"></div>
+        <div id="nodes"></div>
+        <div id="cnotes"></div>
+      </div>
+      <div class="hint" id="hint">
+        <button type="button" class="badge-ico" id="hintAdd" aria-label="Добавление элементов" aria-haspopup="menu" aria-controls="addMenu" title="Добавить элемент"><svg class="i" viewBox="0 0 24 24" style="width:22px;height:22px" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="3"/><path d="M12 9v6M9 12h6"/></svg></button>
+        <h1>Пространство пустое</h1>
+        <p>Откройте плагин из библиотеки или выберите «Новый блок» слева и нажмите на доску.</p>
+      </div>
+      <section class="runp" id="runp" aria-label="Компиляция доски" hidden>
+        <div class="runp-h"><b>Компиляция доски</b><span id="runSum"></span>
+          <button class="icon-btn" type="button" id="runClose" aria-label="Закрыть"><svg class="i" viewBox="0 0 24 24" style="width:16px;height:16px;stroke-width:2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+        <pre class="out" id="runOut" aria-live="polite"></pre>
+      </section>
+      <button class="ai-fab" type="button" id="aiFab" aria-haspopup="dialog" aria-expanded="false" title="ИИ-архитектор: опишите задачу — ИИ соберёт схему и бэкенд"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M12 2l1.9 5.6L19.5 9.5l-5.6 1.9L12 17l-1.9-5.6L4.5 9.5l5.6-1.9zM19 14l.9 2.6 2.6.9-2.6.9L19 21l-.9-2.6-2.6-.9 2.6-.9z"/></svg><span>AI</span></button>
+      <div class="mini" id="mini" role="img" aria-label="Мини-карта доски — нажмите, чтобы перейти" hidden><canvas id="miniC"></canvas></div>
+      <div class="zoom">
+        <button type="button" id="zOut" aria-label="Уменьшить">−</button>
+        <div class="val" id="zVal">100%</div>
+        <button type="button" id="zIn" aria-label="Увеличить">+</button>
+        <button type="button" class="reset" id="zReset">100%</button>
+      </div>
+    </main>
+
+    <section class="editor" id="editor" aria-label="Редактор плагина" hidden>
+      <div class="ed-bar">
+        <div class="ed-title">
+          <button class="btn sm" type="button" id="backBtn" hidden>← К доске</button>
+          <label for="docTitle" class="sr">Название</label>
+          <input class="title-input" id="docTitle" value="Новый плагин" readonly>
+          <span class="file" id="fileName">plugin.py</span>
+        </div>
+        <div class="ed-actions">
+          <button class="btn" type="button" id="toBoard" hidden>На доску</button>
+          <button class="btn" type="button" id="resetTpl">Сбросить</button>
+          <button class="btn primary" type="button" id="runBtn">Запустить код</button>
+          <div class="lang">
+            <button class="lang-btn" type="button" id="langBtn" aria-haspopup="listbox" aria-expanded="false">
+              <span id="langLabel">Язык: Python</span>
+              <svg class="i" viewBox="0 0 24 24" style="width:14px;height:14px;stroke-width:2" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
+            <div class="lang-list" id="langList" role="listbox" aria-label="Язык программирования" hidden></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="work">
+        <div class="code-box">
+          <pre class="gutter" id="gutter" aria-hidden="true">1</pre>
+          <label for="code" class="sr">Код плагина</label>
+          <textarea class="code" id="code" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>
+        </div>
+        <div class="dpane" id="docPane" hidden>
+          <div class="dp-tools" id="dpTools" role="toolbar" aria-label="Оформление документа">
+            <select class="input dp-sel dp-edit" id="dpBlock" aria-label="Стиль абзаца"><option value="">Стиль…</option><option value="p">Обычный текст</option><option value="h1">Заголовок 1</option><option value="h2">Заголовок 2</option></select>
+            <button type="button" class="dp-b dp-edit" data-cmd="bold" title="Жирный" aria-label="Жирный"><b>Ж</b></button>
+            <button type="button" class="dp-b dp-edit" data-cmd="italic" title="Курсив" aria-label="Курсив"><i>К</i></button>
+            <button type="button" class="dp-b dp-edit" data-cmd="underline" title="Подчёркнутый" aria-label="Подчёркнутый"><u>Ч</u></button>
+            <span class="dp-sep" aria-hidden="true"></span>
+            <button type="button" class="dp-b dp-edit" data-cmd="insertUnorderedList" title="Маркированный список" aria-label="Маркированный список"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/></svg></button>
+            <button type="button" class="dp-b dp-edit" data-cmd="insertOrderedList" title="Нумерованный список" aria-label="Нумерованный список"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M10 6h10M10 12h10M10 18h10M4 5l1.5-1v5M3.5 14.5a1.5 1.5 0 013 0c0 1.2-3 2-3 3.5h3"/></svg></button>
+            <button type="button" class="dp-b dp-edit" data-cmd="justifyLeft" title="По левому краю" aria-label="По левому краю"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 10h10M4 14h16M4 18h10"/></svg></button>
+            <button type="button" class="dp-b dp-edit" data-cmd="justifyCenter" title="По центру" aria-label="По центру"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M7 10h10M4 14h16M7 18h10"/></svg></button>
+            <button type="button" class="dp-b dp-edit" data-cmd="justifyRight" title="По правому краю" aria-label="По правому краю"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M10 10h10M4 14h16M10 18h10"/></svg></button>
+            <span class="dp-sep" aria-hidden="true"></span>
+            <button type="button" class="btn sm dp-edit" id="dpField" aria-haspopup="menu" title="Вставить поле для подстановки из таблицы">{{ }} Поле</button>
+            <span class="dp-grow"></span>
+            <button type="button" class="btn sm" id="dpPreview" aria-pressed="false">Предпросмотр</button>
+            <button type="button" class="btn sm" id="dpExport">Скачать .html</button>
+          </div>
+          <div class="dp-scroll"><div class="paper" id="paper" contenteditable="true" spellcheck="true" role="textbox" aria-multiline="true" aria-label="Текст документа"></div></div>
+        </div>
+        <div class="spane" id="sheetPane" hidden>
+          <div class="sh-tools" role="toolbar" aria-label="Таблица">
+            <button type="button" class="btn sm" id="shRow">+ Строка</button>
+            <button type="button" class="btn sm" id="shCol">+ Столбец</button>
+            <button type="button" class="btn sm" id="shDelRow">− Строка</button>
+            <button type="button" class="btn sm" id="shDelCol">− Столбец</button>
+            <button type="button" class="btn sm" id="shSum" title="Добавить строку итогов с суммами">Σ Итоги</button>
+            <span class="dp-grow"></span>
+            <button type="button" class="btn sm" id="shImport">Импорт Excel / CSV</button>
+            <button type="button" class="btn sm primary" id="shXlsx">Скачать .xlsx</button>
+            <button type="button" class="btn sm" id="shCsv">CSV</button>
+          </div>
+          <div class="fx"><span class="fx-ref" id="fxRef">A1</span><span class="fx-f" aria-hidden="true">fx</span><input class="fx-in" id="fxIn" aria-label="Значение или формула выбранной ячейки" spellcheck="false" autocomplete="off"></div>
+          <div class="sh-scroll"><table class="sgrid" id="sheetGrid"></table></div>
+        </div>
+        <div class="preview" id="preview" hidden>
+          <div class="ph">Предпросмотр</div>
+          <iframe id="frame" title="Предпросмотр HTML" sandbox="allow-scripts"></iframe>
+        </div>
+      </div>
+
+      <div class="console">
+        <div class="console-head"><b>Консоль</b><span id="envLabel">Среда: Python</span></div>
+        <pre class="out" id="out" aria-live="polite"></pre>
+      </div>
+    </section>
+    <section class="office" id="office" hidden>
+      <aside class="ofs" id="ofSide" aria-label="Файлы">
+        <div class="ofs-h"><b>Файлы</b><button class="icon-btn" type="button" id="ofNew" aria-label="Создать" title="Создать"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button></div>
+        <input class="input ofs-q" id="ofSearch" type="search" placeholder="Поиск файлов" aria-label="Поиск файлов">
+        <div class="ofs-tree" id="ofTree"></div>
+      </aside>
+      <div class="ofm" id="ofMain"></div>
+      <aside class="ofai" id="ofAi" aria-label="AI-помощник" hidden></aside>
+    </section>
+  </div>
+
+  <footer class="status">
+    <div id="stLeft">Инструмент: Выбор · Объектов: 0 · Связей: 0</div>
+    <div id="stRight">Масштаб 100%</div>
+  </footer>
+</div>
+
+<aside class="lib" id="lib" aria-label="Библиотека плагинов" hidden>
+      <div class="lib-head" id="libHead" title="Перетащите, чтобы переместить окно">
+        <h2>Библиотека плагинов</h2>
+        <div class="lh-actions">
+          <button class="icon-btn" type="button" id="libMax" aria-label="Развернуть окно" title="Развернуть / вернуть размер"><svg class="i" viewBox="0 0 24 24" style="width:16px;height:16px;stroke-width:2" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+          <button class="icon-btn" type="button" id="libClose" aria-label="Закрыть библиотеку"><svg class="i" viewBox="0 0 24 24" style="width:16px;height:16px;stroke-width:2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+        </div>
+      </div>
+      <div class="lib-tools">
+        <div class="field">
+          <label for="libSearch">Поиск</label>
+          <input class="input" id="libSearch" type="search" placeholder="Название или задача…">
+        </div>
+        <div class="chips" id="chips" role="group" aria-label="Язык"></div>
+      </div>
+      <div class="plist" id="plist"></div>
+      <svg class="lib-grip" viewBox="0 0 14 14" aria-hidden="true"><path d="M13 5L5 13M13 9l-4 4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>
+    </aside>
+
+<div class="pop" id="pop" role="dialog" aria-label="Настройки" hidden></div>
+
+<div class="modal-back" id="newModal" hidden>
+  <form class="modal" id="newForm" role="dialog" aria-modal="true" aria-labelledby="newTitle">
+    <h2 id="newTitle">Новый плагин</h2>
+    <div>
+      <label class="flabel" for="newName">Название</label>
+      <input class="input" id="newName" required maxlength="60" placeholder="Например, «Контроль перерасхода металла»">
+    </div>
+    <div>
+      <label class="flabel" for="newDesc">Что делает (необязательно)</label>
+      <input class="input" id="newDesc" maxlength="140" placeholder="Коротко о задаче плагина">
+    </div>
+    <div>
+      <div class="flabel" id="newLangLabel">Язык</div>
+      <div class="lgrid" id="newLangs" role="radiogroup" aria-labelledby="newLangLabel"></div>
+    </div>
+    <div class="mactions">
+      <button class="btn" type="button" id="newCancel">Отмена</button>
+      <button class="btn primary" type="submit">Создать и открыть код</button>
+    </div>
+  </form>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+<div class="tip" id="tip" role="tooltip" hidden></div>
+<div class="glow" id="glow" aria-hidden="true"></div>
+<div class="ctx" id="ctx" role="menu" aria-label="Меню доски" hidden></div>
+<section class="pers" id="tplW" role="dialog" aria-label="Шаблоны" hidden>
+  <div class="pers-h"><h2>Шаблоны</h2>
+    <button class="icon-btn" type="button" id="tplClose" aria-label="Закрыть"><svg class="i" viewBox="0 0 24 24" style="width:16px;height:16px;stroke-width:2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+  <div class="pers-b" id="tplBody"></div>
+</section>
+<section class="pers" id="resW" role="dialog" aria-label="Результаты маршрута" hidden>
+  <div class="pers-h"><h2>Результаты маршрута</h2>
+    <button class="icon-btn" type="button" id="resClose" aria-label="Закрыть"><svg class="i" viewBox="0 0 24 24" style="width:16px;height:16px;stroke-width:2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+  <div class="pers-b" id="resBody"></div>
+</section>
+<div class="eco-back" id="eco" hidden>
+  <section class="eco" role="dialog" aria-modal="true" aria-labelledby="ecoT">
+    <div class="eco-h"><div><h2 id="ecoT">Экосистема Triosteum</h2><p>Одна платформа для всех процессов предприятия. Среды связаны общими пространствами, ИИ, библиотекой расчётов на Python и файлами.</p></div>
+      <button class="icon-btn" type="button" id="ecoClose" aria-label="Закрыть"><svg class="i" viewBox="0 0 24 24" style="width:16px;height:16px;stroke-width:2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="eco-grid" id="ecoGrid"></div>
+    <h3 class="eco-sub">Недавние пространства</h3>
+    <div class="eco-recent" id="ecoRecent"></div>
+  </section>
+</div>
+<section class="pers" id="arcW" role="dialog" aria-label="ИИ-архитектор" hidden>
+  <div class="pers-h"><h2>ИИ-архитектор схемы</h2>
+    <button class="icon-btn" type="button" id="arcClose" aria-label="Закрыть"><svg class="i" viewBox="0 0 24 24" style="width:16px;height:16px;stroke-width:2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+  <div class="pers-b" id="arcBody"></div>
+</section>
+<section class="pers" id="schemeW" role="dialog" aria-label="Целостный код схемы" hidden>
+  <div class="pers-h"><h2>Целостный код схемы</h2>
+    <button class="icon-btn" type="button" id="scClose" aria-label="Закрыть"><svg class="i" viewBox="0 0 24 24" style="width:16px;height:16px;stroke-width:2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+  <div class="pers-b" id="scBody"></div>
+</section>
+<section class="pers" id="builder" role="dialog" aria-label="Конструктор схемы" hidden>
+  <div class="pers-h"><h2>Конструктор схемы</h2>
+    <button class="icon-btn" type="button" id="bldClose" aria-label="Закрыть"><svg class="i" viewBox="0 0 24 24" style="width:16px;height:16px;stroke-width:2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+  <div class="pers-b" id="bldBody"></div>
+</section>
+<div class="cmdk-back" id="cmdk" hidden>
+  <div class="cmdk" role="dialog" aria-label="Поиск и команды">
+    <div class="cmdk-in"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg>
+      <input id="cmdQ" type="text" placeholder="Найти блок, плагин, пространство или команду…" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true" aria-controls="cmdList" aria-label="Поиск"></div>
+    <div class="cmdk-list" id="cmdList" role="listbox" aria-label="Результаты"></div>
+    <div class="cmdk-foot">↑ ↓ — выбор · Enter — выполнить · Esc — закрыть</div>
+  </div>
+</div>
+<section class="pers" id="pers" role="dialog" aria-label="Персонализация" hidden>
+  <div class="pers-h" id="persHead"><h2>Персонализация</h2>
+    <button class="icon-btn" type="button" id="persClose" aria-label="Закрыть"><svg class="i" viewBox="0 0 24 24" style="width:16px;height:16px;stroke-width:2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+  <div class="pers-b" id="persBody"></div>
+</section>
+<div class="addmenu" id="textMenu" role="dialog" aria-label="Размер текста" hidden>
+  <div class="am-h"><b>Размер текста</b>Как размер шрифта в Word. Настройки сохраняются.</div>
+  <div class="tm-row"><div class="flabel">Окна, меню и панели</div><div id="tmUi"></div></div>
+  <div class="tm-row"><div class="flabel">Редактор кода</div><div id="tmCode"></div></div>
+  <div class="tm-row"><div class="flabel">Новые заметки на доске</div><div id="tmNote"></div></div>
+  <div class="tm-row"><button type="button" class="btn sm" id="tmReset" style="width:100%">Вернуть стандартные размеры</button></div>
+</div>
+<div class="addmenu" id="addMenu" role="menu" aria-label="Добавление элементов" hidden>
+  <div class="am-h"><b>Добавление элементов</b>Выберите, что поставить, затем нажмите на доску. Инструмент останется включённым.</div>
+  <button type="button" class="am-item" role="menuitem" data-add="block">
+    <span class="am-ico"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="3"/><path d="M12 9v6M9 12h6"/></svg></span>
+    <span><span class="t">Блок</span><span class="d" id="amBlockD">Плагин с кодом</span></span>
+  </button>
+  <button type="button" class="am-item" role="menuitem" data-add="hub">
+    <span class="am-ico"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M3 6l5.5 4M3 18l5.5-4M16 12h5"/></svg></span>
+    <span><span class="t">Связующая точка</span><span class="d">Узел: собирает потоки нескольких блоков и тоже выполняет код</span></span>
+  </button>
+</div>
+
+<script>
+(function(){
+<!--@@JS@@-->
+})();
+</script>
+</body>
+</html>

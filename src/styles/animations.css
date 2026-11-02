@@ -1,0 +1,107 @@
+  /* --- анимации интерфейса --- */
+  @keyframes tPop{0%{opacity:0;scale:.9;translate:0 18px;filter:blur(6px)}60%{opacity:1;filter:blur(0)}100%{opacity:1;scale:1;translate:0 0;filter:none}}
+  @keyframes tMenu{0%{opacity:0;scale:.88;translate:0 -10px;filter:blur(4px)}100%{opacity:1;scale:1;translate:0 0;filter:none}}
+  @keyframes tFade{from{opacity:0}to{opacity:1}}
+  @keyframes tBack{from{opacity:0;backdrop-filter:blur(0)}to{opacity:1;backdrop-filter:blur(3px)}}
+  @keyframes tSlideL{0%{opacity:0;translate:-60px 0}100%{opacity:1;translate:0 0}}
+  @keyframes tSlideR{0%{opacity:0;translate:70px 0}100%{opacity:1;translate:0 0}}
+  @keyframes tSlideUp{0%{opacity:0;translate:0 34px;scale:.97}100%{opacity:1;translate:0 0;scale:1}}
+  @keyframes tView{0%{opacity:0;translate:0 12px}100%{opacity:1;translate:0 0}}
+  @keyframes tToolOn{0%{scale:.78}45%{scale:1.16}75%{scale:.97}100%{scale:1}}
+  @keyframes tRing{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--red) 75%,transparent),0 0 18px 2px color-mix(in srgb,var(--red) 45%,transparent)}100%{box-shadow:0 0 0 14px transparent,0 0 0 0 transparent}}
+  @keyframes tBar{from{scale:0 1;opacity:.3}to{scale:1 1;opacity:1}}
+  @keyframes tItem{from{opacity:0;translate:-8px 0}to{opacity:1;translate:0 0}}
+  body:not(.noanim) .pers,body:not(.noanim) .lib,body:not(.noanim) .modal,body:not(.noanim) .pop,body:not(.noanim) .cmdk,body:not(.noanim) .eco{animation:tPop .48s cubic-bezier(.16,1,.3,1)}
+  body:not(.noanim) .ctx{animation:tMenu .32s cubic-bezier(.16,1,.3,1);transform-origin:top left}
+  body:not(.noanim) .ctx .ctx-i{animation:tItem .34s cubic-bezier(.16,1,.3,1) backwards}
+  body:not(.noanim) .ctx .ctx-i:nth-child(2){animation-delay:.02s}body:not(.noanim) .ctx .ctx-i:nth-child(3){animation-delay:.04s}body:not(.noanim) .ctx .ctx-i:nth-child(4){animation-delay:.06s}body:not(.noanim) .ctx .ctx-i:nth-child(5){animation-delay:.08s}body:not(.noanim) .ctx .ctx-i:nth-child(n+6){animation-delay:.1s}
+  body:not(.noanim) .addmenu{animation:tMenu .36s cubic-bezier(.16,1,.3,1);transform-origin:left center}
+  body:not(.noanim) .tip{animation:tMenu .26s cubic-bezier(.16,1,.3,1);transform-origin:left center}
+  body:not(.noanim) .toast{animation:tSlideUp .45s cubic-bezier(.16,1,.3,1)}
+  body:not(.noanim) .cmdk-back,body:not(.noanim) .eco-back,body:not(.noanim) .modal-back{animation:tBack .35s ease-out both}
+  body:not(.noanim) .sl-show{animation:tFade .4s ease-out}
+  body:not(.noanim) .ofs{animation:tSlideL .5s cubic-bezier(.16,1,.3,1)}
+  body:not(.noanim) .ofai{animation:tSlideR .55s cubic-bezier(.16,1,.3,1)}
+  body:not(.noanim) .runp,body:not(.noanim) .mini{animation:tSlideUp .5s cubic-bezier(.16,1,.3,1)}
+  body:not(.noanim) .ofm > *,body:not(.noanim) .editor .work{animation:tView .42s cubic-bezier(.16,1,.3,1)}
+  body:not(.noanim) .eco-card{animation:tPop .55s cubic-bezier(.16,1,.3,1) backwards}
+  body:not(.noanim) .eco-card:nth-child(2){animation-delay:.05s}body:not(.noanim) .eco-card:nth-child(3){animation-delay:.1s}body:not(.noanim) .eco-card:nth-child(4){animation-delay:.15s}body:not(.noanim) .eco-card:nth-child(n+5){animation-delay:.2s}
+  body:not(.noanim) .tool{transition:background-color .3s ease,color .3s ease,border-color .3s ease,box-shadow .35s ease,scale .25s cubic-bezier(.16,1,.3,1)}
+  body:not(.noanim) .tool:hover{scale:1.08}
+  body:not(.noanim) .tool:active{scale:.88}
+  body:not(.noanim) .tool.on{animation:tToolOn .55s cubic-bezier(.16,1,.3,1),tRing .8s ease-out}
+  body:not(.noanim) .btn,body:not(.noanim) .chip,body:not(.noanim) .otab,body:not(.noanim) .sgt,body:not(.noanim) .tr,body:not(.noanim) .ctx-i,body:not(.noanim) .am-item,body:not(.noanim) .rb,body:not(.noanim) .cmdk-i,body:not(.noanim) .lchip,body:not(.noanim) .theme,body:not(.noanim) .res-i,body:not(.noanim) .eco-rec,body:not(.noanim) .tpl{transition:background-color .28s ease,border-color .28s ease,color .28s ease,box-shadow .3s ease,scale .25s cubic-bezier(.16,1,.3,1),translate .3s cubic-bezier(.16,1,.3,1)}
+  body:not(.noanim) .btn:hover,body:not(.noanim) .tpl:hover{translate:0 -1px}
+  body:not(.noanim) .btn:active,body:not(.noanim) .rb:active,body:not(.noanim) .chip:active{scale:.94;translate:0 0}
+  body:not(.noanim) .otab.on::before{animation:tBar .45s cubic-bezier(.16,1,.3,1)}
+  body:not(.noanim) .fcard{transition:box-shadow .3s ease,border-color .3s ease,translate .35s cubic-bezier(.16,1,.3,1),scale .35s cubic-bezier(.16,1,.3,1)}
+  body:not(.noanim) .fcard:hover:not(.drag){translate:0 -6px;box-shadow:0 16px 32px rgba(0,0,0,.4)}
+  body:not(.noanim) .eco-card{transition:translate .35s cubic-bezier(.16,1,.3,1),border-color .3s,box-shadow .35s}
+  body:not(.noanim) .eco-card:not(.soon):hover{translate:0 -6px;box-shadow:0 18px 36px rgba(0,0,0,.4)}
+  body:not(.noanim) .node{transition:box-shadow .3s ease}
+  @media (prefers-reduced-motion:reduce){ *,*::before,*::after{animation:none !important;transition:none !important} }
+  .glow{position:fixed;left:0;top:0;z-index:9998;width:64px;height:64px;margin:-32px 0 0 -32px;border-radius:50%;pointer-events:none;opacity:0;
+    background:radial-gradient(circle,color-mix(in srgb,var(--red) 16%,transparent) 0,color-mix(in srgb,var(--red) 6%,transparent) 35%,transparent 70%);transition:opacity .5s ease,scale .4s cubic-bezier(.16,1,.3,1);will-change:transform}
+  .glow.on{opacity:1}.glow.press{scale:.75;transition:opacity .5s ease,scale .12s ease-out}
+  body.noglow .glow{display:none}
+  /* --- скруглённые всплывающие окна --- */
+  .pers,.lib,.modal,.cmdk,.eco,.runp,#pop.pop{border-radius:22px !important;overflow:hidden}
+  #pop.pop{overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;max-height:calc(100vh - 72px)}
+  .pop .fsrow .fsc{flex:1 1 auto;min-width:0;max-width:190px}
+  .pop .fsc select{min-width:0}
+  .pop .seg{display:grid;grid-template-columns:repeat(auto-fit,minmax(60px,1fr));gap:5px}
+  .pop .seg .btn{min-width:0;padding:0 3px;white-space:nowrap;font-size:12px}
+  /* аккуратные полосы прокрутки в цветах темы */
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--ink) 22%,transparent);border-radius:10px;border:3px solid transparent;background-clip:padding-box}
+  ::-webkit-scrollbar-thumb:hover{background-color:color-mix(in srgb,var(--ink) 38%,transparent)}
+  ::-webkit-scrollbar-button,::-webkit-scrollbar-corner{display:none;width:0;height:0;background:transparent}
+  #pop.pop::-webkit-scrollbar-track{margin:20px 0}
+  @supports not selector(::-webkit-scrollbar){ *{scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--ink) 25%,transparent) transparent} }
+  .pers-h,.lib-head{border-radius:22px 22px 0 0}
+  .ctx,.addmenu{border-radius:18px !important;padding:8px}
+  .ctx-i,.am-item,.cmdk-i{border-radius:12px}
+  .tip{border-radius:14px !important}
+  .toast{border-radius:16px !important}
+  .toast-act{margin-left:12px;padding:3px 10px;border-radius:8px;border:1px solid var(--line2);background:color-mix(in srgb,var(--red) 22%,transparent);color:var(--ink-strong);font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;pointer-events:auto}
+  .toast-act:hover{background:color-mix(in srgb,var(--red) 38%,transparent)}
+  .toast:has(.toast-act){pointer-events:auto}
+  body:not(.noanim) .node.removing{transition:opacity .17s ease,scale .17s ease;opacity:0;scale:.85;pointer-events:none}
+  .chart-card,.oa-res,.fe-card,.bld-card,.eco-card,.tpl{border-radius:16px}
+  .sg-ed{border-radius:6px}
+  @media (max-width:640px){ .pop{border-radius:22px !important} .pers,.lib,#resW,#tplW{border-radius:0 !important} }
+  .eco-card.go{cursor:pointer}
+  .eco-card.go:hover,.eco-card.go:focus-visible{border-color:var(--ec);outline:none}
+  .eco-card.go:focus-visible{box-shadow:0 0 0 3px color-mix(in srgb,var(--ec) 55%,transparent)}
+  .eco-card.go .eco-acts .btn{position:relative;z-index:1}
+  /* --- анимации закрытия --- */
+  @keyframes tPopOut{to{opacity:0;scale:.9;translate:0 16px;filter:blur(5px)}}
+  @keyframes tMenuOut{to{opacity:0;scale:.9;translate:0 -8px;filter:blur(3px)}}
+  @keyframes tFadeOut{to{opacity:0}}
+  @keyframes tSlideLOut{to{opacity:0;translate:-60px 0}}
+  @keyframes tSlideROut{to{opacity:0;translate:70px 0}}
+  @keyframes tSlideDownOut{to{opacity:0;translate:0 30px;scale:.96}}
+  body:not(.noanim) .closing{pointer-events:none !important}
+  body:not(.noanim) .pers.closing,body:not(.noanim) .lib.closing,body:not(.noanim) .pop.closing{animation:tPopOut .3s cubic-bezier(.55,0,.75,.2) forwards !important}
+  body:not(.noanim) .ctx.closing,body:not(.noanim) .addmenu.closing{animation:tMenuOut .2s cubic-bezier(.55,0,.75,.2) forwards !important}
+  body:not(.noanim) .tip.closing{animation:tFadeOut .14s ease-in forwards !important}
+  body:not(.noanim) .toast.closing{animation:tSlideDownOut .28s cubic-bezier(.55,0,.75,.2) forwards !important}
+  body:not(.noanim) .modal-back.closing,body:not(.noanim) .cmdk-back.closing,body:not(.noanim) .eco-back.closing,body:not(.noanim) .sl-show.closing{animation:tFadeOut .3s ease-in forwards !important}
+  body:not(.noanim) .modal-back.closing .modal,body:not(.noanim) .cmdk-back.closing .cmdk,body:not(.noanim) .eco-back.closing .eco{animation:tPopOut .3s cubic-bezier(.55,0,.75,.2) forwards !important}
+  body:not(.noanim) .ofs.closing{animation:tSlideLOut .3s cubic-bezier(.55,0,.75,.2) forwards !important}
+  body:not(.noanim) .ofai.closing{animation:tSlideROut .32s cubic-bezier(.55,0,.75,.2) forwards !important}
+  body:not(.noanim) .runp.closing,body:not(.noanim) .mini.closing{animation:tSlideDownOut .3s cubic-bezier(.55,0,.75,.2) forwards !important}
+  /* --- компактная шапка на телефоне --- */
+  @media (max-width:640px){
+    .top{flex-wrap:nowrap;min-height:48px;padding:4px 8px;gap:6px}
+    .brand{gap:6px;min-width:0;flex:1}
+    .brand-btn b,.brand .sep,.saved,#shareBtn{display:none}
+    .proj-btn{max-width:none;min-width:0;flex:1;padding:0 4px}
+    .actions{flex:none;gap:6px}
+    .actions .btn{min-height:34px}
+    #topRun{padding:0 12px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .status{min-height:22px;padding:2px 10px;flex-wrap:nowrap;font-size:11px}
+    .status > div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+    #stRight{display:none}
+  }

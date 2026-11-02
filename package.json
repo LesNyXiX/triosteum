@@ -1,0 +1,15 @@
+{
+  "name": "triosteum",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Triosteum — экосистема для производств: доска блоков кода и офисная среда",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "dev": "node build.mjs --watch",
+    "test": "node tests/smoke.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.48.0"
+  }
+}
