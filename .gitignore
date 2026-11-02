@@ -3,3 +3,6 @@ node_modules/
 Thumbs.db
 *.log
 tests/out/
+.env
+__pycache__/
+.pytest_cache/

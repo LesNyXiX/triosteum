@@ -3,6 +3,7 @@
 // Настоящий сервер: TRIOSTEUM_URL=http://localhost:8000 node tests/server-e2e.mjs
 import { chromium } from 'playwright';
 const B = process.env.TRIOSTEUM_URL || 'http://localhost:8787';
+const MAIL = 'ivan' + Date.now() + '@zavod.ru';
 (async () => { const b = await chromium.launch(); const errs = [];
  const ctx = await b.newContext({ viewport:{width:1280,height:800} });
  // в этом браузере уже есть одно локальное пространство — проверим перенос
@@ -11,7 +12,7 @@ const B = process.env.TRIOSTEUM_URL || 'http://localhost:8787';
    localStorage.setItem('triosteum.proj.loc1', JSON.stringify({nodes:[{id:'n1',name:'Старый блок',lang:'python',x:100,y:100,codes:{}}],edges:[],notes:[],cam:{x:0,y:0,k:1},seq:5})); });
  const p = await ctx.newPage(); p.on('pageerror', e=>errs.push(e.message));
  await p.goto(B + '/'); console.log('redirect to', new URL(p.url()).pathname);
- await p.click('#tReg'); await p.fill('#org','Завод Тест'); await p.fill('#name','Иван'); await p.fill('#email','ivan@zavod.ru'); await p.fill('#pw','password123');
+ await p.click('#tReg'); await p.fill('#org','Завод Тест'); await p.fill('#name','Иван'); await p.fill('#email',MAIL); await p.fill('#pw','password123');
  await p.click('#go'); await p.waitForTimeout(400); console.log('no consent err:', await p.textContent('#err'));
  await p.check('#pd'); await p.click('#go'); await p.waitForURL(B + '/'); await p.waitForTimeout(900);
  await p.waitForTimeout(700); console.log('logged in, toast:', await p.textContent('#toast'));
@@ -23,7 +24,10 @@ const B = process.env.TRIOSTEUM_URL || 'http://localhost:8787';
  console.log('after reload nodes', await p.$$eval('.node', x=>x.length));
  // правка коллеги на сервере → наша правка → конфликт
  const projs = await p.evaluate(()=>window.TRIOSTEUM_BOOT.spaces.map(s=>s.id)); const sid = projs[0];
- await p.evaluate(u=>fetch(u,{method:'POST'}), B + '/__test/' + encodeURIComponent('Завод Тест') + '/' + sid);
+ // «коллега» сохраняет пространство раньше нас: обычный запрос к API с актуальным номером правки
+ await p.evaluate(async (id)=>{ const sp = await (await fetch('/api/spaces/' + id)).json();
+   sp.content.nodes.push({ id:'col', name:'Блок коллеги', lang:'python', x:420, y:60, codes:{} });
+   await fetch('/api/spaces/' + id, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ name:sp.name, env:sp.env, content:sp.content, base_rev:sp.rev }) }); }, sid);
  const n = await p.$('.node'); const bb = await n.boundingBox();
  await p.mouse.move(bb.x+60,bb.y+40); await p.mouse.down(); await p.mouse.move(bb.x+160,bb.y+120,{steps:4}); await p.mouse.up(); await p.waitForTimeout(2000);
  console.log('conflict toast:', await p.textContent('#toast'));
@@ -36,7 +40,7 @@ const B = process.env.TRIOSTEUM_URL || 'http://localhost:8787';
  // выход
  await p.click('#projBtn'); await p.click('text=Выйти'); await p.waitForTimeout(1200); console.log('after logout', new URL(p.url()).pathname);
  // вход снова
- await p.fill('#email','ivan@zavod.ru'); await p.fill('#pw','wrongpass1'); await p.click('#go'); await p.waitForTimeout(500); console.log('bad pw:', await p.textContent('#err'));
+ await p.fill('#email',MAIL); await p.fill('#pw','wrongpass1'); await p.click('#go'); await p.waitForTimeout(500); console.log('bad pw:', await p.textContent('#err'));
  await p.fill('#pw','password123'); await p.click('#go'); await p.waitForURL(B + '/'); await p.waitForTimeout(700);
  console.log('relogin spaces', await p.evaluate(()=>window.TRIOSTEUM_BOOT.spaces.length));
  console.log('errs', errs); await b.close(); })();
