@@ -8,12 +8,12 @@
     if(anchor && anchor !== bAdd){          // кнопка в центре пустой доски: меню под ней
       var ar = anchor.getBoundingClientRect(), mw = addMenu.offsetWidth;
       addMenu.style.left = Math.max(8, Math.min(window.innerWidth - mw - 8, ar.left + ar.width / 2 - mw / 2)) + 'px';
-      addMenu.style.top = (ar.bottom + 10 + 24) + 'px';
+      addMenu.style.top = Math.max(8 + 24, Math.min(ar.bottom + 10 + 24, window.innerHeight - addMenu.offsetHeight - 8 + 24)) + 'px';
       anchor.setAttribute('aria-expanded', 'true'); addMenu._anchor = anchor; addMenu.classList.add('below');
     } else {
       addMenu.classList.remove('below');
       var r = bAdd.getBoundingClientRect();
-      addMenu.style.left = (r.right + 12) + 'px'; addMenu.style.top = (r.top + r.height / 2) + 'px';
+      placeBeside(addMenu, r);
     }
     bAdd.setAttribute('aria-expanded', 'true'); hideTip();
     var first = addMenu.querySelector('.am-item'); if(first) first.focus();

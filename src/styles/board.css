@@ -24,7 +24,7 @@
   .hub-label{position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:6px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
     font-size:12px;font-weight:600;color:var(--ink-strong);text-shadow:0 1px 3px var(--bg),0 0 2px var(--bg);pointer-events:none}
   .hub-lang{position:absolute;bottom:100%;left:50%;transform:translateX(-50%);margin-bottom:4px;font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);white-space:nowrap;pointer-events:none}
-  .addmenu{position:fixed;z-index:55;width:calc(260px * var(--ui,1));padding:8px;border-radius:12px;background:var(--tipbg);border:1px solid var(--line2);box-shadow:0 12px 32px rgba(0,0,0,.5);transform:translateY(-24px)}
+  .addmenu{position:fixed;z-index:55;width:calc(260px * var(--ui,1));max-height:calc(100vh - 16px);overflow-y:auto;overscroll-behavior:contain;padding:8px;border-radius:12px;background:var(--tipbg);border:1px solid var(--line2);box-shadow:0 12px 32px rgba(0,0,0,.5);transform:translateY(-24px)}
   .addmenu::before{content:"";position:absolute;left:-6px;top:24px;width:10px;height:10px;background:var(--tipbg);border-left:1px solid var(--line2);border-bottom:1px solid var(--line2);transform:rotate(45deg)}
   .addmenu .am-h{padding:4px 8px 8px;font-size:12px;color:var(--muted);line-height:1.4}
   .addmenu .am-h b{display:block;color:var(--ink-strong);font-size:13px}
@@ -37,7 +37,7 @@
   .canvas.grid-lines{background-image:linear-gradient(var(--dot) 1px,transparent 1px),linear-gradient(90deg,var(--dot) 1px,transparent 1px)}
   .canvas.grid-none{background-image:none}
   /* контекстное меню доски */
-  .ctx{position:fixed;z-index:70;min-width:250px;padding:6px;border-radius:12px;background:var(--tipbg);border:1px solid var(--line2);box-shadow:0 16px 40px rgba(0,0,0,.55);zoom:var(--ui,1)}
+  .ctx{position:fixed;z-index:70;min-width:250px;padding:6px;border-radius:12px;background:var(--tipbg);border:1px solid var(--line2);box-shadow:0 16px 40px rgba(0,0,0,.55);zoom:var(--ui,1);max-height:calc((100vh - 16px) / var(--ui,1));overflow-y:auto;overscroll-behavior:contain}
   .ctx-i{position:relative;display:flex;align-items:center;gap:10px;width:100%;min-height:34px;padding:6px 10px;border:0;border-radius:8px;background:transparent;color:var(--ink-strong);font-size:13px;text-align:left;cursor:pointer}
   .ctx-i:hover,.ctx-i:focus-visible,.ctx-i.open{background:var(--wine2);outline:none}
   .ctx-i[disabled]{opacity:.45;cursor:default;background:transparent}

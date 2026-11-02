@@ -57,11 +57,16 @@
     $('tmCode').appendChild(fsControl(UI.code, 10, 28, function(v){ UI.code = v; applyUI(); updateGutter(); }, 'шрифт кода'));
     $('tmNote').appendChild(fsControl(UI.note, 8, 72, function(v){ UI.note = v; applyUI(); }, 'шрифт новых заметок'));
   }
+  // меню у кнопки панели: справа от неё, но целиком в пределах экрана (у .addmenu сдвиг вверх на 24px в CSS)
+  function placeBeside(menu, r){
+    var hh = menu.offsetHeight, ww = menu.offsetWidth, vh = window.innerHeight, vw = window.innerWidth;
+    var top = Math.max(8 + 24, Math.min(r.top + r.height / 2, vh - hh - 8 + 24));
+    menu.style.left = Math.max(8, Math.min(r.right + 12, vw - ww - 8)) + 'px'; menu.style.top = top + 'px';
+  }
   function openTextMenu(){
     buildTextMenu(); closeAddMenu();
     var r = bTextSize.getBoundingClientRect();
-    textMenu.style.left = (r.right + 12) + 'px'; textMenu.style.top = (r.top + r.height / 2) + 'px';
-    textMenu.hidden = false; bTextSize.setAttribute('aria-expanded', 'true'); bTextSize.classList.add('on'); hideTip();
+    textMenu.hidden = false; placeBeside(textMenu, r); bTextSize.setAttribute('aria-expanded', 'true'); bTextSize.classList.add('on'); hideTip();
   }
   function closeTextMenu(){ textMenu.hidden = true; bTextSize.setAttribute('aria-expanded', 'false'); bTextSize.classList.remove('on'); }
   bTextSize.addEventListener('click', function(e){ e.stopPropagation(); textMenu.hidden ? openTextMenu() : closeTextMenu(); });

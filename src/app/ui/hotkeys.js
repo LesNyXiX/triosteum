@@ -13,7 +13,21 @@
     'Shift+клик, Shift+рамка — выделить несколько',
     'Стрелки — сдвинуть (Shift — на 10)',
     'Delete / Backspace — удалить',
-    'Esc — снять выделение'
+    'Esc — закрыть окно или снять выделение'
   ].join('\n');
   $('bKeys').setAttribute('data-tip', 'Горячие клавиши|' + KEYS_TEXT);
   $('bKeys').addEventListener('click', function(){ showTip($('bKeys'), 5000); });
+  // Esc закрывает верхнее открытое окно (библиотеку, экосистему, ИИ, шаблоны и т. п.) его же кнопкой «Закрыть»
+  document.addEventListener('keydown', function(e){
+    if(e.key !== 'Escape' || e.defaultPrevented) return;
+    var t = e.target;
+    if(t && (t.isContentEditable || /^(TEXTAREA)$/.test(t.tagName)) && !(t.closest && t.closest('.pers,.eco,.modal,.cmdk'))) return;
+    var best = null, bestZ = -1;
+    Array.prototype.forEach.call(document.querySelectorAll('button[aria-label="Закрыть"],button[aria-label^="Закрыть "]'), function(b){
+      if(!b.offsetParent || b.closest('[hidden]') || b.closest('.closing')) return;
+      var host = b.closest('section,[role=dialog],.pers,.lib,.eco,.pop,.modal,.cmdk,.runp') || b.parentNode, z = 0, n = host;
+      while(n && n !== document.body){ var zi = parseInt(getComputedStyle(n).zIndex, 10); if(!isNaN(zi)){ z = zi; break; } n = n.parentElement; }
+      if(z >= bestZ){ best = b; bestZ = z; }
+    });
+    if(best){ e.preventDefault(); best.click(); }
+  });

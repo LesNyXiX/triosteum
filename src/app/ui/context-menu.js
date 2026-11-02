@@ -40,12 +40,15 @@
     closeSub(); btn.classList.add('open');
     subEl = h('div', { 'class':'ctx', role:'menu' }); items.forEach(function(o){ subEl.appendChild(ctxItem(o)); });
     document.body.appendChild(subEl);
-    var r = btn.getBoundingClientRect(), w = subEl.offsetWidth * (UI.scale / 100), hh = subEl.offsetHeight * (UI.scale / 100);
-    var x = r.right + 4, y = r.top - 6;
-    if(x + w > window.innerWidth - 8) x = r.left - w - 4;
-    if(y + hh > window.innerHeight - 8) y = window.innerHeight - hh - 8;
-    var z = UI.scale / 100;
-    subEl.style.left = (x / z) + 'px'; subEl.style.top = (Math.max(8, y) / z) + 'px';
+    var z = UI.scale / 100, r = btn.getBoundingClientRect(), w = subEl.offsetWidth * z, hh = subEl.offsetHeight * z;
+    var vw = window.innerWidth, vh = window.innerHeight, x, y = r.top - 6;
+    // справа от пункта, если помещается; иначе слева; и в любом случае целиком внутри экрана
+    if(r.right + 4 + w <= vw - 8) x = r.right + 4;
+    else if(r.left - 4 - w >= 8) x = r.left - 4 - w;
+    else x = r.right + 4;                         // нигде не помещается целиком — справа, прижав к краю экрана
+    x = Math.max(8, Math.min(x, vw - w - 8));
+    y = Math.max(8, Math.min(y, vh - hh - 8));
+    subEl.style.left = (x / z) + 'px'; subEl.style.top = (y / z) + 'px';
     var f = subEl.querySelector('.ctx-i:not([disabled])'); if(f) f.focus();
   }
   function placeAt(kind, lang){
