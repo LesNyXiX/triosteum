@@ -12,7 +12,7 @@
     trash:'<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
     align:'<path d="M4 4v16M8 7h10M8 12h6M8 17h12"/>', layout:'<rect x="3" y="4" width="6" height="5" rx="1"/><rect x="15" y="4" width="6" height="5" rx="1"/><rect x="15" y="15" width="6" height="5" rx="1"/><path d="M9 6.5h6M18 9v6"/>',
     file:'<path d="M14 3H6a1 1 0 00-1 1v16a1 1 0 001 1h12a1 1 0 001-1V8z"/><path d="M14 3v5h5"/>', download:'<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>', upload:'<path d="M12 20V9M7 14l5-5 5 5M5 4h14"/>',
-    folder:'<path d="M3 7a1 1 0 011-1h5l2 2h8a1 1 0 011 1v9a1 1 0 01-1 1H4a1 1 0 01-1-1z"/>', edit:'<path d="M4 20h4L19 9l-4-4L4 16z"/>', check:'<path d="M5 12l5 5 9-10"/>',
+    folder:'<path d="M3 7a1 1 0 011-1h5l2 2h8a1 1 0 011 1v9a1 1 0 01-1 1H4a1 1 0 01-1-1z"/>', user:'<circle cx="12" cy="8" r="4"/><path d="M4 20c1.5-4 4.5-6 8-6s6.5 2 8 6"/>', logout:'<path d="M10 4H5v16h5M15 8l4 4-4 4M19 12H9"/>', cloud:'<path d="M7 18h10a4 4 0 00.5-8A6 6 0 006 9.5 4.3 4.3 0 007 18z"/>', edit:'<path d="M4 20h4L19 9l-4-4L4 16z"/>', check:'<path d="M5 12l5 5 9-10"/>',
     map:'<rect x="3" y="5" width="18" height="14" rx="2"/><rect x="12" y="11" width="6" height="5" rx="1"/>', magnet:'<path d="M6 4v8a6 6 0 0012 0V4M6 8h4M14 8h4"/>',
     node:'<rect x="4" y="6" width="16" height="12" rx="3"/>', plug:'<path d="M9 3v5M15 3v5M7 8h10v4a5 5 0 01-10 0zM12 17v4"/>'
   };

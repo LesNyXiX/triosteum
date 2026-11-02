@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Вход — Triosteum</title>
+<style>
+  :root{--bg:#12090B;--panel:#1C1114;--line:#3A2329;--ink:#E9DCDF;--ink-strong:#FBF1F2;--dim:#A88D93;--red:#DC2626;--red-soft:#F87171}
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;display:grid;place-items:center;background:radial-gradient(1200px 600px at 20% -10%,#2A1015,transparent),var(--bg);color:var(--ink);font:15px/1.5 Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:24px}
+  .card{width:100%;max-width:400px;background:var(--panel);border:1px solid var(--line);border-radius:22px;padding:32px 28px;box-shadow:0 24px 60px rgba(0,0,0,.45);animation:in .5s cubic-bezier(.16,1,.3,1)}
+  @keyframes in{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
+  @media (prefers-reduced-motion:reduce){.card{animation:none}}
+  .brand{display:flex;align-items:center;gap:10px;margin-bottom:22px;font-weight:700;font-size:18px;color:var(--ink-strong)}
+  .logo{width:28px;height:28px;border-radius:8px;background:var(--red)}
+  h1{margin:0 0 6px;font-size:22px;color:var(--ink-strong)}
+  p.sub{margin:0 0 22px;color:var(--dim);font-size:14px}
+  .tabs{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;border-radius:12px;background:var(--bg);border:1px solid var(--line);margin-bottom:20px}
+  .tabs button{padding:8px;border:0;border-radius:9px;background:transparent;color:var(--dim);font:inherit;font-weight:600;cursor:pointer}
+  .tabs button[aria-selected="true"]{background:var(--panel);color:var(--ink-strong);box-shadow:0 1px 0 rgba(255,255,255,.04)}
+  label{display:block;margin:0 0 6px;font-size:13px;color:var(--dim)}
+  input{width:100%;padding:11px 12px;margin-bottom:14px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink-strong);font:inherit}
+  input:focus{outline:2px solid color-mix(in srgb,var(--red) 60%,transparent);outline-offset:1px;border-color:transparent}
+  .go{width:100%;padding:12px;margin-top:6px;border:0;border-radius:11px;background:var(--red);color:#fff;font:inherit;font-weight:700;cursor:pointer;transition:filter .15s}
+  .go:hover{filter:brightness(1.1)}.go:disabled{opacity:.6;cursor:wait}
+  .err{min-height:20px;margin:4px 0 0;color:var(--red-soft);font-size:13px}
+  .reg-only[hidden]{display:none}
+  .foot{margin-top:18px;font-size:12px;color:var(--dim);text-align:center}
+</style>
+</head>
+<body>
+<main class="card">
+  <div class="brand"><span class="logo" aria-hidden="true"></span>Triosteum</div>
+  <h1 id="title">Вход</h1>
+  <p class="sub" id="sub">Войдите, чтобы открыть пространства вашей организации.</p>
+  <div class="tabs" role="tablist" aria-label="Вход или регистрация">
+    <button type="button" role="tab" id="tLogin" aria-selected="true">Вход</button>
+    <button type="button" role="tab" id="tReg" aria-selected="false">Новая организация</button>
+  </div>
+  <form id="f" novalidate>
+    <div class="reg-only" hidden>
+      <label for="org">Организация</label>
+      <input id="org" name="org" autocomplete="organization" placeholder="ООО «Завод»">
+      <label for="name">Ваше имя</label>
+      <input id="name" name="name" autocomplete="name" placeholder="Иван Петров">
+    </div>
+    <label for="email">Почта</label>
+    <input id="email" name="email" type="email" autocomplete="email" required placeholder="you@zavod.ru">
+    <label for="pw">Пароль</label>
+    <input id="pw" name="pw" type="password" autocomplete="current-password" required minlength="8" placeholder="не меньше 8 символов">
+    <div class="reg-only" hidden>
+      <label><input type="checkbox" id="pd" style="width:auto;margin:0 8px 0 0;vertical-align:-2px">Согласен на обработку персональных данных</label>
+    </div>
+    <p class="err" id="err" role="alert"></p>
+    <button class="go" id="go" type="submit">Войти</button>
+  </form>
+  <p class="foot">Данные хранятся на серверах в России.</p>
+</main>
+<script>
+(function(){
+  var reg = false, $ = function(id){ return document.getElementById(id); };
+  function mode(r){
+    reg = r;
+    $('tLogin').setAttribute('aria-selected', String(!r)); $('tReg').setAttribute('aria-selected', String(r));
+    document.querySelectorAll('.reg-only').forEach(function(x){ x.hidden = !r; });
+    $('title').textContent = r ? 'Новая организация' : 'Вход';
+    $('sub').textContent = r ? 'Создайте организацию — вы станете её владельцем и сможете пригласить коллег.' : 'Войдите, чтобы открыть пространства вашей организации.';
+    $('go').textContent = r ? 'Создать и войти' : 'Войти';
+    $('pw').autocomplete = r ? 'new-password' : 'current-password';
+    $('err').textContent = '';
+  }
+  $('tLogin').onclick = function(){ mode(false); };
+  $('tReg').onclick = function(){ mode(true); };
+  if(location.hash === '#register') mode(true);
+  $('f').onsubmit = function(e){
+    e.preventDefault();
+    var email = $('email').value.trim(), pw = $('pw').value;
+    if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return fail('Проверьте почту');
+    if(pw.length < 8) return fail('Пароль — не меньше 8 символов');
+    var body = { email:email, password:pw };
+    if(reg){
+      body.org = $('org').value.trim(); body.name = $('name').value.trim();
+      if(!body.org) return fail('Укажите название организации');
+      if(!$('pd').checked) return fail('Нужно согласие на обработку персональных данных');
+      body.pd_consent = true;
+    }
+    $('go').disabled = true; $('err').textContent = '';
+    fetch('api/auth/' + (reg ? 'register' : 'login'), { method:'POST', credentials:'same-origin', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify(body) })
+      .then(function(r){ return r.json().catch(function(){ return {}; }).then(function(d){ return { ok:r.ok, d:d }; }); })
+      .then(function(r){
+        if(!r.ok) throw new Error(r.d && r.d.detail || 'Не удалось войти');
+        var next = new URLSearchParams(location.search).get('next');
+        location.href = next && next.charAt(0) === '/' && next.charAt(1) !== '/' ? next : './';
+      })
+      .catch(function(err){ fail(err.message === 'Failed to fetch' ? 'Нет связи с сервером' : err.message); $('go').disabled = false; });
+  };
+  function fail(t){ $('err').textContent = t; }
+})();
+</script>
+</body>
+</html>

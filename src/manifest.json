@@ -13,6 +13,7 @@
   "js": [
     "app/core/langs-plugins.js",
     "app/core/store.js",
+    "app/core/server-adapter.js",
     "app/core/state.js",
     "app/board/history.js",
     "app/board/code-plugins.js",

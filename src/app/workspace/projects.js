@@ -11,18 +11,19 @@
   })();
   var extTimer = null;
   Store.watch(function(key, val){
+    var silent = SERVER && SERVER.quietUpdate(key);
     if(Repo.isSpaceListKey(key) && val && val.list){ var np = val; np.cur = PROJ.cur; PROJ.list = np.list.some(function(p){ return p.id === PROJ.cur; }) ? np.list : PROJ.list.concat(np.list.filter(function(p){ return !PROJ.list.some(function(q){ return q.id === p.id; }); })); showProjName(); return; }
     if(!Repo.isSpaceKey(key, curId()) || !val) return;
     // то же пространство изменили в другой вкладке (или на сервере) — подтягиваем свежую версию
     clearTimeout(extTimer);
     extTimer = setTimeout(function(){
-      if(saveGraphTimer){ toast('Это пространство изменено в другой вкладке — сохранится последняя правка'); return; }
+      if(saveGraphTimer && !silent){ toast('Это пространство изменено в другой вкладке — сохранится последняя правка'); return; }
       try{
         var g = normGraph(val); Object.keys(G).forEach(function(k){ delete G[k]; }); for(var k in g) G[k] = g[k];
         hist.undo = []; hist.redo = []; hist.last = null; commitHist();
         S.sel = null; S.multi = []; hidePop(); renderGraph(); applyCam();
         if(typeof ofLoad === 'function'){ var keep = OF.tab; ofLoad(); if(keep && keep !== OF.tab && (keep === 'auto' || keep === 'desk' || ofFile(keep))) ofSetTab(keep); }
-        toast('Пространство обновлено: изменения из другой вкладки');
+        if(!silent) toast('Пространство обновлено: изменения из другой вкладки');
       }catch(x){}
     }, 250);
   });
@@ -119,7 +120,23 @@
       { label:'Переименовать…', icon:'edit', act:renameProj },
       { label:'Дублировать', icon:'copy', act:dupProj },
       { sep:true }].concat(shareItems()).concat([{ sep:true },
-      { label:'Удалить пространство', icon:'trash', danger:true, act:delProj }]));
+      { label:'Удалить пространство', icon:'trash', danger:true, act:delProj }]).concat(accountItems()));
+  }
+  // вход в облако: кто вошёл, перенос из браузера, выход
+  function accountItems(){
+    if(!SERVER) return [];
+    var u = SERVER.user || {}, items = [{ sep:true }, { head:(u.name || u.email || 'Аккаунт') + (SERVER.org ? ' · ' + SERVER.org.name : '') }];
+    if(SERVER.localCount()) items.push({ label:'Перенести пространства из этого браузера…', icon:'cloud', act:importLocal });
+    items.push({ label:'Выйти', icon:'logout', act:function(){ SERVER.logout(); } });
+    return items;
+  }
+  function importLocal(){
+    var n = SERVER.localCount();
+    toast('Переносим пространства: ' + n + '…');
+    SERVER.importLocal().then(function(r){
+      toast('Перенесено пространств: ' + (r && r.spaces != null ? r.spaces : n) + '. Обновляем страницу…');
+      setTimeout(function(){ location.reload(); }, 900);
+    }, function(){ toast('Не удалось перенести — проверьте связь и попробуйте ещё раз'); });
   }
   function shareItems(){
     return [
