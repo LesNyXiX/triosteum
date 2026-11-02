@@ -36,19 +36,31 @@
   }
   var subEl = null;
   function closeSub(){ if(subEl){ animRemove(subEl, 200); subEl = null; } Array.prototype.forEach.call(ctxEl.querySelectorAll('.ctx-i.open'), function(x){ x.classList.remove('open'); }); }
+  // Ставит меню рядом с прямоугольником r (пункт родительского меню): справа, если помещается, иначе слева,
+  // и всегда целиком в пределах экрана. Положение и размер меряются по факту на экране,
+  // поэтому не зависят от масштаба окон, масштаба браузера и того, как браузер считает zoom.
+  function placeNear(m, r, again){
+    var anim = m.style.animation; if(!again) m.style.animation = 'none';          // анимация появления искажает размеры
+    m.style.left = '0px'; m.style.top = '0px';
+    var a = m.getBoundingClientRect();
+    m.style.left = '100px'; m.style.top = '100px';
+    var b = m.getBoundingClientRect();
+    var kx = (b.left - a.left) / 100 || 1, ky = (b.top - a.top) / 100 || 1;   // экранных точек на 1px стиля
+    var w = b.width, hh = b.height, vw = window.innerWidth, vh = window.innerHeight, x, y = r.top - 6;
+    if(r.right + 4 + w <= vw - 8) x = r.right + 4;
+    else if(r.left - 4 - w >= 8) x = r.left - 4 - w;
+    else x = vw - w - 8;
+    x = Math.max(8, Math.min(x, vw - w - 8)); y = Math.max(8, Math.min(y, vh - hh - 8));
+    m.style.left = ((x - a.left) / kx) + 'px'; m.style.top = ((y - a.top) / ky) + 'px';
+    if(!again){ void m.offsetWidth; m.style.animation = anim; }        // вернуть анимацию появления
+  }
   function openSub(btn, items){
     closeSub(); btn.classList.add('open');
     subEl = h('div', { 'class':'ctx', role:'menu' }); items.forEach(function(o){ subEl.appendChild(ctxItem(o)); });
     document.body.appendChild(subEl);
-    var z = UI.scale / 100, r = btn.getBoundingClientRect(), w = subEl.offsetWidth * z, hh = subEl.offsetHeight * z;
-    var vw = window.innerWidth, vh = window.innerHeight, x, y = r.top - 6;
-    // справа от пункта, если помещается; иначе слева; и в любом случае целиком внутри экрана
-    if(r.right + 4 + w <= vw - 8) x = r.right + 4;
-    else if(r.left - 4 - w >= 8) x = r.left - 4 - w;
-    else x = r.right + 4;                         // нигде не помещается целиком — справа, прижав к краю экрана
-    x = Math.max(8, Math.min(x, vw - w - 8));
-    y = Math.max(8, Math.min(y, vh - hh - 8));
-    subEl.style.left = (x / z) + 'px'; subEl.style.top = (y / z) + 'px';
+    placeNear(subEl, btn.getBoundingClientRect());
+    // родительское меню могло ещё доигрывать анимацию появления — уточняем место, когда оно встанет
+    var m = subEl; setTimeout(function(){ if(subEl === m && btn.isConnected && !ctxEl.hidden) placeNear(m, btn.getBoundingClientRect(), true); }, 420);
     var f = subEl.querySelector('.ctx-i:not([disabled])'); if(f) f.focus();
   }
   function placeAt(kind, lang){
