@@ -9,7 +9,8 @@
     "styles/ecosystem.css",
     "styles/office.css",
     "styles/animations.css",
-    "styles/welcome.css"
+    "styles/welcome.css",
+    "styles/team.css"
   ],
   "js": [
     "app/core/langs-plugins.js",
@@ -79,6 +80,7 @@
     "app/ui/close-anim.js",
     "app/ui/cursor-glow.js",
     "app/workspace/welcome.js",
+    "app/workspace/team.js",
     "app/main.js"
   ]
 }

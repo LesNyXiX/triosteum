@@ -26,7 +26,7 @@
   .go{width:100%;padding:12px;margin-top:6px;border:0;border-radius:11px;background:var(--red);color:#fff;font:inherit;font-weight:700;cursor:pointer;transition:filter .15s}
   .go:hover{filter:brightness(1.1)}.go:disabled{opacity:.6;cursor:wait}
   .err{min-height:20px;margin:4px 0 0;color:var(--red-soft);font-size:13px}
-  .reg-only[hidden]{display:none}
+  .reg-only[hidden],[hidden]{display:none !important}
   .foot{margin-top:18px;font-size:12px;color:var(--dim);text-align:center}
 </style>
 </head>
@@ -71,6 +71,29 @@
     $('pw').autocomplete = r ? 'new-password' : 'current-password';
     $('err').textContent = '';
   }
+  // режим приглашения: /invite?t=… — присоединиться к организации
+  var invite = new URLSearchParams(location.search).get('t'), inv = null;
+  if(invite){
+    document.querySelector('.tabs').style.display = 'none';
+    $('title').textContent = 'Приглашение'; $('sub').textContent = 'Проверяем приглашение…'; $('go').disabled = true;
+    fetch('api/invites/' + encodeURIComponent(invite), { credentials:'same-origin' }).then(function(r){ return r.json().then(function(d){ return { ok:r.ok, d:d }; }); }).then(function(r){
+      if(!r.ok){ $('sub').textContent = r.d.detail || 'Приглашение недействительно'; $('f').hidden = true; return; }
+      inv = r.d; $('go').disabled = false;
+      var roles = { editor:'редактор', approver:'согласующий', viewer:'наблюдатель' };
+      $('title').textContent = 'Присоединиться к «' + inv.org + '»';
+      $('email').value = inv.email; $('email').readOnly = true;
+      if(inv.has_account){
+        $('sub').textContent = 'Вас пригласили в роли «' + (roles[inv.role] || inv.role) + '». У вас уже есть аккаунт — введите свой пароль.';
+        $('go').textContent = 'Войти и присоединиться';
+      } else {
+        $('sub').textContent = 'Вас пригласили в роли «' + (roles[inv.role] || inv.role) + '». Задайте имя и пароль для входа.';
+        document.querySelectorAll('.reg-only').forEach(function(x){ x.hidden = false; });
+        $('org').closest('div').querySelectorAll('[for=org], #org').forEach(function(x){ x.style.display = 'none'; });
+        $('pw').autocomplete = 'new-password'; $('go').textContent = 'Присоединиться';
+      }
+      $('pw').focus();
+    }, function(){ $('sub').textContent = 'Нет связи с сервером'; });
+  }
   $('tLogin').onclick = function(){ mode(false); };
   $('tReg').onclick = function(){ mode(true); };
   if(location.hash === '#register') mode(true);
@@ -79,6 +102,16 @@
     var email = $('email').value.trim(), pw = $('pw').value;
     if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return fail('Проверьте почту');
     if(pw.length < 8) return fail('Пароль — не меньше 8 символов');
+    if(inv){
+      var ib = { token:invite, password:pw, name:$('name').value.trim(), pd_consent:$('pd').checked };
+      if(!inv.has_account && !ib.pd_consent) return fail('Нужно согласие на обработку персональных данных');
+      $('go').disabled = true; $('err').textContent = '';
+      fetch('api/auth/accept-invite', { method:'POST', credentials:'same-origin', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify(ib) })
+        .then(function(r){ return r.json().catch(function(){ return {}; }).then(function(d){ return { ok:r.ok, d:d }; }); })
+        .then(function(r){ if(!r.ok) throw new Error(r.d && r.d.detail || 'Не удалось присоединиться'); location.href = './'; })
+        .catch(function(err){ fail(err.message === 'Failed to fetch' ? 'Нет связи с сервером' : err.message); $('go').disabled = false; });
+      return;
+    }
     var body = { email:email, password:pw };
     if(reg){
       body.org = $('org').value.trim(); body.name = $('name').value.trim();

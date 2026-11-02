@@ -36,8 +36,9 @@ DATABASE_URL=postgresql+psycopg://triosteum_app:app@localhost/triosteum COOKIE_S
 
 ```bash
 cd server
-TEST_ADMIN_URL=postgresql://postgres@localhost/postgres pytest     # 20 тестов API на временной базе
+TEST_ADMIN_URL=postgresql://postgres@localhost/postgres pytest     # 28 тестов API на временной базе
 cd .. && TRIOSTEUM_URL=http://localhost:8000 npm run test:server   # сквозная проверка в браузере
+TRIOSTEUM_URL=http://localhost:8000 node tests/team-e2e.mjs         # команда и история версий в браузере
 ```
 
 Тесты API проверяют вход и выход, правила регистрации, хранение паролей (argon2id), ограничение попыток входа (в том числе с подставным X-Forwarded-For), сохранение с номером правки и конфликт, переименование и удаление, историю версий. Ещё они проверяют изоляцию организаций (через API и прямым SQL), права наблюдателя, защиту от CSRF, лимит размера запроса, экранирование данных в странице, настройки, перенос из браузера и журнал.
@@ -63,11 +64,10 @@ cd .. && TRIOSTEUM_URL=http://localhost:8000 npm run test:server   # сквоз�
 - Поставьте перед сервером nginx или caddy с HTTPS, а в `.env` задайте `COOKIE_SECURE=1` и `TRUST_PROXY=1`.
 - Хостинг — в России (Yandex Cloud, Selectel, cloud.ru), так требует 152-ФЗ. Подробности — в документе «Triosteum: план и архитектура сервера».
 - Делайте резервные копии базы (`pg_dump` или средства облака) и регулярно проверяйте восстановление из них.
-- Новые таблицы в будущих миграциях: не забудьте `GRANT … TO triosteum_app` и, если в таблице есть `org_id`, политику `org_isolation`.
+- Миграции запускайте суперпользователем (в docker-compose так и есть). Новые таблицы роль приложения получает автоматически, а для таблиц с `org_id` нужно включить политику `org_isolation`.
 
 ## Что дальше
 
-- Приглашение коллег в организацию с ролью (таблица `invites` уже есть).
-- Окно «История версий» в интерфейсе (API уже есть: `GET/POST /api/spaces/{id}/versions`).
+- Отправка приглашений письмом (сейчас владелец копирует ссылку сам).
 - ИИ-прокси: YandexGPT и GigaChat вместо Claude, с лимитами по организации (таблица `ai_requests` уже есть).
 - Совместная правка в реальном времени (WebSocket + Yjs).

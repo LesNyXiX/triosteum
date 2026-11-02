@@ -406,6 +406,186 @@ def save_version(space_id: str, body: VersionIn, w: Who = Depends(need_writer)):
     return {"ok": True, "rev": r["rev"]}
 
 
+# ---------- команда: участники и приглашения ----------
+
+ROLES = ("owner", "editor", "approver", "viewer")
+INVITE_ROLES = ("editor", "approver", "viewer")
+INVITE_DAYS = 7
+
+
+def need_owner(w: Who = Depends(need)) -> Who:
+    if w.role != "owner":
+        raise HTTPException(403, "Это может только владелец организации")
+    return w
+
+
+@app.get("/api/org/members")
+def members(w: Who = Depends(need)):
+    with tx(w.org_id) as c:
+        ms = c.execute(text("""SELECT u.id, u.email, u.name, m.role, m.created_at, u.last_login_at
+                               FROM memberships m JOIN users u ON u.id = m.user_id
+                               WHERE m.org_id = :o ORDER BY m.created_at"""), {"o": w.org_id}).mappings().all()
+        inv = []
+        if w.role == "owner":
+            inv = c.execute(text("""SELECT id, email, role, created_at, expires_at FROM invites
+                                    WHERE accepted_at IS NULL AND expires_at > now() ORDER BY created_at DESC""")).mappings().all()
+    return {"me": w.user_id, "my_role": w.role,
+            "members": [{"id": str(r["id"]), "email": r["email"], "name": r["name"], "role": r["role"],
+                         "since": r["created_at"].isoformat(),
+                         "last_login": r["last_login_at"].isoformat() if r["last_login_at"] else None} for r in ms],
+            "invites": [{"id": str(r["id"]), "email": r["email"], "role": r["role"],
+                         "expires_at": r["expires_at"].isoformat()} for r in inv]}
+
+
+class InviteIn(BaseModel):
+    email: str = Field(max_length=254)
+    role: str = Field(default="editor")
+
+
+@app.post("/api/org/invites", status_code=201)
+def create_invite(body: InviteIn, request: Request, w: Who = Depends(need_owner)):
+    email = body.email.strip()
+    if not EMAIL.match(email):
+        raise HTTPException(422, "Проверьте почту")
+    if body.role not in INVITE_ROLES:
+        raise HTTPException(422, "Неверная роль")
+    token = new_token()
+    with tx(w.org_id) as c:
+        if c.execute(text("""SELECT 1 FROM memberships m JOIN users u ON u.id = m.user_id
+                             WHERE m.org_id = :o AND lower(u.email) = lower(:e)"""), {"o": w.org_id, "e": email}).first():
+            raise HTTPException(409, "Этот человек уже в организации")
+        # старое неиспользованное приглашение на ту же почту больше не действует
+        c.execute(text("DELETE FROM invites WHERE lower(email) = lower(:e) AND accepted_at IS NULL"), {"e": email})
+        r = c.execute(text("""INSERT INTO invites (org_id, email, role, token_hash, created_by, expires_at)
+                              VALUES (:o, :e, :r, :h, :u, now() + make_interval(days => :d)) RETURNING id, expires_at"""),
+                      {"o": w.org_id, "e": email, "r": body.role, "h": token_hash(token), "u": w.user_id,
+                       "d": INVITE_DAYS}).mappings().first()
+        audit(c, w.org_id, w.user_id, "invite.create", request, "invite", str(r["id"]), {"email": email, "role": body.role})
+    # ссылку владелец отправляет коллеге сам (почта — следующий шаг); в базе хранится только хеш токена
+    return {"id": str(r["id"]), "path": "/invite?t=" + token, "expires_at": r["expires_at"].isoformat()}
+
+
+@app.delete("/api/org/invites/{invite_id}")
+def cancel_invite(invite_id: str, w: Who = Depends(need_owner)):
+    with tx(w.org_id) as c:
+        try:
+            n = c.execute(text("DELETE FROM invites WHERE id = CAST(:i AS uuid) AND accepted_at IS NULL"), {"i": invite_id}).rowcount
+        except Exception:
+            n = 0
+    if not n:
+        raise HTTPException(404, "Нет такого приглашения")
+    return {"ok": True}
+
+
+class RoleIn(BaseModel):
+    role: str
+
+
+def _owners(c, org_id: str) -> int:
+    return c.execute(text("SELECT count(*) FROM memberships WHERE org_id = :o AND role = 'owner'"), {"o": org_id}).scalar_one()
+
+
+@app.patch("/api/org/members/{user_id}")
+def set_role(user_id: str, body: RoleIn, request: Request, w: Who = Depends(need_owner)):
+    if body.role not in ROLES:
+        raise HTTPException(422, "Неверная роль")
+    with tx(w.org_id) as c:
+        cur = c.execute(text("SELECT role FROM memberships WHERE org_id = :o AND user_id = CAST(:u AS uuid)"),
+                        {"o": w.org_id, "u": user_id}).scalar_one_or_none()
+        if cur is None:
+            raise HTTPException(404, "Нет такого участника")
+        if cur == "owner" and body.role != "owner" and _owners(c, w.org_id) <= 1:
+            raise HTTPException(409, "В организации должен остаться хотя бы один владелец")
+        c.execute(text("UPDATE memberships SET role = :r WHERE org_id = :o AND user_id = CAST(:u AS uuid)"),
+                  {"r": body.role, "o": w.org_id, "u": user_id})
+        audit(c, w.org_id, w.user_id, "member.role", request, "user", user_id, {"role": body.role})
+    return {"ok": True}
+
+
+@app.delete("/api/org/members/{user_id}")
+def remove_member(user_id: str, request: Request, w: Who = Depends(need_owner)):
+    with tx(w.org_id) as c:
+        cur = c.execute(text("SELECT role FROM memberships WHERE org_id = :o AND user_id = CAST(:u AS uuid)"),
+                        {"o": w.org_id, "u": user_id}).scalar_one_or_none()
+        if cur is None:
+            raise HTTPException(404, "Нет такого участника")
+        if cur == "owner" and _owners(c, w.org_id) <= 1:
+            raise HTTPException(409, "Нельзя удалить единственного владельца")
+        c.execute(text("DELETE FROM memberships WHERE org_id = :o AND user_id = CAST(:u AS uuid)"), {"o": w.org_id, "u": user_id})
+        # доступ пропадает сразу: закрываем его входы в эту организацию
+        c.execute(text("DELETE FROM sessions WHERE org_id = :o AND user_id = CAST(:u AS uuid)"), {"o": w.org_id, "u": user_id})
+        audit(c, w.org_id, w.user_id, "member.remove", request, "user", user_id)
+    return {"ok": True}
+
+
+def _invite(token: str):
+    with tx() as c:
+        r = c.execute(text("SELECT * FROM invite_by_token(:h)"), {"h": token_hash(token)}).mappings().first()
+    if not r or r["accepted_at"] is not None or r["expires_at"] < datetime.now(timezone.utc):
+        raise HTTPException(404, "Приглашение не найдено или уже недействительно")
+    return r
+
+
+@app.get("/api/invites/{token}")
+def invite_info(token: str):
+    r = _invite(token)
+    with tx() as c:
+        exists = c.execute(text("SELECT 1 FROM users WHERE lower(email) = lower(:e)"), {"e": r["email"]}).first() is not None
+    return {"org": r["org_name"], "email": r["email"], "role": r["role"], "has_account": exists}
+
+
+class AcceptIn(BaseModel):
+    token: str = Field(max_length=200)
+    password: str = Field(max_length=200)
+    name: str = Field(default="", max_length=120)
+    pd_consent: bool = False
+
+
+@app.post("/api/auth/accept-invite")
+def accept_invite(body: AcceptIn, request: Request, response: Response):
+    if not login_limiter.hit("ip:" + (client_ip(request) or "?"), "invite:" + body.token[:16]):
+        raise HTTPException(429, "Слишком много попыток — подождите минуту")
+    inv = _invite(body.token)
+    org_id, email = str(inv["org_id"]), inv["email"]
+    with tx() as c:
+        u = c.execute(text("SELECT id, name, password_hash FROM users WHERE lower(email) = lower(:e)"), {"e": email}).mappings().first()
+        if u:                                   # аккаунт уже есть — подтверждаем его паролем
+            if not verify_password(u["password_hash"], body.password):
+                raise HTTPException(401, "Неверный пароль от аккаунта " + email)
+            user_id, name = str(u["id"]), u["name"]
+        else:
+            if len(body.password) < 8:
+                raise HTTPException(422, "Пароль — не меньше 8 символов")
+            if not body.pd_consent:
+                raise HTTPException(422, "Нужно согласие на обработку персональных данных")
+            name = body.name.strip()
+            user_id = str(c.execute(text("INSERT INTO users (email, name, password_hash) VALUES (:e, :n, :p) RETURNING id"),
+                                    {"e": email, "n": name, "p": hash_password(body.password)}).scalar_one())
+        c.execute(text("""INSERT INTO memberships (org_id, user_id, role) VALUES (:o, :u, :r)
+                          ON CONFLICT (org_id, user_id) DO NOTHING"""), {"o": org_id, "u": user_id, "r": inv["role"]})
+    with tx(org_id) as c:
+        c.execute(text("UPDATE invites SET accepted_at = now() WHERE id = :i"), {"i": inv["id"]})
+        audit(c, org_id, user_id, "invite.accept", request, "invite", str(inv["id"]))
+    start_session(response, request, user_id, org_id)
+    return me_out(user_id, email, name)
+
+
+@app.get("/invite", response_class=HTMLResponse)
+def invite_page():
+    return HTMLResponse(read_html(settings.login_html))
+
+
+@app.get("/api/spaces/{space_id}/versions/{version_id}")
+def get_version(space_id: str, version_id: int, w: Who = Depends(need)):
+    check_id(space_id)
+    with tx(w.org_id) as c:
+        r = c.execute(text("""SELECT id, rev, label, created_at, content FROM space_versions
+                              WHERE space_id = :s AND id = :v"""), {"s": space_id, "v": version_id}).mappings().first()
+    if not r:
+        raise HTTPException(404, "Нет такой версии")
+    return {"id": r["id"], "rev": r["rev"], "label": r["label"], "created_at": r["created_at"].isoformat(), "content": r["content"]}
+
+
 # ---------- настройки и перенос ----------
 
 class PrefIn(BaseModel):

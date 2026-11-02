@@ -131,6 +131,8 @@
     }
     var u = SERVER.user || {}, items = [{ sep:true }, { head:(u.name || u.email || 'Аккаунт') + (SERVER.org ? ' · ' + SERVER.org.name : '') }];
     if(SERVER.localCount()) items.push({ label:'Перенести пространства из этого браузера…', icon:'cloud', act:importLocal });
+    items.push({ label:'Команда…', icon:'user', act:openTeam });
+    items.push({ label:'История версий…', icon:'layout', act:openHistory });
     items.push({ label:'Выйти', icon:'logout', act:function(){ SERVER.logout(); } });
     return items;
   }

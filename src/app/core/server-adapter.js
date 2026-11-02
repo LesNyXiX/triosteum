@@ -153,6 +153,10 @@
       // true — обновление вызвано конфликтом, общее «обновлено» показывать не нужно
       quietUpdate:function(k){ var q = !!quiet[k]; delete quiet[k]; return q; },
       flush:flushAll,
+      // прямой запрос к API (команда, история версий): ответ {status, data}
+      api:function(method, path, body){ return req(method, path, body); },
+      // id и номер правки пространства на сервере
+      rev:function(id){ return spaces[id] ? spaces[id].rev : 0; },
       logout:function(){ return flushAll().then(function(){ return req('POST', '/auth/logout', {}); }).then(function(){ location.href = (boot.api || '') + '/login'; }, function(){ location.href = (boot.api || '') + '/login'; }); },
       // перенос пространств и настроек из этого браузера в облако
       importLocal:function(){

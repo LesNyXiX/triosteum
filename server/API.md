@@ -46,6 +46,7 @@
 | `GET /api/spaces` | — | список пространств без содержимого |
 | `GET /api/spaces/{id}/versions` | — | история версий: `[{id, rev, label, created_at, by}]` |
 | `POST /api/spaces/{id}/versions` | `{label}` | сохранить текущую версию с подписью |
+| `GET /api/spaces/{id}/versions/{vid}` | — | содержимое версии (для возврата) |
 
 Права: `viewer` и `approver` получают 403 на PUT, PATCH и DELETE.
 
@@ -59,6 +60,21 @@ WHERE org_id = app_org() AND id = $3 AND rev = $4 AND deleted_at IS NULL
 RETURNING rev, updated_at;
 -- 0 строк → 409
 ```
+
+## Команда
+
+| Запрос | Тело | Ответ |
+|---|---|---|
+| `GET /api/org/members` | — | `{me, my_role, members: [{id, email, name, role, since, last_login}], invites: [...]}`. Приглашения видит только владелец. |
+| `POST /api/org/invites` | `{email, role}` | Только владелец. Роль: `editor`, `approver` или `viewer`. Ответ: `{id, path: "/invite?t=…", expires_at}`. Ссылка одноразовая, живёт 7 дней, в базе хранится только хеш токена. |
+| `DELETE /api/org/invites/{id}` | — | Отменить приглашение (владелец). |
+| `PATCH /api/org/members/{user_id}` | `{role}` | Сменить роль (владелец). Последнего владельца понизить нельзя — 409. |
+| `DELETE /api/org/members/{user_id}` | — | Убрать из организации (владелец). Его сессии в этой организации сразу закрываются. |
+| `GET /api/invites/{token}` | — | Без входа: `{org, email, role, has_account}`. 404 — ссылка недействительна. |
+| `POST /api/auth/accept-invite` | `{token, password, name?, pd_consent?}` | Новый человек получает аккаунт (нужно согласие на обработку ПД), у кого аккаунт уже есть, подтверждает его паролем. Ответ: 200 + cookie. |
+| `GET /invite?t=…` | — | Страница принятия приглашения. |
+
+Чтобы найти приглашение до входа, используется функция `invite_by_token` с правами владельца схемы (миграция 002). Поэтому миграции нужно запускать суперпользователем или ролью с `BYPASSRLS`.
 
 ## Настройки и перенос
 
