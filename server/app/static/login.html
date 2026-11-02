@@ -27,6 +27,9 @@
   .go:hover{filter:brightness(1.1)}.go:disabled{opacity:.6;cursor:wait}
   .err{min-height:20px;margin:4px 0 0;color:var(--red-soft);font-size:13px}
   .reg-only[hidden],[hidden]{display:none !important}
+  .alt{margin:14px 0 0;text-align:center}
+  .link{border:0;background:none;padding:0;color:var(--red-soft);font:inherit;font-size:13.5px;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+  .ok{min-height:20px;margin:4px 0 0;color:#86efac;font-size:13.5px;line-height:1.5}
   .foot{margin-top:18px;font-size:12px;color:var(--dim);text-align:center}
 </style>
 </head>
@@ -55,6 +58,7 @@
     </div>
     <p class="err" id="err" role="alert"></p>
     <button class="go" id="go" type="submit">Войти</button>
+    <p class="alt" id="altRow" hidden><button type="button" class="link" id="forgotBtn">Забыли пароль?</button></p>
   </form>
   <p class="foot">Данные хранятся на серверах в России.</p>
 </main>
@@ -72,7 +76,7 @@
     $('err').textContent = '';
   }
   // режим приглашения: /invite?t=… — присоединиться к организации
-  var invite = new URLSearchParams(location.search).get('t'), inv = null;
+  var invite = location.pathname.replace(/\/+$/, '').slice(-7) === '/invite' ? new URLSearchParams(location.search).get('t') : null, inv = null;
   if(invite){
     document.querySelector('.tabs').style.display = 'none';
     $('title').textContent = 'Приглашение'; $('sub').textContent = 'Проверяем приглашение…'; $('go').disabled = true;
@@ -94,12 +98,28 @@
       $('pw').focus();
     }, function(){ $('sub').textContent = 'Нет связи с сервером'; });
   }
+  function post(url, body){
+    return fetch(url, { method:'POST', credentials:'same-origin', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify(body) })
+      .then(function(r){ return r.json().catch(function(){ return {}; }).then(function(d){ if(!r.ok) throw new Error(d.detail || 'Не получилось'); return d; }); },
+            function(){ throw new Error('Нет связи с сервером'); });
+  }
   $('tLogin').onclick = function(){ mode(false); };
   $('tReg').onclick = function(){ mode(true); };
   if(location.hash === '#register') mode(true);
   $('f').onsubmit = function(e){
     e.preventDefault();
     var email = $('email').value.trim(), pw = $('pw').value;
+    if(resetTok){
+      if(pw.length < 8) return fail('Пароль — не меньше 8 символов');
+      $('go').disabled = true;
+      return post('api/auth/reset', { token:resetTok, password:pw }).then(function(){ location.href = './'; }, function(err){ fail(err.message); $('go').disabled = false; });
+    }
+    if(forgot){
+      if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return fail('Проверьте почту');
+      $('go').disabled = true;
+      return post('api/auth/forgot', { email:email }).then(function(){ good('Если такая почта зарегистрирована, ссылка уже в пути. Проверьте и папку «Спам».'); $('go').disabled = false; },
+        function(err){ fail(err.message); $('go').disabled = false; });
+    }
     if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return fail('Проверьте почту');
     if(pw.length < 8) return fail('Пароль — не меньше 8 символов');
     if(inv){
@@ -129,7 +149,29 @@
       })
       .catch(function(err){ fail(err.message === 'Failed to fetch' ? 'Нет связи с сервером' : err.message); $('go').disabled = false; });
   };
-  function fail(t){ $('err').textContent = t; }
+  function fail(t){ $('err').textContent = t; $('err').className = 'err'; }
+  function good(t){ $('err').textContent = t; $('err').className = 'ok'; }
+  // «Забыли пароль?» — показываем, только если сервер умеет отправлять письма
+  var forgot = false, resetTok = location.pathname.replace(/\/+$/, '').slice(-6) === '/reset' ? new URLSearchParams(location.search).get('t') : null;
+  if(!invite && !resetTok) fetch('api/auth/options', { credentials:'same-origin' }).then(function(r){ return r.json(); }).then(function(o){ if(o.mail) $('altRow').hidden = false; }, function(){});
+  function pwRow(show){ $('pw').style.display = show ? '' : 'none'; document.querySelector('label[for=pw]').style.display = show ? '' : 'none'; }
+  $('forgotBtn').onclick = function(){
+    forgot = !forgot; mode(false);
+    document.querySelector('.tabs').style.display = forgot ? 'none' : '';
+    pwRow(!forgot);
+    $('title').textContent = forgot ? 'Восстановление пароля' : 'Вход';
+    $('sub').textContent = forgot ? 'Укажите почту — пришлём ссылку для нового пароля.' : 'Войдите, чтобы открыть пространства вашей организации.';
+    $('go').textContent = forgot ? 'Прислать ссылку' : 'Войти';
+    $('forgotBtn').textContent = forgot ? 'Вспомнили? Войти' : 'Забыли пароль?';
+    $('email').focus();
+  };
+  if(resetTok){
+    document.querySelector('.tabs').style.display = 'none';
+    $('email').style.display = 'none'; document.querySelector('label[for=email]').style.display = 'none';
+    $('title').textContent = 'Новый пароль'; $('sub').textContent = 'Придумайте новый пароль — не меньше 8 символов. После смены вы выйдете на всех остальных устройствах.';
+    $('pw').autocomplete = 'new-password'; $('go').textContent = 'Сохранить и войти';
+    setTimeout(function(){ $('pw').focus(); }, 30);
+  }
 })();
 </script>
 </body>

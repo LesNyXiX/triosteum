@@ -17,7 +17,7 @@
     teamWin.apply(); renderTeam();
   }
   $('teamClose').addEventListener('click', function(){ $('teamW').hidden = true; });
-  function renderTeam(link){
+  function renderTeam(link, emailed){
     var body = $('teamBody'); body.innerHTML = '<p class="tm-empty">Загружаем…</p>';
     SERVER.api('GET', '/org/members').then(function(r){
       if(r.status !== 200){ body.innerHTML = ''; body.appendChild(h('p', { 'class':'tm-empty', text:apiErr(r) })); return; }
@@ -75,7 +75,9 @@
         SERVER.api('POST', '/org/invites', { email:email.value.trim(), role:role.value }).then(function(x){
           go.disabled = false;
           if(x.status !== 201){ toast(apiErr(x)); return; }
-          renderTeam(location.origin + x.data.path);
+          if(x.data.emailed) toast('Приглашение отправлено на ' + email.value.trim());
+          else if(x.data.mail_error) toast(x.data.mail_error + ' — отправьте ссылку сами');
+          renderTeam(location.origin + x.data.path, x.data.emailed);
         });
       });
       var sec = h('div', { 'class':'tm-sec' }, [ h('h3', { text:'Пригласить коллегу' }), form ]);
@@ -87,9 +89,9 @@
           (navigator.clipboard ? navigator.clipboard.writeText(link) : Promise.reject()).then(function(){ toast('Ссылка скопирована — отправьте её коллеге'); }, function(){ document.execCommand && document.execCommand('copy'); toast('Ссылка выделена — скопируйте её'); });
         });
         sec.appendChild(h('div', { 'class':'tm-link' }, [ inp, copy ]));
-        sec.appendChild(h('p', { 'class':'tm-hint', text:'Отправьте ссылку коллеге в почте или мессенджере. Она одноразовая и действует 7 дней. Показываем её только сейчас.' }));
+        sec.appendChild(h('p', { 'class':'tm-hint', text:(emailed ? 'Письмо с этой ссылкой уже отправлено. Если не дойдёт — перешлите ссылку сами.' : 'Отправьте ссылку коллеге в почте или мессенджере.') + ' Она одноразовая и действует 7 дней. Показываем её только сейчас.' }));
         setTimeout(function(){ inp.select(); }, 30);
-      } else sec.appendChild(h('p', { 'class':'tm-hint', text:'Появится ссылка-приглашение: коллега откроет её, задаст пароль и сразу попадёт в организацию.' }));
+      } else sec.appendChild(h('p', { 'class':'tm-hint', text:(window.TRIOSTEUM_BOOT.mail && window.TRIOSTEUM_BOOT.mail.enabled ? 'Коллеге придёт письмо со ссылкой' : 'Появится ссылка-приглашение') + ': коллега откроет её, задаст пароль и сразу попадёт в организацию.' }));
       body.appendChild(sec);
     });
   }

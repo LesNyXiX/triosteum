@@ -7,6 +7,7 @@ import ipaddress
 import json
 import os
 import re
+import threading
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -20,6 +21,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 
 from . import ai as ai_mod
+from . import mail
 from . import migrate
 from .config import settings
 from .db import tx
@@ -185,7 +187,7 @@ def index(request: Request):
     boot = {"user": {"id": w.user_id, "email": w.email, "name": w.name}, "org": {"id": w.org_id, "name": w.org_name},
             "role": w.role, "cur": prefs.get("cur"), "prefs": prefs, "spaces": spaces,
             "ai": {"enabled": AI is not None, "provider": AI.name if AI else None, "model": AI.model if AI else None},
-            "runner": {"enabled": RUNNER_ON}}
+            "runner": {"enabled": RUNNER_ON}, "mail": {"enabled": mail.configured()}}
     # «<» в данных экранируем, чтобы строка внутри JSON не смогла закрыть тег <script>
     tag = "<script>window.TRIOSTEUM_BOOT = " + json.dumps(boot, ensure_ascii=False).replace("<", "\\u003c") + ";</script>"
     html = read_html(settings.client_html).replace("<!--@@BOOT@@-->", tag, 1)
@@ -270,6 +272,82 @@ def logout(request: Request, response: Response):
             c.execute(text("DELETE FROM sessions WHERE token_hash = :h"), {"h": token_hash(token)})
     response.delete_cookie(COOKIE, path="/")
     return {"ok": True}
+
+
+class ForgotIn(BaseModel):
+    email: str = Field(max_length=254)
+
+
+RESET_MINUTES = 60
+
+
+@app.post("/api/auth/forgot")
+def forgot(body: ForgotIn, request: Request):
+    """Всегда отвечает одинаково, есть такая почта или нет — чтобы нельзя было проверять, кто зарегистрирован."""
+    email = body.email.strip().lower()
+    if not login_limiter.hit("ip:" + (client_ip(request) or "?"), "forgot:" + email):
+        raise HTTPException(429, "Слишком много попыток — подождите минуту")
+    if not mail.configured():
+        raise HTTPException(503, "Отправка писем не настроена — обратитесь к владельцу организации")
+    with tx() as c:
+        u = c.execute(text("SELECT id, email FROM users WHERE lower(email) = :e AND NOT disabled"), {"e": email}).mappings().first()
+        if u:
+            token = new_token()
+            c.execute(text("DELETE FROM password_resets WHERE user_id = :u AND used_at IS NULL"), {"u": u["id"]})
+            c.execute(text("""INSERT INTO password_resets (token_hash, user_id, expires_at)
+                              VALUES (:h, :u, now() + make_interval(mins => :m))"""), {"h": token_hash(token), "u": u["id"], "m": RESET_MINUTES})
+    if u:
+        # письмо уходит в фоне: ответ приходит одинаково быстро, есть почта в базе или нет
+        link = mail.public_url(str(request.base_url)) + "/reset?t=" + token
+        threading.Thread(target=_quiet, args=(mail.reset_mail, u["email"], link), daemon=True).start()
+    return {"ok": True}
+
+
+def _quiet(fn, *args):
+    try:
+        fn(*args)
+    except Exception:
+        pass
+
+
+class ResetIn(BaseModel):
+    token: str = Field(max_length=200)
+    password: str = Field(max_length=200)
+
+
+@app.post("/api/auth/reset")
+def reset_password(body: ResetIn, request: Request, response: Response):
+    if not login_limiter.hit("ip:" + (client_ip(request) or "?"), "reset:" + body.token[:16]):
+        raise HTTPException(429, "Слишком много попыток — подождите минуту")
+    if len(body.password) < 8:
+        raise HTTPException(422, "Пароль — не меньше 8 символов")
+    with tx() as c:
+        r = c.execute(text("""UPDATE password_resets SET used_at = now()
+                              WHERE token_hash = :h AND used_at IS NULL AND expires_at > now() RETURNING user_id"""),
+                      {"h": token_hash(body.token)}).mappings().first()
+        if not r:
+            raise HTTPException(404, "Ссылка недействительна — запросите новую")
+        uid = str(r["user_id"])
+        c.execute(text("UPDATE users SET password_hash = :p WHERE id = :u"), {"p": hash_password(body.password), "u": uid})
+        c.execute(text("DELETE FROM sessions WHERE user_id = :u"), {"u": uid})       # выйти со всех устройств
+        u = c.execute(text("""SELECT u.email, u.name, m.org_id FROM users u JOIN memberships m ON m.user_id = u.id
+                              WHERE u.id = :u ORDER BY m.created_at LIMIT 1"""), {"u": uid}).mappings().first()
+    if not u:
+        return {"ok": True}
+    with tx(str(u["org_id"])) as c:
+        audit(c, str(u["org_id"]), uid, "password.reset", request)
+    start_session(response, request, uid, str(u["org_id"]))
+    return me_out(uid, u["email"], u["name"])
+
+
+@app.get("/reset", response_class=HTMLResponse)
+def reset_page():
+    return HTMLResponse(read_html(settings.login_html))
+
+
+@app.get("/api/auth/options")
+def auth_options():
+    return {"mail": mail.configured()}
 
 
 @app.get("/api/me")
@@ -453,6 +531,7 @@ def members(w: Who = Depends(need)):
 class InviteIn(BaseModel):
     email: str = Field(max_length=254)
     role: str = Field(default="editor")
+    send_email: bool = True
 
 
 @app.post("/api/org/invites", status_code=201)
@@ -474,8 +553,16 @@ def create_invite(body: InviteIn, request: Request, w: Who = Depends(need_owner)
                       {"o": w.org_id, "e": email, "r": body.role, "h": token_hash(token), "u": w.user_id,
                        "d": INVITE_DAYS}).mappings().first()
         audit(c, w.org_id, w.user_id, "invite.create", request, "invite", str(r["id"]), {"email": email, "role": body.role})
-    # ссылку владелец отправляет коллеге сам (почта — следующий шаг); в базе хранится только хеш токена
-    return {"id": str(r["id"]), "path": "/invite?t=" + token, "expires_at": r["expires_at"].isoformat()}
+    path = "/invite?t=" + token
+    emailed, mail_error = False, None
+    if mail.configured() and body.send_email:
+        try:
+            mail.invite_mail(email, w.org_name, w.name or w.email, body.role, mail.public_url(str(request.base_url)) + path)
+            emailed = True
+        except Exception as e:                       # письмо не ушло — ссылку всё равно показываем
+            mail_error = "Письмо не отправлено: " + str(e)[:200]
+    # в базе хранится только хеш токена, саму ссылку видит только владелец в этом ответе
+    return {"id": str(r["id"]), "path": path, "expires_at": r["expires_at"].isoformat(), "emailed": emailed, "mail_error": mail_error}
 
 
 @app.delete("/api/org/invites/{invite_id}")

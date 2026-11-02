@@ -40,6 +40,13 @@ services:
       AI_API_KEY: ${AI_API_KEY:-}
       YANDEX_API_KEY: ${YANDEX_API_KEY:-}
       YANDEX_FOLDER_ID: ${YANDEX_FOLDER_ID:-}
+      # почта для приглашений и «Забыли пароль?» (необязательно)
+      PUBLIC_URL: ${PUBLIC_URL:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      MAIL_FROM: ${MAIL_FROM:-}
       # Python-блоки выполняются в отдельном исполнителе
       RUNNER_URL: http://runner:8100
       RUNNER_TOKEN: ${RUNNER_TOKEN:?задайте RUNNER_TOKEN в .env}
