@@ -51,7 +51,8 @@
     var needPy = plan.order.some(function(n){ return n.lang === 'python'; });
     var results = {}, stat = { ok:0, err:0, skip:0 };
     running = true;
-    (needPy ? loadPyFor(rlog) : Promise.resolve(null)).then(function(py){
+    if(needPy && RUN_SERVER) rlog('Python выполняется на сервере', 'dim');
+    (needPy && !RUN_SERVER ? loadPyFor(rlog) : Promise.resolve(null)).then(function(py){
       var i = 0;
       function next(){
         if(i >= plan.order.length){ finish(); return; }
@@ -60,6 +61,23 @@
         var ins = plan.preds[n.id].map(function(p){ return results[p]; }).filter(function(v){ return v !== undefined && v !== null; });
         var input = ins.length === 0 ? null : (ins.length === 1 ? ins[0] : ins);
         setTimeout(function(){
+          if(n.lang === 'python' && RUN_SERVER){
+            rlog('▶ ' + n.name + (input === null ? '  (входных данных нет — тестовые данные блока)' : ''));
+            serverRun(nodeCode(n), input, 'block').then(function(r){
+              printLines(r.stdout, function(t){ rlog('   ' + t); }); printLines(r.stderr, function(t){ rlog('   ' + t, 'err'); });
+              if(r.ok){
+                var oj = r.output === undefined ? null : JSON.stringify(r.output);
+                results[n.id] = r.output === undefined ? null : r.output;
+                rlog('  ✓ результат: ' + (oj ? (oj.length > 160 ? oj.slice(0, 160) + '…' : oj) : 'нет') + ' · ' + r.ms + ' мс', 'ok'); stat.ok++;
+                setRun(n, 'ok', 'Выполнен на сервере. Результат: ' + (oj ? (oj.length > 200 ? oj.slice(0, 200) + '…' : oj) : 'нет'));
+              } else {
+                rlog('  ✗ ошибка: ' + r.error, 'err'); stat.err++; results[n.id] = null; setRun(n, 'err', 'Ошибка: ' + r.error);
+              }
+              if(d) d.classList.remove('running');
+              next();
+            });
+            return;
+          }
           try{
             if(n.lang === 'python' && py){
               rlog('▶ ' + n.name + (input === null ? '  (входных данных нет — тестовые данные блока)' : ''));

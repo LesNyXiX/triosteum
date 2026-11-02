@@ -3679,7 +3679,8 @@ public class MovingAverage : IBlock
     var needPy = plan.order.some(function(n){ return n.lang === 'python'; });
     var results = {}, stat = { ok:0, err:0, skip:0 };
     running = true;
-    (needPy ? loadPyFor(rlog) : Promise.resolve(null)).then(function(py){
+    if(needPy && RUN_SERVER) rlog('Python выполняется на сервере', 'dim');
+    (needPy && !RUN_SERVER ? loadPyFor(rlog) : Promise.resolve(null)).then(function(py){
       var i = 0;
       function next(){
         if(i >= plan.order.length){ finish(); return; }
@@ -3688,6 +3689,23 @@ public class MovingAverage : IBlock
         var ins = plan.preds[n.id].map(function(p){ return results[p]; }).filter(function(v){ return v !== undefined && v !== null; });
         var input = ins.length === 0 ? null : (ins.length === 1 ? ins[0] : ins);
         setTimeout(function(){
+          if(n.lang === 'python' && RUN_SERVER){
+            rlog('▶ ' + n.name + (input === null ? '  (входных данных нет — тестовые данные блока)' : ''));
+            serverRun(nodeCode(n), input, 'block').then(function(r){
+              printLines(r.stdout, function(t){ rlog('   ' + t); }); printLines(r.stderr, function(t){ rlog('   ' + t, 'err'); });
+              if(r.ok){
+                var oj = r.output === undefined ? null : JSON.stringify(r.output);
+                results[n.id] = r.output === undefined ? null : r.output;
+                rlog('  ✓ результат: ' + (oj ? (oj.length > 160 ? oj.slice(0, 160) + '…' : oj) : 'нет') + ' · ' + r.ms + ' мс', 'ok'); stat.ok++;
+                setRun(n, 'ok', 'Выполнен на сервере. Результат: ' + (oj ? (oj.length > 200 ? oj.slice(0, 200) + '…' : oj) : 'нет'));
+              } else {
+                rlog('  ✗ ошибка: ' + r.error, 'err'); stat.err++; results[n.id] = null; setRun(n, 'err', 'Ошибка: ' + r.error);
+              }
+              if(d) d.classList.remove('running');
+              next();
+            });
+            return;
+          }
           try{
             if(n.lang === 'python' && py){
               rlog('▶ ' + n.name + (input === null ? '  (входных данных нет — тестовые данные блока)' : ''));
@@ -4531,6 +4549,15 @@ public class MovingAverage : IBlock
     el.out.appendChild(span);
     el.out.scrollTop = el.out.scrollHeight;
   }
+  // Python на сервере Triosteum (песочница), если сервер его поддерживает; иначе — Pyodide в браузере
+  var RUN_SERVER = !!(SERVER && window.TRIOSTEUM_BOOT.runner && window.TRIOSTEUM_BOOT.runner.enabled);
+  function serverRun(code, input, mode){
+    return SERVER.api('POST', '/run/python', { code:code, input:input === undefined ? null : input, mode:mode || 'block' }).then(function(r){
+      if(r.status !== 200) return { ok:false, stdout:'', stderr:'', error:(r.data && r.data.detail) || ('ошибка ' + r.status) };
+      return r.data;
+    }, function(){ return { ok:false, stdout:'', stderr:'', error:'нет связи с сервером' }; });
+  }
+  function printLines(text, fn, cls){ String(text || '').replace(/\n+$/, '').split('\n').forEach(function(t){ if(t) fn(t, cls); }); }
   var pyodide = null, pyLoading = null;
   function loadPyFor(logFn){ return loadPy(logFn); }
   function loadPy(logFn){
@@ -4578,6 +4605,17 @@ public class MovingAverage : IBlock
     if(pane === 'sheet'){ refreshVals(); sheetInfo(); return; }
     if(isDocs() && isParamKind(l.id)){ try{ JSON.parse(el.code.value); print('> Параметры записаны верно.', 'ok'); }catch(err){ print('> Ошибка в параметрах: ' + err.message, 'err'); } return; }
     if(l.id === 'html'){ updatePreview(true); print('> Предпросмотр обновлён.', 'ok'); return; }
+    if(l.id === 'python' && RUN_SERVER){
+      print('> Запуск на сервере…', 'dim');
+      serverRun(el.code.value, null, 'block').then(function(r){
+        printLines(r.stdout, print); printLines(r.stderr, print, 'err');
+        if(r.ok){
+          if(r.block) print('◀ Результат блока «' + r.block + '»: ' + JSON.stringify(r.output));
+          print('> Выполнено без ошибок за ' + r.ms + ' мс.', 'ok');
+        } else { print('> Ошибка:', 'err'); print(r.error, 'err'); }
+      });
+      return;
+    }
     if(l.id === 'python'){
       var src = el.code.value;
       loadPy().then(function(py){
@@ -5526,8 +5564,16 @@ public class MovingAverage : IBlock
     else toast('Браузер не разрешил копирование');
   }
   function runScheme(code){
-    SC.out = 'Загружаю Python…\n'; SC.err = null; renderScheme();
-    function log(t){ SC.out += t + '\n'; var o = $('scBody').querySelector('.sc-out'); if(o){ o.textContent = SC.out; o.scrollTop = o.scrollHeight; } }
+    SC.out = RUN_SERVER ? 'Запуск на сервере…\n' : 'Загружаю Python…\n'; SC.err = null; renderScheme();
+    function log(t){ SC.out += t + '\n'; var o = $('scBody').querySelector('.sc-out'); if(!o){ renderScheme(); o = $('scBody').querySelector('.sc-out'); } if(o){ o.textContent = SC.out; o.scrollTop = o.scrollHeight; } }
+    if(RUN_SERVER){
+      serverRun(code, null, 'script').then(function(r){
+        SC.out = ''; renderScheme();
+        printLines(r.stdout, log); printLines(r.stderr, log);
+        log(r.ok ? 'Готово за ' + r.ms + ' мс.' : '✗ ' + r.error);
+      });
+      return;
+    }
     loadPy(log).then(function(py){
       SC.out = ''; renderScheme();
       py.setStdout({ batched:log }); py.setStderr({ batched:log });

@@ -36,6 +36,12 @@ app = FastAPI(title="Triosteum", docs_url="/api/docs", openapi_url="/api/openapi
 login_limiter = RateLimiter(settings.login_attempts_per_min)
 ai_limiter = RateLimiter(int(os.environ.get("AI_REQUESTS_PER_MIN", "20")))
 AI = ai_mod.from_env()
+run_limiter = RateLimiter(int(os.environ.get("RUN_REQUESTS_PER_MIN", "30")))
+# Исполнитель Python: отдельный сервис (RUNNER_URL + RUNNER_TOKEN) или, для разработки, прямо здесь (RUNNER_LOCAL=1)
+RUNNER_URL = (os.environ.get("RUNNER_URL") or "").rstrip("/")
+RUNNER_TOKEN = os.environ.get("RUNNER_TOKEN", "")
+RUNNER_LOCAL = os.environ.get("RUNNER_LOCAL", "") in ("1", "true", "yes")
+RUNNER_ON = bool(RUNNER_URL and RUNNER_TOKEN) or RUNNER_LOCAL
 
 COOKIE = "tsid"
 SPACE_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
@@ -178,7 +184,8 @@ def index(request: Request):
             text("SELECT name, value FROM prefs WHERE user_id = :u"), {"u": w.user_id}).mappings()}
     boot = {"user": {"id": w.user_id, "email": w.email, "name": w.name}, "org": {"id": w.org_id, "name": w.org_name},
             "role": w.role, "cur": prefs.get("cur"), "prefs": prefs, "spaces": spaces,
-            "ai": {"enabled": AI is not None, "provider": AI.name if AI else None, "model": AI.model if AI else None}}
+            "ai": {"enabled": AI is not None, "provider": AI.name if AI else None, "model": AI.model if AI else None},
+            "runner": {"enabled": RUNNER_ON}}
     # «<» в данных экранируем, чтобы строка внутри JSON не смогла закрыть тег <script>
     tag = "<script>window.TRIOSTEUM_BOOT = " + json.dumps(boot, ensure_ascii=False).replace("<", "\\u003c") + ";</script>"
     html = read_html(settings.client_html).replace("<!--@@BOOT@@-->", tag, 1)
@@ -659,6 +666,45 @@ def ai_complete(body: AIIn, w: Who = Depends(need)):
 
     return StreamingResponse(gen(), media_type="text/plain; charset=utf-8",
                              headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
+
+
+# ---------- запуск Python на сервере ----------
+
+class RunIn(BaseModel):
+    code: str = Field(max_length=500_000)
+    input: Any = None
+    mode: str = Field(default="block", pattern="^(block|script)$")
+
+
+def _run_local(job: dict) -> dict:
+    import sys as _sys
+    runner_dir = str(Path(__file__).resolve().parents[1] / "runner")
+    if runner_dir not in _sys.path:
+        _sys.path.insert(0, runner_dir)
+    import sandbox  # type: ignore
+    return sandbox.run(job["code"], job["input"], job["mode"])
+
+
+@app.post("/api/run/python")
+def run_python(body: RunIn, w: Who = Depends(need)):
+    if not RUNNER_ON:
+        raise HTTPException(503, "Запуск Python на сервере не подключён")
+    if w.role == "viewer":
+        raise HTTPException(403, "Наблюдателю запуск недоступен")
+    if not run_limiter.hit("user:" + w.user_id):
+        raise HTTPException(429, "Слишком много запусков — подождите минуту")
+    if len(json.dumps(body.input, ensure_ascii=False, default=str)) > 1_000_000:
+        raise HTTPException(413, "Входные данные слишком большие")
+    job = {"code": body.code, "input": body.input, "mode": body.mode}
+    if RUNNER_URL:
+        try:
+            r = httpx.post(RUNNER_URL + "/run", json=job, headers={"X-Runner-Token": RUNNER_TOKEN}, timeout=90)
+        except httpx.HTTPError:
+            raise HTTPException(503, "Исполнитель Python недоступен")
+        if r.status_code != 200:
+            raise HTTPException(503, (r.json().get("detail") if r.headers.get("content-type", "").startswith("application/json") else None) or "Исполнитель Python недоступен")
+        return r.json()
+    return _run_local(job)
 
 
 # ---------- настройки и перенос ----------

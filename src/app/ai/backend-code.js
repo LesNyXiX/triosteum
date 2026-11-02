@@ -140,8 +140,16 @@
     else toast('Браузер не разрешил копирование');
   }
   function runScheme(code){
-    SC.out = 'Загружаю Python…\n'; SC.err = null; renderScheme();
-    function log(t){ SC.out += t + '\n'; var o = $('scBody').querySelector('.sc-out'); if(o){ o.textContent = SC.out; o.scrollTop = o.scrollHeight; } }
+    SC.out = RUN_SERVER ? 'Запуск на сервере…\n' : 'Загружаю Python…\n'; SC.err = null; renderScheme();
+    function log(t){ SC.out += t + '\n'; var o = $('scBody').querySelector('.sc-out'); if(!o){ renderScheme(); o = $('scBody').querySelector('.sc-out'); } if(o){ o.textContent = SC.out; o.scrollTop = o.scrollHeight; } }
+    if(RUN_SERVER){
+      serverRun(code, null, 'script').then(function(r){
+        SC.out = ''; renderScheme();
+        printLines(r.stdout, log); printLines(r.stderr, log);
+        log(r.ok ? 'Готово за ' + r.ms + ' мс.' : '✗ ' + r.error);
+      });
+      return;
+    }
     loadPy(log).then(function(py){
       SC.out = ''; renderScheme();
       py.setStdout({ batched:log }); py.setStderr({ batched:log });

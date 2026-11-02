@@ -6,6 +6,15 @@
     el.out.appendChild(span);
     el.out.scrollTop = el.out.scrollHeight;
   }
+  // Python на сервере Triosteum (песочница), если сервер его поддерживает; иначе — Pyodide в браузере
+  var RUN_SERVER = !!(SERVER && window.TRIOSTEUM_BOOT.runner && window.TRIOSTEUM_BOOT.runner.enabled);
+  function serverRun(code, input, mode){
+    return SERVER.api('POST', '/run/python', { code:code, input:input === undefined ? null : input, mode:mode || 'block' }).then(function(r){
+      if(r.status !== 200) return { ok:false, stdout:'', stderr:'', error:(r.data && r.data.detail) || ('ошибка ' + r.status) };
+      return r.data;
+    }, function(){ return { ok:false, stdout:'', stderr:'', error:'нет связи с сервером' }; });
+  }
+  function printLines(text, fn, cls){ String(text || '').replace(/\n+$/, '').split('\n').forEach(function(t){ if(t) fn(t, cls); }); }
   var pyodide = null, pyLoading = null;
   function loadPyFor(logFn){ return loadPy(logFn); }
   function loadPy(logFn){
@@ -53,6 +62,17 @@
     if(pane === 'sheet'){ refreshVals(); sheetInfo(); return; }
     if(isDocs() && isParamKind(l.id)){ try{ JSON.parse(el.code.value); print('> Параметры записаны верно.', 'ok'); }catch(err){ print('> Ошибка в параметрах: ' + err.message, 'err'); } return; }
     if(l.id === 'html'){ updatePreview(true); print('> Предпросмотр обновлён.', 'ok'); return; }
+    if(l.id === 'python' && RUN_SERVER){
+      print('> Запуск на сервере…', 'dim');
+      serverRun(el.code.value, null, 'block').then(function(r){
+        printLines(r.stdout, print); printLines(r.stderr, print, 'err');
+        if(r.ok){
+          if(r.block) print('◀ Результат блока «' + r.block + '»: ' + JSON.stringify(r.output));
+          print('> Выполнено без ошибок за ' + r.ms + ' мс.', 'ok');
+        } else { print('> Ошибка:', 'err'); print(r.error, 'err'); }
+      });
+      return;
+    }
     if(l.id === 'python'){
       var src = el.code.value;
       loadPy().then(function(py){
