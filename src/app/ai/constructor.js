@@ -149,7 +149,7 @@
     r.changes.forEach(function(c){
       if(c.on === false) return;
       if(c.op === 'add_edge'){
-        if(!G.edges.some(function(e){ return e.from === c.from && e.to === c.to; })){ G.edges.push({ id:'e' + (G.seq++), from:c.from, to:c.to, taps:[] }); n++; }
+        if(!G.edges.some(function(e){ return e.from === c.from && e.to === c.to; })){ G.edges.push({ id:newId('e'), from:c.from, to:c.to, taps:[] }); n++; }
       } else if(c.op === 'remove_edge'){
         var before = G.edges.length; G.edges = G.edges.filter(function(e){ return e.id !== c.edge; }); if(G.edges.length < before) n++;
       } else if(c.op === 'reverse_edge'){

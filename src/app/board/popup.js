@@ -174,7 +174,7 @@
     p.appendChild(section('Действия', h('div', { 'class':'acts' }, [
       h('button', { type:'button', 'class':'btn sm', text:'Редактировать на доске', on:{ click:function(){ editNote(t.id); } } }),
       h('button', { type:'button', 'class':'btn sm', text:'Дублировать', on:{ click:function(){
-        var c = JSON.parse(JSON.stringify(t)); c.id = 't' + (G.seq++); c.x += 24; c.y += 24; G.notes.push(c);
+        var c = JSON.parse(JSON.stringify(t)); c.id = newId('t'); c.x += 24; c.y += 24; G.notes.push(c);
         S.sel = { type:'note', id:c.id }; saveGraph(); renderGraph(); renderPop(); } } }),
       h('button', { type:'button', 'class':'btn sm danger', text:'Удалить', on:{ click:deleteSel } })
     ])));

@@ -191,7 +191,7 @@
   }
   function duplicateNode(n){
     var c = JSON.parse(JSON.stringify(n));
-    c.id = 'n' + (G.seq++); c.x += 32; c.y += 32; c.name = n.name + ' (копия)';
+    c.id = newId('n'); c.x += 32; c.y += 32; c.name = n.name + ' (копия)';
     G.nodes.push(c); S.sel = { type:'node', id:c.id }; saveGraph(); renderGraph(); renderPop();
   }
   function saveNodeAsPlugin(n){

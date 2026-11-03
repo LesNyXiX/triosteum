@@ -14,15 +14,19 @@
     var pending = {}, timers = {}, inflight = {}, listeners = [], offline = false, conflictOpen = false;
     var quiet = {};   // ключи, обновлённые из-за конфликта: своё сообщение уже показано
     (boot.spaces || []).forEach(function(sp){
-      spaces[sp.id] = { id:sp.id, name:sp.name, env:sp.env || 'code', rev:sp.rev || 0, updated_at:sp.updated_at, content:typeof sp.content === 'string' ? sp.content : JSON.stringify(sp.content || {}) };
+      var txt = typeof sp.content === 'string' ? sp.content : JSON.stringify(sp.content || {});
+      // base — последняя версия, известная и нам, и серверу: от неё считается слияние одновременных правок
+      spaces[sp.id] = { id:sp.id, name:sp.name, env:sp.env || 'code', rev:sp.rev || 0, updated_at:sp.updated_at, content:txt, base:txt };
       order.push(sp.id);
     });
     Object.keys(boot.prefs || {}).forEach(function(k){ prefs[k] = JSON.stringify(boot.prefs[k]); });
     if(!cur || !spaces[cur]) cur = order[0] || null;
 
     function req(method, path, body, keepalive){
+      var hd = body === undefined ? {} : { 'Content-Type':'application/json' };
+      if(adapter.sid) hd['X-Live-Sid'] = adapter.sid;      // своя же правка не вернётся нам по WebSocket
       return fetch(api + path, { method:method, credentials:'same-origin', keepalive:!!keepalive,
-        headers:body === undefined ? {} : { 'Content-Type':'application/json' },
+        headers:hd,
         body:body === undefined ? undefined : JSON.stringify(body) }).then(function(r){
           if(r.status === 401){ location.href = (boot.api || '') + '/login?next=' + encodeURIComponent(location.pathname); throw new Error('auth'); }
           return r.text().then(function(t){ var d = null; try{ d = t ? JSON.parse(t) : null; }catch(e){} return { status:r.status, data:d }; });
@@ -59,17 +63,33 @@
     function saveSpace(id){
       return function(keepalive){
         var sp = spaces[id]; if(!sp) return Promise.resolve();
-        var sent = sp.content;
+        var sent = sp.content, sentBase = sp.base;          // основа именно этой правки — для слияния при конфликте
         return req('PUT', '/spaces/' + encodeURIComponent(id), { name:sp.name, env:sp.env || 'code', content:JSON.parse(sent), base_rev:sp.rev || 0 }, keepalive).then(function(r){
-          if(r.status === 200 || r.status === 201){ sp.rev = r.data.rev; sp.updated_at = r.data.updated_at; return; }
-          if(r.status === 409) return conflict(id, sent, r.data);
+          if(r.status === 200 || r.status === 201){ sp.rev = r.data.rev; sp.updated_at = r.data.updated_at; sp.base = sent; return; }
+          if(r.status === 409) return conflict(id, sent, r.data, sentBase);
           throw new Error('HTTP ' + r.status);
         });
       };
     }
     // кто-то сохранил это пространство раньше нас: берём его версию, свою — копией
-    function conflict(id, mine, theirs){
+    function conflict(id, mine, theirs, mineBase){
       var sp = spaces[id];
+      // сначала пробуем слить: разные блоки и свойства складываются, копия не нужна.
+      // Наша правка (mine) — поверх mineBase; а то, что пришло после её отправки, уже учтено в sp.content.
+      try{
+        var merged = merge3(JSON.parse(mineBase || sp.base || '{}'), JSON.parse(mine), theirs.content);
+        if(sp.content !== mine) merged = merge3(JSON.parse(mine), JSON.parse(sp.content), merged);   // правки, сделанные пока запрос был в пути
+        sp.rev = theirs.rev; sp.updated_at = theirs.updated_at; sp.base = JSON.stringify(theirs.content);
+        sp.content = JSON.stringify(merged);
+        queue(PJ + id, saveSpace(id), 0);
+      }catch(e){ merged = null; }
+      if(merged){
+        try{
+          if(adapter.onMerged) adapter.onMerged(id, merged, theirs.updated_by_name, theirs.content, mine);
+          else { quiet[PJ + id] = true; emit(PJ + id, sp.content); }
+        }catch(e){ console.error('LIVE onMerged', e && e.message); }
+        return;
+      }
       sp.rev = theirs.rev; sp.content = JSON.stringify(theirs.content); sp.updated_at = theirs.updated_at;
       var copyId = 'p' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);
       var who = theirs.updated_by_name ? ' (' + theirs.updated_by_name + ')' : '';
@@ -110,7 +130,7 @@
     });
     window.addEventListener('online', function(){ flushAll(); });
 
-    return {
+    var adapter = {
       name:'server',
       user:boot.user || null, org:boot.org || null, role:boot.role || 'editor',
       get:function(k){
@@ -172,10 +192,28 @@
         });
         return req('POST', '/import', body).then(function(r){ if(r.status >= 400) throw new Error('HTTP ' + r.status); return r.data; });
       },
+      // правка коллеги пришла по WebSocket: сливаем с нашей (mineObj — текущее состояние на экране)
+      remote:function(id, rev, theirsObj, mineObj){
+        var sp = spaces[id];
+        if(!sp){ spaces[id] = { id:id, name:'Пространство', env:'code', rev:rev, content:JSON.stringify(theirsObj), base:JSON.stringify(theirsObj) }; order.push(id); return theirsObj; }
+        if(rev <= sp.rev) return null;
+        var mine = mineObj || JSON.parse(sp.content), baseObj = JSON.parse(sp.base || '{}');
+        var merged = merge3(baseObj, mine, theirsObj);
+        sp.rev = rev; sp.base = JSON.stringify(theirsObj);
+        var strip = function(o){ var c = JSON.parse(JSON.stringify(o)); delete c.cam; if(c.files){ delete c.files.open; delete c.files.active; } return JSON.stringify(c); };
+        sp.content = JSON.stringify(merged);
+        if(strip(merged) === strip(theirsObj)){ delete pending[PJ + id]; clearTimeout(timers[PJ + id]); }   // своих правок нет
+        else queue(PJ + id, saveSpace(id), 300);                                                           // свои правки — дослать поверх
+        return merged;
+      },
+      baseOf:function(id){ var sp = spaces[id]; return sp ? JSON.parse(sp.base || '{}') : null; },
+      sid:null, onMerged:null,
       localCount:function(){
         try{ var l = JSON.parse(localStorage.getItem(LIST) || 'null'); return l && l.list ? l.list.filter(function(m){ var c = localStorage.getItem(PJ + m.id); return c && c.length > 60; }).length : 0; }catch(e){ return 0; }
       }
     };
+    return adapter;
   }
+  var LIVE_TAG = window.TRIOSTEUM_BOOT && window.TRIOSTEUM_BOOT.user ? '_' + Math.random().toString(36).slice(2, 5) : '';
   var SERVER = window.TRIOSTEUM_BOOT && window.TRIOSTEUM_BOOT.user ? serverAdapter(window.TRIOSTEUM_BOOT) : null;
   if(SERVER) Store.use(SERVER);

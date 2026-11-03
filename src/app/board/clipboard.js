@@ -24,16 +24,16 @@
     pasteN++;
     var off = 40 * pasteN, map = {}, c = JSON.parse(JSON.stringify(clip));
     S.multi = [];
-    c.nodes.forEach(function(n){ var nid = 'n' + (G.seq++); map[n.id] = nid; n.id = nid; n.x += off; n.y += off; if(!/\(копия\)$/.test(n.name)) n.name += ' (копия)'; G.nodes.push(n); S.multi.push({ type:'node', id:nid }); });
+    c.nodes.forEach(function(n){ var nid = newId('n'); map[n.id] = nid; n.id = nid; n.x += off; n.y += off; if(!/\(копия\)$/.test(n.name)) n.name += ' (копия)'; G.nodes.push(n); S.multi.push({ type:'node', id:nid }); });
     c.notes.forEach(function(t){
-      t.id = 't' + (G.seq++);
+      t.id = newId('t');
       if(t.attach){ t.attach = map[t.attach]; if(!t.attach) return; }
       else { t.x += off; t.y += off; S.multi.push({ type:'note', id:t.id }); }
       G.notes.push(t);
     });
     c.edges.forEach(function(e){
-      e.id = 'e' + (G.seq++); e.from = map[e.from]; e.to = map[e.to];
-      (e.taps || []).forEach(function(tp){ tp.id = 'p' + (G.seq++); tp.nodes = tapIds(tp).map(function(x){ return map[x]; }).filter(Boolean); });
+      e.id = newId('e'); e.from = map[e.from]; e.to = map[e.to];
+      (e.taps || []).forEach(function(tp){ tp.id = newId('p'); tp.nodes = tapIds(tp).map(function(x){ return map[x]; }).filter(Boolean); });
       G.edges.push(e);
     });
     S.sel = null; hidePop(); saveGraph(); renderGraph(); updateSel();

@@ -30,6 +30,8 @@
   };
   if(!LANGS.some(function(l){ return l.id === S.lang; })) S.lang = 'python';
   var G = S.graph;
+  // новый номер объекта; при совместной работе к нему добавляется метка вкладки — номера двух людей не совпадут
+  function newId(prefix){ return prefix + (G.seq++) + LIVE_TAG; }
   if(!G.cam) G.cam = { x:0, y:0, k:1 };
   if(!G.seq) G.seq = 1;
   if(!G.notes) G.notes = [];

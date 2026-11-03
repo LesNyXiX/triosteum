@@ -13,7 +13,7 @@
     }
     if(pendingText && S.tool === 'text'){
       var q = pendingText; pendingText = null;
-      var note = { id:'t' + (G.seq++), text:'', x:Math.round(q.x), y:Math.round(q.y - 12), fs:UI.note, tint:'grey' };
+      var note = { id:newId('t'), text:'', x:Math.round(q.x), y:Math.round(q.y - 12), fs:UI.note, tint:'grey' };
       G.notes.push(note); S.sel = { type:'note', id:note.id };
       S.tool = 'select'; render(); renderGraph(); updateSel();
       editNote(note.id);
@@ -367,7 +367,7 @@
         var from = dd.free === 'to' ? dd.fixed.id : dd.over.id;
         var to   = dd.free === 'to' ? dd.over.id : dd.fixed.id;
         if(!G.edges.some(function(x){ return x.from === from && x.to === to; })){
-          G.edges.push({ id: dd.edge ? dd.edge.id : 'e' + (G.seq++), from:from, to:to, taps:dd.edge ? dd.edge.taps : [] });
+          G.edges.push({ id: dd.edge ? dd.edge.id : newId('e'), from:from, to:to, taps:dd.edge ? dd.edge.taps : [] });
         }
       } else if(dd.overTap){
         var otp = dd.overTap.tap;

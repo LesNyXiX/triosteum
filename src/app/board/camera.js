@@ -2,6 +2,7 @@
   function applyCam(){
     var c = G.cam;
     el.world.style.transform = 'translate(' + c.x + 'px,' + c.y + 'px) scale(' + c.k + ')';
+    el.world.style.setProperty('--ik', 1 / c.k);      // курсоры коллег не масштабируются вместе с доской
     var g = 24 * c.k;
     el.canvas.style.backgroundSize = g + 'px ' + g + 'px';
     el.canvas.style.backgroundPosition = c.x + 'px ' + c.y + 'px';

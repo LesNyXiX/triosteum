@@ -1,0 +1,14 @@
+  /* --- совместная работа: кто онлайн и курсоры коллег --- */
+  .live-peers{display:flex;align-items:center;margin-left:4px}
+  .live-peers:empty{display:none}
+  .live-av{width:26px;height:26px;margin-left:-6px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:700;color:#12090B;border:2px solid var(--panel);cursor:default;box-shadow:0 2px 6px rgba(0,0,0,.35)}
+  .live-av:first-child{margin-left:0}
+  .live-av.more{background:var(--line2);color:var(--ink-strong)}
+  body:not(.noanim) .live-av{animation:tFade .3s ease}
+  .live-cur{position:absolute;left:0;top:0;z-index:40;pointer-events:none;transform-origin:0 0;transform:translate(var(--x),var(--y)) scale(var(--ik,1));transition:transform .12s linear}
+  body.noanim .live-cur{transition:none}
+  .live-cur svg{display:block;filter:drop-shadow(0 1px 2px rgba(0,0,0,.5))}
+  .live-cur span{position:absolute;left:14px;top:16px;padding:2px 7px;border-radius:7px;font:600 11.5px Inter,system-ui,sans-serif;color:#12090B;white-space:nowrap}
+  .node.live-sel{outline:2px solid var(--live-c);outline-offset:4px}
+  .node.live-sel::after{content:attr(data-live);position:absolute;right:-4px;top:-22px;padding:1px 6px;border-radius:6px;background:var(--live-c);color:#12090B;font:600 10.5px Inter,system-ui,sans-serif;white-space:nowrap}
+  @media (max-width:640px){ .live-peers{display:none} }

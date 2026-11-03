@@ -173,10 +173,10 @@
         var np = { id:'my-' + Date.now().toString(36) + i, my:true, name:bk.name, lang:bk.lang, desc:bk.desc, family:null, codes:{}, ai:true };
         np.codes[bk.lang] = bk.code; MY.unshift(np); pid = np.id; nNew++;
       } else { var p = pluginById(pid); fam = p && p.family || null; }
-      var n = { id:'n' + (G.seq++), name:bk.name, lang:bk.lang, x:0, y:0, codes:{}, pluginId:pid, family:fam, desc:desc, colors:null };
+      var n = { id:newId('n'), name:bk.name, lang:bk.lang, x:0, y:0, codes:{}, pluginId:pid, family:fam, desc:desc, colors:null };
       G.nodes.push(n); map[bk.key] = n.id; made.push(n);
     });
-    r.links.forEach(function(l){ G.edges.push({ id:'e' + (G.seq++), from:map[l.from], to:map[l.to], taps:[] }); });
+    r.links.forEach(function(l){ G.edges.push({ id:newId('e'), from:map[l.from], to:map[l.to], taps:[] }); });
     var others = G.nodes.filter(function(n){ return made.indexOf(n) < 0; });
     var x0, cy;
     if(others.length){ x0 = Math.max.apply(0, others.map(function(n){ return n.x + NWof(n); })) + 200; cy = others.reduce(function(s, n){ return s + n.y; }, 0) / others.length + NH / 2; }

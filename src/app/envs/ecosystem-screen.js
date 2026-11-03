@@ -58,12 +58,12 @@
     var spec = [['sh-contracts'], ['py-words'], ['doc-contract'], ['st-head'], ['cd-big'], ['st-fin'], ['st-sign'], ['st-reg'], ['sn-xlsx'], ['sn-pack']];
     var ids = spec.map(function(s){
       var p = pluginById(s[0]);
-      var n = { id:'n' + (G.seq++), name:p.name, lang:p.lang, x:0, y:0, codes:{}, pluginId:p.id, family:null, desc:p.desc, colors:null };
+      var n = { id:newId('n'), name:p.name, lang:p.lang, x:0, y:0, codes:{}, pluginId:p.id, family:null, desc:p.desc, colors:null };
       G.nodes.push(n); return n;
     });
-    [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 8], [7, 9]].forEach(function(l){ G.edges.push({ id:'e' + (G.seq++), from:ids[l[0]].id, to:ids[l[1]].id, taps:[] }); });
+    [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 8], [7, 9]].forEach(function(l){ G.edges.push({ id:newId('e'), from:ids[l[0]].id, to:ids[l[1]].id, taps:[] }); });
     var c = viewCenter(); layoutSet(ids, c.x - 900, c.y);
-    G.notes.push({ id:'t' + (G.seq++), text:'Пример маршрута: из реестра формируются договоры, крупные (больше 1 млн) идут на согласование к финансовому директору, затем подпись, регистрация и выгрузка. Нажмите «Запустить».', x:Math.round(c.x - 900), y:Math.round(c.y - 230), fs:14, tint:'blue' });
+    G.notes.push({ id:newId('t'), text:'Пример маршрута: из реестра формируются договоры, крупные (больше 1 млн) идут на согласование к финансовому директору, затем подпись, регистрация и выгрузка. Нажмите «Запустить».', x:Math.round(c.x - 900), y:Math.round(c.y - 230), fs:14, tint:'blue' });
     saveGraph(); renderGraph(); setTimeout(fitView, 30);
     toast('Открыт пример: маршрут договоров поставки');
   }

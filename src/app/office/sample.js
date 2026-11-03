@@ -19,8 +19,8 @@
     formTarget(form);
     // автоматизация: маршрут, который берёт договоры прямо из файла «Реестр договоров»
     var spec = [['sh-contracts', reg.id], ['doc-contract'], ['cd-big'], ['st-fin'], ['st-sign'], ['sn-xlsx']];
-    var ns = spec.map(function(s){ var p = pluginById(s[0]); var n = { id:'n' + (G.seq++), name:p.name, lang:p.lang, x:0, y:0, codes:{}, pluginId:p.id, family:null, desc:p.desc, colors:null }; if(s[1]){ n.src = s[1]; n.name = 'Реестр договоров (файл)'; } G.nodes.push(n); return n; });
-    for(var i = 0; i + 1 < ns.length; i++) G.edges.push({ id:'e' + (G.seq++), from:ns[i].id, to:ns[i + 1].id, taps:[] });
+    var ns = spec.map(function(s){ var p = pluginById(s[0]); var n = { id:newId('n'), name:p.name, lang:p.lang, x:0, y:0, codes:{}, pluginId:p.id, family:null, desc:p.desc, colors:null }; if(s[1]){ n.src = s[1]; n.name = 'Реестр договоров (файл)'; } G.nodes.push(n); return n; });
+    for(var i = 0; i + 1 < ns.length; i++) G.edges.push({ id:newId('e'), from:ns[i].id, to:ns[i + 1].id, taps:[] });
     layoutSet(ns, 100, 300);
     arrangeDesk(); saveGraph(); ofRender();
     toast('Пример загружен: бюджет, отчёт и презентация связаны с таблицей; маршрут — во вкладке «Автоматизация»');

@@ -839,6 +839,21 @@
   .hv-lbl{font-size:13.5px;font-weight:600;color:var(--ink-strong)}
   .hv-auto{font-weight:500;color:var(--muted)}
 
+  /* --- совместная работа: кто онлайн и курсоры коллег --- */
+  .live-peers{display:flex;align-items:center;margin-left:4px}
+  .live-peers:empty{display:none}
+  .live-av{width:26px;height:26px;margin-left:-6px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:700;color:#12090B;border:2px solid var(--panel);cursor:default;box-shadow:0 2px 6px rgba(0,0,0,.35)}
+  .live-av:first-child{margin-left:0}
+  .live-av.more{background:var(--line2);color:var(--ink-strong)}
+  body:not(.noanim) .live-av{animation:tFade .3s ease}
+  .live-cur{position:absolute;left:0;top:0;z-index:40;pointer-events:none;transform-origin:0 0;transform:translate(var(--x),var(--y)) scale(var(--ik,1));transition:transform .12s linear}
+  body.noanim .live-cur{transition:none}
+  .live-cur svg{display:block;filter:drop-shadow(0 1px 2px rgba(0,0,0,.5))}
+  .live-cur span{position:absolute;left:14px;top:16px;padding:2px 7px;border-radius:7px;font:600 11.5px Inter,system-ui,sans-serif;color:#12090B;white-space:nowrap}
+  .node.live-sel{outline:2px solid var(--live-c);outline-offset:4px}
+  .node.live-sel::after{content:attr(data-live);position:absolute;right:-4px;top:-22px;padding:1px 6px;border-radius:6px;background:var(--live-c);color:#12090B;font:600 10.5px Inter,system-ui,sans-serif;white-space:nowrap}
+  @media (max-width:640px){ .live-peers{display:none} }
+
 </style>
 </head>
 <body>
@@ -1807,6 +1822,56 @@ public class MovingAverage : IBlock
   function load(k, d){ return Store.get(k, d); }
   function save(k, v){ Store.set(k, v); }
 
+  /* ---------- слияние одновременных правок (трёхстороннее) ---------- */
+  // base — версия, от которой оба начали; mine — наша; theirs — пришла с сервера.
+  // Правило: изменения разных объектов и разных свойств складываются. Если одно и то же свойство
+  // изменили оба — побеждает наше (оно сохраняется позже). Списки объектов с id (блоки, связи,
+  // заметки, файлы) сливаются по id: добавленное с обеих сторон остаётся, удалённое — удаляется,
+  // но если объект удалили с одной стороны, а изменили с другой — он остаётся.
+  // Личные настройки вида (камера, открытые вкладки) не синхронизируются: всегда наши.
+  var MERGE_LOCAL = { 'cam':1, 'files.open':1, 'files.active':1 };
+  function mEq(a, b){ return a === b || JSON.stringify(a) === JSON.stringify(b); }
+  function mObj(x){ return x !== null && typeof x === 'object' && !Array.isArray(x); }
+  function mIdList(x){ return Array.isArray(x) && x.length > 0 && x.every(function(v){ return mObj(v) && typeof v.id === 'string'; }); }
+  function merge3(base, mine, theirs, path){
+    path = path || '';
+    if(MERGE_LOCAL[path]) return mine === undefined ? theirs : mine;
+    if(mEq(mine, theirs)) return mine;
+    if(mEq(base, mine)) return theirs;
+    if(mEq(base, theirs)) return mine;
+    if(path === 'seq') return Math.max(Number(mine) || 0, Number(theirs) || 0);
+    if(mObj(mine) && mObj(theirs)){
+      var b = mObj(base) ? base : {}, out = {}, keys = {};
+      Object.keys(mine).concat(Object.keys(theirs), Object.keys(b)).forEach(function(k){ keys[k] = 1; });
+      Object.keys(keys).forEach(function(k){
+        var inM = k in mine, inT = k in theirs, inB = k in b, p = path ? path + '.' + k : k;
+        if(!inM && !inT) return;
+        if(!inM){ if(inB && mEq(b[k], theirs[k])) return; out[k] = theirs[k]; return; }   // мы удалили, они не трогали — удалено
+        if(!inT){ if(inB && mEq(b[k], mine[k])) return; out[k] = mine[k]; return; }       // они удалили, мы не трогали
+        out[k] = merge3(inB ? b[k] : undefined, mine[k], theirs[k], p);
+      });
+      return out;
+    }
+    var bl = Array.isArray(base) ? base : [];
+    if((mIdList(mine) || mine && mine.length === 0) && (mIdList(theirs) || theirs && theirs.length === 0) && Array.isArray(mine) && Array.isArray(theirs) && (mine.length || theirs.length)){
+      var byB = {}, byM = {}, res = [], seen = {};
+      bl.forEach(function(v){ if(mObj(v) && v.id) byB[v.id] = v; });
+      mine.forEach(function(v){ byM[v.id] = v; });
+      function take(id, m, t){
+        if(seen[id]) return; seen[id] = 1;
+        var bb = byB[id];
+        if(m && t){ res.push(merge3(bb, m, t, path + '[]')); return; }
+        if(m && !t){ if(bb && mEq(bb, m)) return; res.push(m); return; }   // они удалили; мы не меняли — удаляем
+        if(t && !m){ if(bb && mEq(bb, t)) return; res.push(t); return; }   // мы удалили; они не меняли — удаляем
+      }
+      var byT = {}; theirs.forEach(function(v){ byT[v.id] = v; });
+      theirs.forEach(function(v){ take(v.id, byM[v.id], v); });
+      mine.forEach(function(v){ take(v.id, v, byT[v.id]); });
+      return res;
+    }
+    return mine;                                                            // одно и то же изменили оба — наше
+  }
+
   /* ---------- адаптер сервера: данные хранятся в облаке Triosteum ---------- */
   // Включается сам, когда страницу отдал сервер Triosteum: сервер вставляет в неё
   // window.TRIOSTEUM_BOOT — пользователя, его пространства и настройки. Без этого
@@ -1823,15 +1888,19 @@ public class MovingAverage : IBlock
     var pending = {}, timers = {}, inflight = {}, listeners = [], offline = false, conflictOpen = false;
     var quiet = {};   // ключи, обновлённые из-за конфликта: своё сообщение уже показано
     (boot.spaces || []).forEach(function(sp){
-      spaces[sp.id] = { id:sp.id, name:sp.name, env:sp.env || 'code', rev:sp.rev || 0, updated_at:sp.updated_at, content:typeof sp.content === 'string' ? sp.content : JSON.stringify(sp.content || {}) };
+      var txt = typeof sp.content === 'string' ? sp.content : JSON.stringify(sp.content || {});
+      // base — последняя версия, известная и нам, и серверу: от неё считается слияние одновременных правок
+      spaces[sp.id] = { id:sp.id, name:sp.name, env:sp.env || 'code', rev:sp.rev || 0, updated_at:sp.updated_at, content:txt, base:txt };
       order.push(sp.id);
     });
     Object.keys(boot.prefs || {}).forEach(function(k){ prefs[k] = JSON.stringify(boot.prefs[k]); });
     if(!cur || !spaces[cur]) cur = order[0] || null;
 
     function req(method, path, body, keepalive){
+      var hd = body === undefined ? {} : { 'Content-Type':'application/json' };
+      if(adapter.sid) hd['X-Live-Sid'] = adapter.sid;      // своя же правка не вернётся нам по WebSocket
       return fetch(api + path, { method:method, credentials:'same-origin', keepalive:!!keepalive,
-        headers:body === undefined ? {} : { 'Content-Type':'application/json' },
+        headers:hd,
         body:body === undefined ? undefined : JSON.stringify(body) }).then(function(r){
           if(r.status === 401){ location.href = (boot.api || '') + '/login?next=' + encodeURIComponent(location.pathname); throw new Error('auth'); }
           return r.text().then(function(t){ var d = null; try{ d = t ? JSON.parse(t) : null; }catch(e){} return { status:r.status, data:d }; });
@@ -1868,17 +1937,33 @@ public class MovingAverage : IBlock
     function saveSpace(id){
       return function(keepalive){
         var sp = spaces[id]; if(!sp) return Promise.resolve();
-        var sent = sp.content;
+        var sent = sp.content, sentBase = sp.base;          // основа именно этой правки — для слияния при конфликте
         return req('PUT', '/spaces/' + encodeURIComponent(id), { name:sp.name, env:sp.env || 'code', content:JSON.parse(sent), base_rev:sp.rev || 0 }, keepalive).then(function(r){
-          if(r.status === 200 || r.status === 201){ sp.rev = r.data.rev; sp.updated_at = r.data.updated_at; return; }
-          if(r.status === 409) return conflict(id, sent, r.data);
+          if(r.status === 200 || r.status === 201){ sp.rev = r.data.rev; sp.updated_at = r.data.updated_at; sp.base = sent; return; }
+          if(r.status === 409) return conflict(id, sent, r.data, sentBase);
           throw new Error('HTTP ' + r.status);
         });
       };
     }
     // кто-то сохранил это пространство раньше нас: берём его версию, свою — копией
-    function conflict(id, mine, theirs){
+    function conflict(id, mine, theirs, mineBase){
       var sp = spaces[id];
+      // сначала пробуем слить: разные блоки и свойства складываются, копия не нужна.
+      // Наша правка (mine) — поверх mineBase; а то, что пришло после её отправки, уже учтено в sp.content.
+      try{
+        var merged = merge3(JSON.parse(mineBase || sp.base || '{}'), JSON.parse(mine), theirs.content);
+        if(sp.content !== mine) merged = merge3(JSON.parse(mine), JSON.parse(sp.content), merged);   // правки, сделанные пока запрос был в пути
+        sp.rev = theirs.rev; sp.updated_at = theirs.updated_at; sp.base = JSON.stringify(theirs.content);
+        sp.content = JSON.stringify(merged);
+        queue(PJ + id, saveSpace(id), 0);
+      }catch(e){ merged = null; }
+      if(merged){
+        try{
+          if(adapter.onMerged) adapter.onMerged(id, merged, theirs.updated_by_name, theirs.content, mine);
+          else { quiet[PJ + id] = true; emit(PJ + id, sp.content); }
+        }catch(e){ console.error('LIVE onMerged', e && e.message); }
+        return;
+      }
       sp.rev = theirs.rev; sp.content = JSON.stringify(theirs.content); sp.updated_at = theirs.updated_at;
       var copyId = 'p' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);
       var who = theirs.updated_by_name ? ' (' + theirs.updated_by_name + ')' : '';
@@ -1919,7 +2004,7 @@ public class MovingAverage : IBlock
     });
     window.addEventListener('online', function(){ flushAll(); });
 
-    return {
+    var adapter = {
       name:'server',
       user:boot.user || null, org:boot.org || null, role:boot.role || 'editor',
       get:function(k){
@@ -1981,11 +2066,29 @@ public class MovingAverage : IBlock
         });
         return req('POST', '/import', body).then(function(r){ if(r.status >= 400) throw new Error('HTTP ' + r.status); return r.data; });
       },
+      // правка коллеги пришла по WebSocket: сливаем с нашей (mineObj — текущее состояние на экране)
+      remote:function(id, rev, theirsObj, mineObj){
+        var sp = spaces[id];
+        if(!sp){ spaces[id] = { id:id, name:'Пространство', env:'code', rev:rev, content:JSON.stringify(theirsObj), base:JSON.stringify(theirsObj) }; order.push(id); return theirsObj; }
+        if(rev <= sp.rev) return null;
+        var mine = mineObj || JSON.parse(sp.content), baseObj = JSON.parse(sp.base || '{}');
+        var merged = merge3(baseObj, mine, theirsObj);
+        sp.rev = rev; sp.base = JSON.stringify(theirsObj);
+        var strip = function(o){ var c = JSON.parse(JSON.stringify(o)); delete c.cam; if(c.files){ delete c.files.open; delete c.files.active; } return JSON.stringify(c); };
+        sp.content = JSON.stringify(merged);
+        if(strip(merged) === strip(theirsObj)){ delete pending[PJ + id]; clearTimeout(timers[PJ + id]); }   // своих правок нет
+        else queue(PJ + id, saveSpace(id), 300);                                                           // свои правки — дослать поверх
+        return merged;
+      },
+      baseOf:function(id){ var sp = spaces[id]; return sp ? JSON.parse(sp.base || '{}') : null; },
+      sid:null, onMerged:null,
       localCount:function(){
         try{ var l = JSON.parse(localStorage.getItem(LIST) || 'null'); return l && l.list ? l.list.filter(function(m){ var c = localStorage.getItem(PJ + m.id); return c && c.length > 60; }).length : 0; }catch(e){ return 0; }
       }
     };
+    return adapter;
   }
+  var LIVE_TAG = window.TRIOSTEUM_BOOT && window.TRIOSTEUM_BOOT.user ? '_' + Math.random().toString(36).slice(2, 5) : '';
   var SERVER = window.TRIOSTEUM_BOOT && window.TRIOSTEUM_BOOT.user ? serverAdapter(window.TRIOSTEUM_BOOT) : null;
   if(SERVER) Store.use(SERVER);
 
@@ -2021,6 +2124,8 @@ public class MovingAverage : IBlock
   };
   if(!LANGS.some(function(l){ return l.id === S.lang; })) S.lang = 'python';
   var G = S.graph;
+  // новый номер объекта; при совместной работе к нему добавляется метка вкладки — номера двух людей не совпадут
+  function newId(prefix){ return prefix + (G.seq++) + LIVE_TAG; }
   if(!G.cam) G.cam = { x:0, y:0, k:1 };
   if(!G.seq) G.seq = 1;
   if(!G.notes) G.notes = [];
@@ -2275,6 +2380,7 @@ public class MovingAverage : IBlock
   function applyCam(){
     var c = G.cam;
     el.world.style.transform = 'translate(' + c.x + 'px,' + c.y + 'px) scale(' + c.k + ')';
+    el.world.style.setProperty('--ik', 1 / c.k);      // курсоры коллег не масштабируются вместе с доской
     var g = 24 * c.k;
     el.canvas.style.backgroundSize = g + 'px ' + g + 'px';
     el.canvas.style.backgroundPosition = c.x + 'px ' + c.y + 'px';
@@ -2429,7 +2535,7 @@ public class MovingAverage : IBlock
   function clampT(t){ return Math.max(0.04, Math.min(0.96, t)); }
   function addTap(e, t, nodeId){
     if(!e.taps) e.taps = [];
-    var tp = { id:'p' + (G.seq++), t:clampT(t), nodes:nodeId ? [nodeId] : [] };
+    var tp = { id:newId('p'), t:clampT(t), nodes:nodeId ? [nodeId] : [] };
     e.taps.push(tp); saveGraph();
     return tp;
   }
@@ -2518,6 +2624,7 @@ public class MovingAverage : IBlock
     renderEdges();
     el.hint.hidden = G.nodes.length + G.notes.length > 0;
     status();
+    if(typeof livePaint === 'function') livePaint();
   }
   // выделение: одиночное (S.sel) и групповое (S.multi — после Ctrl/⌘+A или вставки)
   function inMulti(type, id){ return (S.multi || []).some(function(m){ return m.type === type && m.id === id; }); }
@@ -2532,7 +2639,7 @@ public class MovingAverage : IBlock
   function viewCenter(){ var r = el.canvas.getBoundingClientRect(); return toWorld(r.left + r.width / 2, r.top + r.height / 2); }
   function addNode(lang, name, x, y, pluginId, kind){
     var p = pluginId && pluginById(pluginId);
-    var n = { id:'n' + (G.seq++), name:name, lang:lang, x:Math.round(x), y:Math.round(y), codes:{},
+    var n = { id:newId('n'), name:name, lang:lang, x:Math.round(x), y:Math.round(y), codes:{},
       pluginId:pluginId || null, family:(p && p.family) || null, desc:(p && p.desc) || '', colors:null };
     if(kind === 'hub'){ n.kind = 'hub'; n.desc = 'Объединяет входящие потоки'; }
     S.multi = [];
@@ -2582,7 +2689,7 @@ public class MovingAverage : IBlock
 
   function addComment(n){
     var off = commentsOf(n.id).length * 16;
-    var t = { id:'t' + (G.seq++), text:'', attach:n.id, dx:-184 - off, dy:off, size:'s', tint:'grey', hidden:false, auto:true };
+    var t = { id:newId('t'), text:'', attach:n.id, dx:-184 - off, dy:off, size:'s', tint:'grey', hidden:false, auto:true };
     commentsOf(n.id).forEach(function(c){ c.hidden = false; });
     G.notes.push(t);
     S.sel = { type:'note', id:t.id };
@@ -2815,7 +2922,7 @@ public class MovingAverage : IBlock
     p.appendChild(section('Действия', h('div', { 'class':'acts' }, [
       h('button', { type:'button', 'class':'btn sm', text:'Редактировать на доске', on:{ click:function(){ editNote(t.id); } } }),
       h('button', { type:'button', 'class':'btn sm', text:'Дублировать', on:{ click:function(){
-        var c = JSON.parse(JSON.stringify(t)); c.id = 't' + (G.seq++); c.x += 24; c.y += 24; G.notes.push(c);
+        var c = JSON.parse(JSON.stringify(t)); c.id = newId('t'); c.x += 24; c.y += 24; G.notes.push(c);
         S.sel = { type:'note', id:c.id }; saveGraph(); renderGraph(); renderPop(); } } }),
       h('button', { type:'button', 'class':'btn sm danger', text:'Удалить', on:{ click:deleteSel } })
     ])));
@@ -3116,7 +3223,7 @@ public class MovingAverage : IBlock
   }
   function duplicateNode(n){
     var c = JSON.parse(JSON.stringify(n));
-    c.id = 'n' + (G.seq++); c.x += 32; c.y += 32; c.name = n.name + ' (копия)';
+    c.id = newId('n'); c.x += 32; c.y += 32; c.name = n.name + ' (копия)';
     G.nodes.push(c); S.sel = { type:'node', id:c.id }; saveGraph(); renderGraph(); renderPop();
   }
   function saveNodeAsPlugin(n){
@@ -3141,7 +3248,7 @@ public class MovingAverage : IBlock
     }
     if(pendingText && S.tool === 'text'){
       var q = pendingText; pendingText = null;
-      var note = { id:'t' + (G.seq++), text:'', x:Math.round(q.x), y:Math.round(q.y - 12), fs:UI.note, tint:'grey' };
+      var note = { id:newId('t'), text:'', x:Math.round(q.x), y:Math.round(q.y - 12), fs:UI.note, tint:'grey' };
       G.notes.push(note); S.sel = { type:'note', id:note.id };
       S.tool = 'select'; render(); renderGraph(); updateSel();
       editNote(note.id);
@@ -3495,7 +3602,7 @@ public class MovingAverage : IBlock
         var from = dd.free === 'to' ? dd.fixed.id : dd.over.id;
         var to   = dd.free === 'to' ? dd.over.id : dd.fixed.id;
         if(!G.edges.some(function(x){ return x.from === from && x.to === to; })){
-          G.edges.push({ id: dd.edge ? dd.edge.id : 'e' + (G.seq++), from:from, to:to, taps:dd.edge ? dd.edge.taps : [] });
+          G.edges.push({ id: dd.edge ? dd.edge.id : newId('e'), from:from, to:to, taps:dd.edge ? dd.edge.taps : [] });
         }
       } else if(dd.overTap){
         var otp = dd.overTap.tap;
@@ -3610,16 +3717,16 @@ public class MovingAverage : IBlock
     pasteN++;
     var off = 40 * pasteN, map = {}, c = JSON.parse(JSON.stringify(clip));
     S.multi = [];
-    c.nodes.forEach(function(n){ var nid = 'n' + (G.seq++); map[n.id] = nid; n.id = nid; n.x += off; n.y += off; if(!/\(копия\)$/.test(n.name)) n.name += ' (копия)'; G.nodes.push(n); S.multi.push({ type:'node', id:nid }); });
+    c.nodes.forEach(function(n){ var nid = newId('n'); map[n.id] = nid; n.id = nid; n.x += off; n.y += off; if(!/\(копия\)$/.test(n.name)) n.name += ' (копия)'; G.nodes.push(n); S.multi.push({ type:'node', id:nid }); });
     c.notes.forEach(function(t){
-      t.id = 't' + (G.seq++);
+      t.id = newId('t');
       if(t.attach){ t.attach = map[t.attach]; if(!t.attach) return; }
       else { t.x += off; t.y += off; S.multi.push({ type:'note', id:t.id }); }
       G.notes.push(t);
     });
     c.edges.forEach(function(e){
-      e.id = 'e' + (G.seq++); e.from = map[e.from]; e.to = map[e.to];
-      (e.taps || []).forEach(function(tp){ tp.id = 'p' + (G.seq++); tp.nodes = tapIds(tp).map(function(x){ return map[x]; }).filter(Boolean); });
+      e.id = newId('e'); e.from = map[e.from]; e.to = map[e.to];
+      (e.taps || []).forEach(function(tp){ tp.id = newId('p'); tp.nodes = tapIds(tp).map(function(x){ return map[x]; }).filter(Boolean); });
       G.edges.push(e);
     });
     S.sel = null; hidePop(); saveGraph(); renderGraph(); updateSel();
@@ -3979,7 +4086,7 @@ public class MovingAverage : IBlock
     if(kind === 'hub') addNode(S.lang, 'Узел ' + (G.nodes.filter(function(x){ return x.kind === 'hub'; }).length + 1), p.x - HUB / 2, p.y - HUB / 2, null, 'hub');
     else if(kind === 'block'){ S.lang = lang; save('triosteum.lang.' + ENV.id, lang); addNode(lang, newBlockName(lang), p.x - NW / 2, p.y - NH / 2); }
     else if(kind === 'text'){
-      var note = { id:'t' + (G.seq++), text:'', x:Math.round(p.x), y:Math.round(p.y - 12), fs:UI.note, tint:'grey' };
+      var note = { id:newId('t'), text:'', x:Math.round(p.x), y:Math.round(p.y - 12), fs:UI.note, tint:'grey' };
       G.notes.push(note); S.sel = { type:'note', id:note.id }; S.multi = []; renderGraph(); updateSel(); editNote(note.id); return;
     }
     render();
@@ -5407,7 +5514,7 @@ public class MovingAverage : IBlock
     r.changes.forEach(function(c){
       if(c.on === false) return;
       if(c.op === 'add_edge'){
-        if(!G.edges.some(function(e){ return e.from === c.from && e.to === c.to; })){ G.edges.push({ id:'e' + (G.seq++), from:c.from, to:c.to, taps:[] }); n++; }
+        if(!G.edges.some(function(e){ return e.from === c.from && e.to === c.to; })){ G.edges.push({ id:newId('e'), from:c.from, to:c.to, taps:[] }); n++; }
       } else if(c.op === 'remove_edge'){
         var before = G.edges.length; G.edges = G.edges.filter(function(e){ return e.id !== c.edge; }); if(G.edges.length < before) n++;
       } else if(c.op === 'reverse_edge'){
@@ -5792,10 +5899,10 @@ public class MovingAverage : IBlock
         var np = { id:'my-' + Date.now().toString(36) + i, my:true, name:bk.name, lang:bk.lang, desc:bk.desc, family:null, codes:{}, ai:true };
         np.codes[bk.lang] = bk.code; MY.unshift(np); pid = np.id; nNew++;
       } else { var p = pluginById(pid); fam = p && p.family || null; }
-      var n = { id:'n' + (G.seq++), name:bk.name, lang:bk.lang, x:0, y:0, codes:{}, pluginId:pid, family:fam, desc:desc, colors:null };
+      var n = { id:newId('n'), name:bk.name, lang:bk.lang, x:0, y:0, codes:{}, pluginId:pid, family:fam, desc:desc, colors:null };
       G.nodes.push(n); map[bk.key] = n.id; made.push(n);
     });
-    r.links.forEach(function(l){ G.edges.push({ id:'e' + (G.seq++), from:map[l.from], to:map[l.to], taps:[] }); });
+    r.links.forEach(function(l){ G.edges.push({ id:newId('e'), from:map[l.from], to:map[l.to], taps:[] }); });
     var others = G.nodes.filter(function(n){ return made.indexOf(n) < 0; });
     var x0, cy;
     if(others.length){ x0 = Math.max.apply(0, others.map(function(n){ return n.x + NWof(n); })) + 200; cy = others.reduce(function(s, n){ return s + n.y; }, 0) / others.length + NH / 2; }
@@ -6638,12 +6745,12 @@ public class MovingAverage : IBlock
     var spec = [['sh-contracts'], ['py-words'], ['doc-contract'], ['st-head'], ['cd-big'], ['st-fin'], ['st-sign'], ['st-reg'], ['sn-xlsx'], ['sn-pack']];
     var ids = spec.map(function(s){
       var p = pluginById(s[0]);
-      var n = { id:'n' + (G.seq++), name:p.name, lang:p.lang, x:0, y:0, codes:{}, pluginId:p.id, family:null, desc:p.desc, colors:null };
+      var n = { id:newId('n'), name:p.name, lang:p.lang, x:0, y:0, codes:{}, pluginId:p.id, family:null, desc:p.desc, colors:null };
       G.nodes.push(n); return n;
     });
-    [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 8], [7, 9]].forEach(function(l){ G.edges.push({ id:'e' + (G.seq++), from:ids[l[0]].id, to:ids[l[1]].id, taps:[] }); });
+    [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 8], [7, 9]].forEach(function(l){ G.edges.push({ id:newId('e'), from:ids[l[0]].id, to:ids[l[1]].id, taps:[] }); });
     var c = viewCenter(); layoutSet(ids, c.x - 900, c.y);
-    G.notes.push({ id:'t' + (G.seq++), text:'Пример маршрута: из реестра формируются договоры, крупные (больше 1 млн) идут на согласование к финансовому директору, затем подпись, регистрация и выгрузка. Нажмите «Запустить».', x:Math.round(c.x - 900), y:Math.round(c.y - 230), fs:14, tint:'blue' });
+    G.notes.push({ id:newId('t'), text:'Пример маршрута: из реестра формируются договоры, крупные (больше 1 млн) идут на согласование к финансовому директору, затем подпись, регистрация и выгрузка. Нажмите «Запустить».', x:Math.round(c.x - 900), y:Math.round(c.y - 230), fs:14, tint:'blue' });
     saveGraph(); renderGraph(); setTimeout(fitView, 30);
     toast('Открыт пример: маршрут договоров поставки');
   }
@@ -8258,8 +8365,8 @@ public class MovingAverage : IBlock
     formTarget(form);
     // автоматизация: маршрут, который берёт договоры прямо из файла «Реестр договоров»
     var spec = [['sh-contracts', reg.id], ['doc-contract'], ['cd-big'], ['st-fin'], ['st-sign'], ['sn-xlsx']];
-    var ns = spec.map(function(s){ var p = pluginById(s[0]); var n = { id:'n' + (G.seq++), name:p.name, lang:p.lang, x:0, y:0, codes:{}, pluginId:p.id, family:null, desc:p.desc, colors:null }; if(s[1]){ n.src = s[1]; n.name = 'Реестр договоров (файл)'; } G.nodes.push(n); return n; });
-    for(var i = 0; i + 1 < ns.length; i++) G.edges.push({ id:'e' + (G.seq++), from:ns[i].id, to:ns[i + 1].id, taps:[] });
+    var ns = spec.map(function(s){ var p = pluginById(s[0]); var n = { id:newId('n'), name:p.name, lang:p.lang, x:0, y:0, codes:{}, pluginId:p.id, family:null, desc:p.desc, colors:null }; if(s[1]){ n.src = s[1]; n.name = 'Реестр договоров (файл)'; } G.nodes.push(n); return n; });
+    for(var i = 0; i + 1 < ns.length; i++) G.edges.push({ id:newId('e'), from:ns[i].id, to:ns[i + 1].id, taps:[] });
     layoutSet(ns, 100, 300);
     arrangeDesk(); saveGraph(); ofRender();
     toast('Пример загружен: бюджет, отчёт и презентация связаны с таблицей; маршрут — во вкладке «Автоматизация»');
@@ -8575,6 +8682,155 @@ public class MovingAverage : IBlock
       });
   }
 
+  /* ---------- совместная работа: кто онлайн, курсоры, живые правки ---------- */
+  // Только с сервером. Пространство — «комната» на WebSocket: сервер рассылает присутствие
+  // (курсор, выделение) и каждую сохранённую правку. Чужая правка сливается с нашими
+  // несохранёнными изменениями (merge3) и аккуратно вливается в G: выделение, камера,
+  // перетаскивание и история отмены сохраняются.
+  var LIVE = { ws:null, space:null, peers:{}, retry:0, sentSel:'', lastMove:0, pend:null, dead:false };
+  function livePeersEl(){
+    var c = $('livePeers');
+    if(!c){ c = h('div', { 'class':'live-peers', id:'livePeers', 'aria-label':'Сейчас в пространстве' }); el.saved.parentNode.insertBefore(c, el.saved); }
+    return c;
+  }
+  function initials(n){ return String(n || '?').trim().split(/\s+/).slice(0, 2).map(function(w){ return w[0]; }).join('').toUpperCase(); }
+  function livePaint(){
+    if(!SERVER) return;
+    // кружки: по одному на человека (несколько вкладок одного человека — один кружок)
+    var c = livePeersEl(), byUser = {};
+    Object.keys(LIVE.peers).forEach(function(sid){ var p = LIVE.peers[sid]; if(p.uid !== SERVER.user.id) byUser[p.uid] = p; });
+    var people = Object.keys(byUser).map(function(k){ return byUser[k]; });
+    c.innerHTML = '';
+    people.slice(0, 5).forEach(function(p){ c.appendChild(h('span', { 'class':'live-av', style:'background:' + p.color, title:p.name + ' — сейчас здесь', text:initials(p.name) })); });
+    if(people.length > 5) c.appendChild(h('span', { 'class':'live-av more', title:people.slice(5).map(function(p){ return p.name; }).join(', '), text:'+' + (people.length - 5) }));
+    // курсоры на доске
+    Array.prototype.forEach.call(el.world.querySelectorAll('.live-cur'), function(x){ if(!LIVE.peers[x.dataset.sid] || !LIVE.peers[x.dataset.sid].cursor) x.remove(); });
+    Object.keys(LIVE.peers).forEach(function(sid){
+      var p = LIVE.peers[sid]; if(!p.cursor) return;
+      var d = el.world.querySelector('.live-cur[data-sid="' + sid + '"]');
+      if(!d){
+        d = h('div', { 'class':'live-cur', 'data-sid':sid, 'aria-hidden':'true' });
+        d.innerHTML = '<svg width="18" height="20" viewBox="0 0 18 20"><path d="M2 2l13 7.5-6 1.5-3 6z" fill="' + p.color + '" stroke="#12090B" stroke-width="1.4" stroke-linejoin="round"/></svg>';
+        d.appendChild(h('span', { style:'background:' + p.color, text:p.name }));
+        el.world.appendChild(d);
+      }
+      d.style.setProperty('--x', p.cursor.x + 'px'); d.style.setProperty('--y', p.cursor.y + 'px');
+    });
+    // что выделили коллеги — обводка их цветом
+    Array.prototype.forEach.call(el.nodes.children, function(nd){ nd.classList.remove('live-sel'); nd.removeAttribute('data-live'); });
+    Object.keys(LIVE.peers).forEach(function(sid){
+      var p = LIVE.peers[sid];
+      (p.sel || []).forEach(function(id){ var nd = domOf('node', id); if(nd){ nd.classList.add('live-sel'); nd.style.setProperty('--live-c', p.color); nd.setAttribute('data-live', p.name); } });
+    });
+  }
+  function liveSend(m){ if(LIVE.ws && LIVE.ws.readyState === 1) try{ LIVE.ws.send(JSON.stringify(m)); }catch(e){} }
+  function liveConnect(){
+    if(!SERVER || LIVE.dead) return;
+    var id = curId(); LIVE.space = id;
+    if(LIVE.ws){ try{ LIVE.ws.onclose = null; LIVE.ws.close(); }catch(e){} }
+    LIVE.peers = {}; livePaint();
+    var ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/api/ws/spaces/' + encodeURIComponent(id));
+    LIVE.ws = ws;
+    ws.onopen = function(){ LIVE.retry = 0; LIVE.sentSel = ''; };
+    ws.onmessage = function(ev){
+      var m; try{ m = JSON.parse(ev.data); }catch(e){ return; }
+      if(m.t === 'hello'){ SERVER.sid = m.sid; LIVE.peers = {}; (m.peers || []).forEach(function(p){ LIVE.peers[p.sid] = p; }); livePaint(); }
+      else if(m.t === 'join'){ LIVE.peers[m.sid] = m; livePaint(); if(m.uid !== SERVER.user.id) el.saved.textContent = m.name + ' открыл(а) пространство'; }
+      else if(m.t === 'leave'){ delete LIVE.peers[m.sid]; livePaint(); }
+      else if(m.t === 'presence'){ var p = LIVE.peers[m.sid]; if(p){ if('cursor' in m) p.cursor = m.cursor; if(m.sel) p.sel = m.sel; if('file' in m) p.file = m.file; livePaint(); } }
+      else if(m.t === 'rev'){ liveRemote(m); }
+    };
+    ws.onclose = function(ev){
+      SERVER.sid = null; LIVE.peers = {}; livePaint();
+      if(ev.code === 4403 || ev.code === 4401){ LIVE.dead = true; toast('Доступ к пространству закрыт'); setTimeout(function(){ location.reload(); }, 2500); return; }
+      LIVE.retry = Math.min(LIVE.retry + 1, 6);
+      setTimeout(function(){ if(LIVE.ws === ws) liveConnect(); }, 500 * Math.pow(2, LIVE.retry - 1));
+    };
+  }
+  // ---- чужая правка ----
+  var LIVE_KEYS = { cam:1 };
+  function hpick(o){ return { nodes:o.nodes || [], edges:o.edges || [], notes:o.notes || [], seq:o.seq || 1 }; }
+  function patchInto(t, src, path){
+    Object.keys(t).forEach(function(k){ var p = path ? path + '.' + k : k; if(!(k in src) && !MERGE_LOCAL[p]) delete t[k]; });
+    Object.keys(src).forEach(function(k){
+      var p = path ? path + '.' + k : k, sv = src[k], tv = t[k];
+      if(MERGE_LOCAL[p]) return;
+      if(Array.isArray(sv) && Array.isArray(tv) && (mIdList(sv) || mIdList(tv))){
+        var by = {}; tv.forEach(function(v){ if(mObj(v) && v.id) by[v.id] = v; });
+        t[k] = sv.map(function(v){ return mObj(v) && by[v.id] ? patchInto(by[v.id], v, p + '[]') : v; });
+      } else if(mObj(sv) && mObj(tv)) patchInto(tv, sv, p);
+      else if(!mEq(sv, tv)) t[k] = sv;
+    });
+    return t;
+  }
+  function liveRemote(m){
+    var id = m.space || LIVE.space;
+    if(id !== curId()){ SERVER.remote(id, m.rev, m.content); return; }
+    flushSave();                                            // наши несохранённые правки — в хранилище, они войдут в слияние
+    var prevBase = SERVER.baseOf(id);
+    var mine = JSON.parse(JSON.stringify(G));
+    var merged = SERVER.remote(id, m.rev, m.content, mine);
+    if(!merged) return;
+    applyMerged(merged, prevBase, m.content, m.by);
+  }
+  function applyMerged(merged, prevBase, theirs, by){
+    var before = JSON.stringify(hpick(G));
+    patchInto(G, merged, '');
+    if(JSON.stringify(hpick(G)) !== before){
+      // историю отмены перестраиваем поверх чужой правки: Ctrl+Z отменяет только наше
+      try{
+        // чужое = то, чем итог слияния отличается от того, что было у нас на экране
+        var b0 = JSON.parse(before), t0 = hpick(G);
+        var rb = function(s){ return JSON.stringify(merge3(b0, JSON.parse(s), t0)); };
+        hist.undo = hist.undo.map(rb); hist.redo = hist.redo.map(rb);
+        // и последнее зафиксированное состояние: если мы прямо сейчас тащим блок, отмена вернёт его на исходное место
+        hist.last = hist.last ? rb(hist.last) : snap();
+      }catch(e){ hist.undo = []; hist.redo = []; hist.last = snap(); }
+      if(S.sel && S.sel.type === 'node' && !nodeById(S.sel.id)) S.sel = null;
+      if(S.sel && S.sel.type === 'note' && !noteById(S.sel.id)) S.sel = null;
+      if(S.sel && S.sel.type === 'edge' && !edgeById(S.sel.id)) S.sel = null;
+      S.multi = (S.multi || []).filter(function(x){ return x.type === 'node' ? nodeById(x.id) : noteById(x.id); });
+      renderGraph();
+      if(typeof drag !== 'undefined' && drag && drag.item && drag.type){       // перетаскивание продолжается на новом элементе
+        var nd = domOf(drag.type, drag.item.id); if(nd){ drag.el = nd; nd.classList.add('dragging'); }
+      }
+      var fa = document.activeElement;
+      if(S.pop && S.sel){ if(fa && el.pop.contains(fa)) placePop(); else renderPop(); }
+      else if(S.pop && !S.sel) hidePop();
+    }
+    if(typeof ofLoad === 'function' && ENV && ENV.id === 'docs'){
+      var fe = document.activeElement, editing = fe && fe.closest && fe.closest('#ofMain') && (fe.isContentEditable || /INPUT|TEXTAREA/.test(fe.tagName));
+      if(!editing){ var keep = OF.tab; ofLoad(); if(keep && keep !== OF.tab && (keep === 'auto' || keep === 'desk' || ofFile(keep))) ofSetTab(keep); }
+    }
+    if(by) el.saved.textContent = 'обновлено: ' + by;
+  }
+  if(SERVER){
+    SERVER.onMerged = function(id, merged, by, theirs, mineSent){
+      if(id !== curId()) return;
+      // пока шёл запрос, на экране могли появиться новые правки — сливаем и их
+      var finalObj = merged;
+      try{ finalObj = merge3(JSON.parse(mineSent), JSON.parse(JSON.stringify(G)), merged); }catch(e){}
+      applyMerged(finalObj, null, theirs, by);
+      if(!mEq(hpick(finalObj), hpick(merged)) || saveGraphTimer) saveGraph();
+      if(by) toast('Правки объединены с изменениями: ' + by);
+    };
+    // курсор: в координатах доски, не чаще ~16 раз в секунду
+    el.canvas.addEventListener('pointermove', function(e){
+      if(e.pointerType !== 'mouse') return;
+      var now = Date.now(); if(now - LIVE.lastMove < 60) return; LIVE.lastMove = now;
+      var w = toWorld(e.clientX, e.clientY); liveSend({ t:'presence', cursor:{ x:Math.round(w.x), y:Math.round(w.y) } });
+    }, { passive:true });
+    el.canvas.addEventListener('pointerleave', function(){ liveSend({ t:'presence', cursor:null }); });
+    // выделение и смена пространства — опросом, без вмешательства в десятки мест кода
+    setInterval(function(){
+      if(LIVE.space !== curId()) liveConnect();
+      var sel = (S.multi && S.multi.length ? S.multi.map(function(x){ return x.id; }) : S.sel ? [S.sel.id] : []).join(',');
+      if(sel !== LIVE.sentSel){ LIVE.sentSel = sel; liveSend({ t:'presence', sel:sel ? sel.split(',') : [] }); }
+    }, 400);
+    setInterval(function(){ liveSend({ t:'ping' }); }, 25000);
+    window.addEventListener('online', function(){ if(!LIVE.ws || LIVE.ws.readyState > 1) liveConnect(); });
+  }
+
   setEnv(curProj().env || 'code');
   if(hist.last === null) commitHist();      // исходное состояние — чтобы первое действие можно было отменить
   applyTheme();
@@ -8590,6 +8846,8 @@ public class MovingAverage : IBlock
   }
   // первый вход без сервера — экран «Добро пожаловать»
   if(!SERVER && !localProfile()) showWelcome(false);
+  // совместная работа: подключаемся к комнате текущего пространства
+  if(SERVER) liveConnect();
 
 })();
 </script>

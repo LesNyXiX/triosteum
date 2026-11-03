@@ -77,7 +77,7 @@
     if(kind === 'hub') addNode(S.lang, 'Узел ' + (G.nodes.filter(function(x){ return x.kind === 'hub'; }).length + 1), p.x - HUB / 2, p.y - HUB / 2, null, 'hub');
     else if(kind === 'block'){ S.lang = lang; save('triosteum.lang.' + ENV.id, lang); addNode(lang, newBlockName(lang), p.x - NW / 2, p.y - NH / 2); }
     else if(kind === 'text'){
-      var note = { id:'t' + (G.seq++), text:'', x:Math.round(p.x), y:Math.round(p.y - 12), fs:UI.note, tint:'grey' };
+      var note = { id:newId('t'), text:'', x:Math.round(p.x), y:Math.round(p.y - 12), fs:UI.note, tint:'grey' };
       G.notes.push(note); S.sel = { type:'note', id:note.id }; S.multi = []; renderGraph(); updateSel(); editNote(note.id); return;
     }
     render();

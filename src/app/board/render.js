@@ -131,7 +131,7 @@
   function clampT(t){ return Math.max(0.04, Math.min(0.96, t)); }
   function addTap(e, t, nodeId){
     if(!e.taps) e.taps = [];
-    var tp = { id:'p' + (G.seq++), t:clampT(t), nodes:nodeId ? [nodeId] : [] };
+    var tp = { id:newId('p'), t:clampT(t), nodes:nodeId ? [nodeId] : [] };
     e.taps.push(tp); saveGraph();
     return tp;
   }
@@ -220,6 +220,7 @@
     renderEdges();
     el.hint.hidden = G.nodes.length + G.notes.length > 0;
     status();
+    if(typeof livePaint === 'function') livePaint();
   }
   // выделение: одиночное (S.sel) и групповое (S.multi — после Ctrl/⌘+A или вставки)
   function inMulti(type, id){ return (S.multi || []).some(function(m){ return m.type === type && m.id === id; }); }
@@ -234,7 +235,7 @@
   function viewCenter(){ var r = el.canvas.getBoundingClientRect(); return toWorld(r.left + r.width / 2, r.top + r.height / 2); }
   function addNode(lang, name, x, y, pluginId, kind){
     var p = pluginId && pluginById(pluginId);
-    var n = { id:'n' + (G.seq++), name:name, lang:lang, x:Math.round(x), y:Math.round(y), codes:{},
+    var n = { id:newId('n'), name:name, lang:lang, x:Math.round(x), y:Math.round(y), codes:{},
       pluginId:pluginId || null, family:(p && p.family) || null, desc:(p && p.desc) || '', colors:null };
     if(kind === 'hub'){ n.kind = 'hub'; n.desc = 'Объединяет входящие потоки'; }
     S.multi = [];
@@ -284,7 +285,7 @@
 
   function addComment(n){
     var off = commentsOf(n.id).length * 16;
-    var t = { id:'t' + (G.seq++), text:'', attach:n.id, dx:-184 - off, dy:off, size:'s', tint:'grey', hidden:false, auto:true };
+    var t = { id:newId('t'), text:'', attach:n.id, dx:-184 - off, dy:off, size:'s', tint:'grey', hidden:false, auto:true };
     commentsOf(n.id).forEach(function(c){ c.hidden = false; });
     G.notes.push(t);
     S.sel = { type:'note', id:t.id };

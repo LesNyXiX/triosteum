@@ -3,6 +3,7 @@
 Контракт API — в server/API.md. Браузерная часть — src/app/core/server-adapter.js.
 Запуск для разработки:  uvicorn app.main:app --reload  (из папки server/)
 """
+import asyncio
 import ipaddress
 import json
 import os
@@ -15,13 +16,14 @@ from typing import Any
 from urllib.parse import urlsplit
 
 import httpx
-from fastapi import Depends, FastAPI, HTTPException, Request, Response
+from fastapi import Depends, FastAPI, HTTPException, Request, Response, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 
 from . import ai as ai_mod
 from . import mail
+from .live import Peer, hub
 from . import migrate
 from .config import settings
 from .db import tx
@@ -29,6 +31,7 @@ from .security import RateLimiter, hash_password, new_token, token_hash, verify_
 
 @asynccontextmanager
 async def lifespan(_app):
+    hub.loop = asyncio.get_running_loop()       # чтобы рассылать правки из обработчиков HTTP
     if settings.migrate_url:                     # при запуске применяем новые миграции базы
         migrate.run(settings.migrate_url, settings.app_db_password)
     yield
@@ -87,7 +90,10 @@ class Who(BaseModel):
 
 
 def current(request: Request) -> Who | None:
-    token = request.cookies.get(COOKIE)
+    return who_by_token(request.cookies.get(COOKIE))
+
+
+def who_by_token(token: str | None) -> Who | None:
     if not token:
         return None
     with tx() as c:
@@ -408,8 +414,14 @@ def get_space(space_id: str, w: Who = Depends(need)):
     return space_out(r)
 
 
+def _announce(w: Who, space_id: str, rev: int, updated_at, content: dict, request: Request):
+    """Разослать новую правку тем, кто сейчас в этом пространстве (кроме вкладки, которая сохранила)."""
+    hub.publish_rev(w.org_id, space_id, {"t": "rev", "rev": rev, "updated_at": updated_at.isoformat(), "by": w.name or w.email,
+                                         "uid": w.user_id, "content": content}, except_sid=request.headers.get("x-live-sid"))
+
+
 @app.put("/api/spaces/{space_id}")
-def put_space(space_id: str, body: SpaceIn, w: Who = Depends(need_writer)):
+def put_space(space_id: str, body: SpaceIn, request: Request, w: Who = Depends(need_writer)):
     check_id(space_id)
     content_json = json.dumps(body.content, ensure_ascii=False)
     with tx(w.org_id) as c:
@@ -422,7 +434,11 @@ def put_space(space_id: str, body: SpaceIn, w: Who = Depends(need_writer)):
                        "rev": body.base_rev}).mappings().first()
         if r:
             snapshot(c, w, space_id, r["rev"], content_json)
-            return {"rev": r["rev"], "updated_at": r["updated_at"].isoformat()}
+            out = {"rev": r["rev"], "updated_at": r["updated_at"].isoformat()}
+    if r:
+        _announce(w, space_id, r["rev"], r["updated_at"], body.content, request)
+        return out
+    with tx(w.org_id) as c:
         live = c.execute(text(SPACE_SELECT + " AND s.id = :id"), {"id": space_id}).mappings().first()
         if live:                                             # кто-то сохранил раньше — конфликт
             return JSONResponse(space_out(live), status_code=409)
@@ -438,6 +454,7 @@ def put_space(space_id: str, body: SpaceIn, w: Who = Depends(need_writer)):
                       {"o": w.org_id, "id": space_id, "n": body.name, "e": body.env, "c": content_json,
                        "u": w.user_id}).mappings().first()
         snapshot(c, w, space_id, r["rev"], content_json)
+    _announce(w, space_id, r["rev"], r["updated_at"], body.content, request)
     return JSONResponse({"rev": r["rev"], "updated_at": r["updated_at"].isoformat()}, status_code=201)
 
 
@@ -495,6 +512,60 @@ def save_version(space_id: str, body: VersionIn, w: Who = Depends(need_writer)):
                           ON CONFLICT (org_id, space_id, rev) DO UPDATE SET label = EXCLUDED.label"""),
                   {"o": w.org_id, "s": space_id, "r": r["rev"], "c": r["c"], "l": body.label, "u": w.user_id})
     return {"ok": True, "rev": r["rev"]}
+
+
+# ---------- совместная работа (WebSocket) ----------
+
+@app.websocket("/api/ws/spaces/{space_id}")
+async def live_space(ws: WebSocket, space_id: str):
+    # вход — та же cookie, что у страницы; чужой сайт не подключится (проверяем Origin)
+    origin = ws.headers.get("origin")
+    host = ws.headers.get("host", "")
+    if origin and urlsplit(origin).netloc != host and origin not in settings.allowed_origins:
+        await ws.close(code=4403)
+        return
+    w = await asyncio.to_thread(who_by_token, ws.cookies.get(COOKIE))
+    if not w or not SPACE_ID.match(space_id):
+        await ws.close(code=4401)
+        return
+    await ws.accept()
+    hub._n += 1
+    peer = Peer(ws=ws, sid=f"s{hub._n}{new_token()[:4]}", user_id=w.user_id, name=w.name or w.email.split("@")[0],
+                color=hub.color_for(w.user_id), role=w.role)
+    key = (w.org_id, space_id)
+    await hub.join(key, peer)
+    try:
+        while True:
+            raw = await ws.receive_text()
+            if len(raw) > 20_000:
+                continue
+            try:
+                msg = json.loads(raw)
+            except ValueError:
+                continue
+            if msg.get("t") == "presence":
+                # только безопасные поля: курсор в координатах доски, выделенные объекты, открытый файл
+                st = {}
+                cur = msg.get("cursor")
+                if isinstance(cur, dict) and all(isinstance(cur.get(k), (int, float)) for k in ("x", "y")):
+                    st["cursor"] = {"x": float(cur["x"]), "y": float(cur["y"])}
+                elif cur is None:
+                    st["cursor"] = None
+                sel = msg.get("sel")
+                if isinstance(sel, list):
+                    st["sel"] = [str(x)[:64] for x in sel[:50]]
+                if isinstance(msg.get("file"), (str, type(None))):
+                    st["file"] = (msg.get("file") or None) and str(msg["file"])[:64]
+                peer.state.update(st)
+                await hub.broadcast(key, {"t": "presence", "sid": peer.sid, **st}, except_sid=peer.sid)
+            elif msg.get("t") == "ping":
+                await hub.send(peer, {"t": "pong"})
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        pass
+    finally:
+        await hub.leave(key, peer.sid)
 
 
 # ---------- команда: участники и приглашения ----------
@@ -615,6 +686,7 @@ def remove_member(user_id: str, request: Request, w: Who = Depends(need_owner)):
         # доступ пропадает сразу: закрываем его входы в эту организацию
         c.execute(text("DELETE FROM sessions WHERE org_id = :o AND user_id = CAST(:u AS uuid)"), {"o": w.org_id, "u": user_id})
         audit(c, w.org_id, w.user_id, "member.remove", request, "user", user_id)
+    hub.kick(w.org_id, user_id)                      # открытые вкладки тоже теряют доступ сразу
     return {"ok": True}
 
 
