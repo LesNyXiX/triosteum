@@ -44,6 +44,7 @@ src/
 docs/index.html         собранный файл — его и выкладываем (GitHub Pages умеет раздавать папку docs/)
 server/                 сервер на FastAPI: API, схема базы, миграции, тесты (см. server/README.md)
 docker-compose.yml      база + сервер одной командой
+deploy/                 установка на сервер: HTTPS (Caddy), обновление, резервные копии
 build.mjs               сборка
 tests/                  проверки и тестовый сервер
 ```
@@ -87,7 +88,7 @@ Store.use(serverAdapter);
 
 ## Работа с сервером
 
-Сервер запускается одной командой: `cp .env.example .env && docker compose up -d --build`. Подробности — в [`server/README.md`](server/README.md).
+Сервер запускается одной командой: `cp .env.example .env && docker compose up -d --build`. Подробности — в [`server/README.md`](server/README.md). Как поставить Triosteum на свой сервер с HTTPS и резервными копиями — [`deploy/README.md`](deploy/README.md).
 
 
 Если страницу отдаёт сервер Triosteum, данные хранятся в облаке, иначе в браузере. Сервер вставляет в страницу данные пользователя (`window.TRIOSTEUM_BOOT`), и `server-adapter.js` включается автоматически. Что для этого должен уметь сервер, описано в [`server/API.md`](server/API.md).

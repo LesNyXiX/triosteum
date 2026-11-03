@@ -1,0 +1,28 @@
+# Caddy — входная точка Triosteum: сам получает и продлевает сертификат HTTPS (Let's Encrypt)
+# и передаёт запросы серверу. Домен берётся из переменной DOMAIN в .env.
+{
+	email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	# совместная работа (WebSocket) и всё остальное — на сервер Triosteum
+	reverse_proxy api:8000 {
+		header_up X-Forwarded-For {remote_host}
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "same-origin"
+		-Server
+	}
+
+	log {
+		output file /data/access.log {
+			roll_size 20MiB
+			roll_keep 5
+		}
+	}
+}

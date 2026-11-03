@@ -4,7 +4,7 @@
 #   → http://localhost:8000
 services:
   db:
-    image: postgres:16
+    image: ${POSTGRES_IMAGE:-postgres:16}
     restart: unless-stopped
     environment:
       POSTGRES_DB: triosteum
@@ -21,6 +21,8 @@ services:
     build:
       context: .
       dockerfile: server/Dockerfile
+      args:
+        PYTHON_IMAGE: ${PYTHON_IMAGE:-python:3.12-slim}
     restart: unless-stopped
     depends_on:
       db:
@@ -51,7 +53,8 @@ services:
       RUNNER_URL: http://runner:8100
       RUNNER_TOKEN: ${RUNNER_TOKEN:?задайте RUNNER_TOKEN в .env}
     ports:
-      - "${PORT:-8000}:8000"
+      # по умолчанию сервер доступен только с этой машины; наружу его выпускает Caddy (deploy/)
+      - "${BIND_ADDR:-127.0.0.1}:${PORT:-8000}:8000"
     networks: [default, sandbox]
 
   # Исполнитель Python-блоков: без доступа к базе и интернету, только для чтения, минимум прав
@@ -59,6 +62,8 @@ services:
     build:
       context: .
       dockerfile: server/runner/Dockerfile
+      args:
+        PYTHON_IMAGE: ${PYTHON_IMAGE:-python:3.12-slim}
     restart: unless-stopped
     environment:
       RUNNER_TOKEN: ${RUNNER_TOKEN}
@@ -83,7 +88,7 @@ services:
   #   docker compose exec ollama ollama pull qwen2.5-coder:14b
   # и в .env: AI_PROVIDER=openai, AI_MODEL=qwen2.5-coder:14b
   ollama:
-    image: ollama/ollama
+    image: ${OLLAMA_IMAGE:-ollama/ollama}
     profiles: ["ai"]
     restart: unless-stopped
     volumes:

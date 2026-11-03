@@ -1,6 +1,7 @@
 # Образ сервера Triosteum. Собирается из корня репозитория:
 #   docker build -f server/Dockerfile -t triosteum .
-FROM python:3.12-slim
+ARG PYTHON_IMAGE=python:3.12-slim
+FROM ${PYTHON_IMAGE}
 
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
 WORKDIR /srv

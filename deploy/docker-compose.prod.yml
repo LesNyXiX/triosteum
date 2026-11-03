@@ -1,0 +1,28 @@
+# Добавка для боевого сервера: HTTPS через Caddy. Запуск (это делает deploy/install.sh):
+#   docker compose -f docker-compose.yml -f deploy/docker-compose.prod.yml up -d --build
+services:
+  api:
+    environment:
+      COOKIE_SECURE: "1"         # вход только по HTTPS
+      TRUST_PROXY: "1"           # настоящий адрес посетителя приходит от Caddy
+      PUBLIC_URL: https://${DOMAIN:?задайте DOMAIN в .env}
+
+  caddy:
+    image: ${CADDY_IMAGE:-caddy:2}
+    restart: unless-stopped
+    depends_on: [api]
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL:?задайте ACME_EMAIL в .env}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:
