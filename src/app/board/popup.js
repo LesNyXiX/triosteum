@@ -79,7 +79,7 @@
     });
     p.appendChild(section('Описание', desc, 'popDesc'));
     if(isDocs() && isParamKind(n.lang) && n.kind !== 'hub') p.appendChild(section('Параметры', paramSection(n)));
-    if(isDocs() && (n.lang === 'sheet' || n.lang === 'doc') && n.kind !== 'hub') p.appendChild(section('Источник данных', srcSection(n)));
+    if(isOffice() && (n.lang === 'sheet' || n.lang === 'doc') && n.kind !== 'hub') p.appendChild(section('Источник данных', srcSection(n)));
     var fsBox = h('div', null, [
       fsRow('Название', fsControl(n.fs || (n.kind === 'hub' ? 12 : 14), 9, 28, function(v){ n.fs = v; refreshNode(n); placePop(); }, 'шрифт названия блока')),
       n.kind === 'hub' ? null : fsRow('Описание', fsControl(n.dfs || 11.5, 8, 20, function(v){ n.dfs = v; refreshNode(n); }, 'шрифт описания блока'))

@@ -25,10 +25,10 @@
   function renderArc(){
     var b = $('arcBody'); b.innerHTML = '';
     var aiOff = AI.api === null, aiWait = AI.api === undefined;
-    var ta = h('textarea', { 'class':'bld-wish arc-in', rows:'4', placeholder:isDocs() ? 'Опишите процесс: какие документы, откуда данные, кто согласует и подписывает, куда выгрузить…' : 'Опишите задачу: откуда берём данные, что считаем, куда отправляем результат…', 'aria-label':'Задача для ИИ' });
+    var ta = h('textarea', { 'class':'bld-wish arc-in', rows:'4', placeholder:ENV.hint ? 'Опишите задачу: какие данные, что посчитать, какие документы и отчёты получить…' : isDocs() ? 'Опишите процесс: какие документы, откуда данные, кто согласует и подписывает, куда выгрузить…' : 'Опишите задачу: откуда берём данные, что считаем, куда отправляем результат…', 'aria-label':'Задача для ИИ' });
     ta.value = ARC.prompt; ta.addEventListener('input', function(){ ARC.prompt = ta.value; });
     ta.addEventListener('keydown', function(e){ if(e.key === 'Enter' && (e.ctrlKey || e.metaKey)){ e.preventDefault(); buildArc(); } });
-    var ex = h('div', { 'class':'arc-ex' }, (isDocs() ? ARC_EXAMPLES_DOCS : ARC_EXAMPLES).map(function(t){ return h('button', { type:'button', 'class':'chip', text:t, on:{ click:function(){ ARC.prompt = t; ta.value = t; ta.focus(); } } }); }));
+    var ex = h('div', { 'class':'arc-ex' }, (ENV.examples || (isDocs() ? ARC_EXAMPLES_DOCS : ARC_EXAMPLES)).map(function(t){ return h('button', { type:'button', 'class':'chip', text:t, on:{ click:function(){ ARC.prompt = t; ta.value = t; ta.focus(); } } }); }));
     if(ARC.fresh === null) ARC.fresh = G.nodes.length > 0;
     var fresh = toggleRow('Собрать в новом пространстве (текущая доска не изменится)', ARC.fresh, function(v){ ARC.fresh = v; });
     b.appendChild(section('Задача', h('div', { 'class':'arc-col' }, [ ta, ex, fresh,
@@ -105,7 +105,7 @@
   }
   function docsArcPrompt(q, catalog, ctxBoard){
     return [
-      'Ты — ИИ-архитектор Triosteum в среде «Документы и таблицы»: документооборот российского производственного предприятия.',
+      'Ты — ИИ-архитектор Triosteum в среде «' + (isOffice() ? 'Документы и таблицы' : ENV.name) + '»: ' + (isOffice() ? 'документооборот' : ENV.desc.toLowerCase().replace(/\.$/, '')) + ' — для российского производственного предприятия.',
       'Схема — блоки, соединённые связями; по связям идут записи (строки таблиц). Типы блоков:',
       '- sheet — таблица-источник или реестр. code: JSON {"rows":[["Заголовок",...],["значение",...]]}, все значения строками, формулы Excel начинаются с «=» (=B2*C2, =SUM(D2:D9), разделитель «;»).',
       '- doc — шаблон документа. code: HTML (h1, h2, p, b, i, u, ol, ul, li, table, tr, th, td, br, style="text-align:…"), поля из таблицы — {{Название столбца}}. Формируется по документу на каждую входящую запись.',
@@ -113,17 +113,20 @@
       '- cond — условие-фильтр: code JSON {"field":"столбец","op":"> < >= <= = != содержит","value":"…"}.',
       '- send — выгрузка: code JSON {"format":"xlsx|csv|html|email|1c|archive","to":"получатель","name":"название"}.',
       '- python — расчёт: плагин Triosteum, run(rows) получает список записей-словарей и возвращает список (формат ниже).',
+    ].concat(ENV.langs.filter(function(l){ return l.apply; }).map(function(l){
+      return '- ' + l.id + ' — ' + l.name.toLowerCase() + ' (' + l.tool + '). code: JSON ' + JSON.stringify(JSON.parse(l.tpl)) + '; ключи: ' + l.fields.map(function(f){ return f[0] + ' — ' + f[1] + (f[3] ? ' (' + f[3].map(function(o){ return o[0]; }).join('|') + ')' : ''); }).join('; ') + '.';
+    })).concat([
       'Правила: 1) в первую очередь бери готовые блоки из каталога (по id); 2) чего нет — создай сам с полным содержимым; 3) поля {{…}} в документах должны совпадать с заголовками таблиц; 4) 4–10 блоков, связи по ходу документа; 5) реалистичные данные и должности.',
       'Также напиши регламент процесса в Markdown (назначение, участники и ответственность, порядок действий со сроками, контроль, хранение) — поле backend.',
       'Ответь ТОЛЬКО одним блоком JSON (без текста до и после):',
       FENCE + 'json',
-      '{"title":"короткое название","summary":"2–3 предложения","blocks":[{"key":"b1","plugin":"<id из каталога>","name":"название на доске"},{"key":"b2","new":true,"name":"…","lang":"sheet|doc|step|cond|send|python","desc":"одна строка","code":"содержимое строкой"}],"links":[{"from":"b1","to":"b2"}],"backend":"регламент в Markdown"}',
+      '{"title":"короткое название","summary":"2–3 предложения","blocks":[{"key":"b1","plugin":"<id из каталога>","name":"название на доске"},{"key":"b2","new":true,"name":"…","lang":"' + ENV.langs.map(function(l){ return l.id; }).join('|') + '","desc":"одна строка","code":"содержимое строкой"}],"links":[{"from":"b1","to":"b2"}],"backend":"регламент в Markdown"}',
       FENCE,
       '', 'Каталог (id | тип | название — описание):', catalog,
       '', 'Формат Python-плагина:', FENCE + 'python', PY_LANG.tpl.replace(/\s+$/, ''), FENCE,
       ctxBoard ? '\n' + ctxBoard : '',
       '', 'Задача пользователя: ' + q
-    ].join('\n');
+    ]).join('\n');
   }
   function parseArc(text){
     var body = text, i = text.indexOf(FENCE + 'json');

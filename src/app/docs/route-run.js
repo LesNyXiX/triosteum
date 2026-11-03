@@ -40,9 +40,9 @@
               var tpl = nodeCode(n), src = hasIn ? rows : [{}];
               if(hasIn && !rows.length){ rlog('▶ ' + n.name + ' — входных записей нет, документы не сформированы', 'warn'); setRun(n, 'skip', 'Нет входных записей'); out = []; }
               else {
-                out = src.map(function(r){
+                out = src.map(function(r, ri){
                   docN++;
-                  var title = n.name + (lookup(r, 'Номер') ? ' № ' + lookup(r, 'Номер') : (src.length > 1 ? ' — ' + docN : ''));
+                  var title = n.name + (lookup(r, 'Номер') ? ' № ' + lookup(r, 'Номер') : (src.length > 1 ? ' — ' + (ri + 1) : ''));
                   var item = { type:'doc', title:title, html:sanitizeHtml(fillTemplate(tpl, r)), status:[] };
                   RES.items.push(item);
                   var o = {}; for(var k in r) o[k] = r[k]; o.__doc = item; o['Документ'] = title; return o;
@@ -74,6 +74,14 @@
               else if(p.format === 'email'){ rlog('▶ ' + n.name + ' — письмо «' + nm + '» для ' + (p.to || 'получателя') + ': вложений ' + docs.length + '. Отправка — после подключения почтового сервера', 'warn'); }
               else if(p.format === '1c'){ rlog('▶ ' + n.name + ' — передача ' + rows.length + ' записей в «' + (p.to || '1С') + '». Обмен — после подключения HTTP-сервиса 1С', 'warn'); }
               setRun(n, 'ok', 'Выгружено записей: ' + rows.length);
+            } else if(langById(n.lang) && langById(n.lang).apply){
+              p = params(n);
+              var ctx = { name:n.name, info:'', ins:ins.map(toRows),
+                log:function(t, c){ rlog('   ' + t, c || 'dim'); },
+                table:function(title, rs){ RES.items.push({ type:'table', title:title, rows:rs.map(plainRow) }); },
+                chart:function(o){ o.type = 'chart'; RES.items.push(o); } };
+              out = langById(n.lang).apply(rows, p, ctx) || [];
+              rlog('▶ ' + n.name + ' — ' + (ctx.info || 'записей: ' + out.length), 'ok'); setRun(n, 'ok', ctx.info || 'Записей: ' + out.length);
             } else if(n.lang === 'python'){
               if(!py){ rlog('▶ ' + n.name + ' — пропущен: Python не загрузился', 'warn'); stat.skip++; setRun(n, 'skip', 'Python не загрузился'); out = rows; }
               else {
@@ -101,8 +109,10 @@
         running = false;
         var total = Math.max.apply(0, [0].concat(Object.keys(days).map(function(k){ return days[k]; })));
         var nd = RES.items.filter(function(x){ return x.type === 'doc'; }).length, nt = RES.items.filter(function(x){ return x.type !== 'doc'; }).length;
-        runEl.sum.textContent = 'документов: ' + nd + ' · файлов: ' + nt + ' · срок маршрута: ' + total + ' раб. дн.';
-        rlog('Готово. Срок прохождения маршрута по самой длинной цепочке: ' + plural(total, 'рабочий день', 'рабочих дня', 'рабочих дней') + '.', stat.err ? 'warn' : 'ok');
+        var hasStep = plan.order.some(function(n){ return n.lang === 'step'; });
+        runEl.sum.textContent = (nd ? 'документов: ' + nd + ' · ' : '') + 'результатов: ' + nt + (hasStep ? ' · срок маршрута: ' + total + ' раб. дн.' : '');
+        if(hasStep) rlog('Готово. Срок прохождения маршрута по самой длинной цепочке: ' + plural(total, 'рабочий день', 'рабочих дня', 'рабочих дней') + '.', stat.err ? 'warn' : 'ok');
+        else rlog('Готово' + (stat.err ? ', с ошибками: ' + stat.err : '') + '.', stat.err ? 'warn' : 'ok');
         if(RES.items.length){
           var b = document.createElement('button'); b.type = 'button'; b.className = 'btn sm primary'; b.style.marginTop = '8px'; b.textContent = 'Открыть результаты (' + RES.items.length + ')';
           b.addEventListener('click', openRes); runEl.out.appendChild(document.createElement('br')); runEl.out.appendChild(b);
@@ -126,15 +136,16 @@
   }
   function itemBody(it){
     if(it.type === 'doc') return '<div class="page">' + it.html + (it.status.length ? '<p style="margin-top:24px;font:12px Arial;color:#555;border-top:1px solid #ccc;padding-top:8px">Отметки маршрута: ' + escHtml(it.status.join(' → ')) + '</p>' : '') + '</div>';
+    if(it.type === 'chart') return '<div class="page" style="max-width:none"><h1>' + escHtml(it.title) + '</h1>' + routeChartSvg(it) + '</div>';
     if(it.type === 'pack') return it.docs.map(function(d, i){ return '<div class="page' + (i < it.docs.length - 1 ? ' doc-sep' : '') + '">' + d.html + '</div>'; }).join('') || '<div class="page"><p>В пакете нет документов.</p></div>';
     return '<div class="page" style="max-width:none">' + '<h1>' + escHtml(it.title) + '</h1>' + tableHtml(it.rows).replace('class="rt"', 'style="width:100%;font:13px Arial"') + '</div>';
   }
   function renderRes(){
     var b = $('resBody'); b.innerHTML = '';
-    if(!RES.items.length){ b.appendChild(h('div', { 'class':'bld-stat', text:'Запустите маршрут — здесь появятся сформированные документы и файлы.' })); return; }
+    if(!RES.items.length){ b.appendChild(h('div', { 'class':'bld-stat', text:'Запустите схему — здесь появятся документы, таблицы и диаграммы.' })); return; }
     var list = h('div', { 'class':'res-list', role:'listbox', 'aria-label':'Результаты' });
     RES.items.forEach(function(it, i){
-      var kind = it.type === 'doc' ? 'Документ' : (it.type === 'pack' ? 'Пакет · ' + it.docs.length + ' док.' : 'Таблица · ' + it.rows.length + ' стр.');
+      var kind = it.type === 'doc' ? 'Документ' : it.type === 'chart' ? 'Диаграмма · ' + it.values.length : (it.type === 'pack' ? 'Пакет · ' + it.docs.length + ' док.' : 'Таблица · ' + it.rows.length + ' стр.');
       list.appendChild(h('button', { type:'button', role:'option', 'aria-selected':i === RES.cur ? 'true' : 'false', 'class':'res-i' + (i === RES.cur ? ' on' : ''),
         on:{ click:function(){ RES.cur = i; renderRes(); } } }, [ h('b', { text:it.title }), h('span', { text:kind + (it.status && it.status.length ? ' · ' + it.status[it.status.length - 1] : '') }) ]));
     });

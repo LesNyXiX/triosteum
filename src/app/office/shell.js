@@ -125,14 +125,14 @@
 
   /* ---------- оболочка: вкладки, проводник ---------- */
   function ofApplyMode(){
-    var on = isDocs();
+    var on = isOffice();
     $('otabs').hidden = !on;
     document.body.setAttribute('data-mode', on && OF.tab !== 'auto' ? 'office' : (on ? 'auto' : 'code'));
     $('office').hidden = !officeOn();
   }
   function ofRender(){
     ofApplyMode();
-    if(!isDocs()) return;
+    if(!isOffice()) return;
     ofRenderTabs();
     if(!officeOn()){ status(); return; }
     el.canvas.hidden = true; el.editor.hidden = true; el.lib.hidden = true; hidePop();

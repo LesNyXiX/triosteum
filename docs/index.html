@@ -2827,7 +2827,7 @@ public class MovingAverage : IBlock
     });
     p.appendChild(section('Описание', desc, 'popDesc'));
     if(isDocs() && isParamKind(n.lang) && n.kind !== 'hub') p.appendChild(section('Параметры', paramSection(n)));
-    if(isDocs() && (n.lang === 'sheet' || n.lang === 'doc') && n.kind !== 'hub') p.appendChild(section('Источник данных', srcSection(n)));
+    if(isOffice() && (n.lang === 'sheet' || n.lang === 'doc') && n.kind !== 'hub') p.appendChild(section('Источник данных', srcSection(n)));
     var fsBox = h('div', null, [
       fsRow('Название', fsControl(n.fs || (n.kind === 'hub' ? 12 : 14), 9, 28, function(v){ n.fs = v; refreshNode(n); placePop(); }, 'шрифт названия блока')),
       n.kind === 'hub' ? null : fsRow('Описание', fsControl(n.dfs || 11.5, 8, 20, function(v){ n.dfs = v; refreshNode(n); }, 'шрифт описания блока'))
@@ -4205,13 +4205,20 @@ public class MovingAverage : IBlock
   }
   function hexRgb(x){ x = x.replace('#', ''); return [parseInt(x.slice(0, 2), 16), parseInt(x.slice(2, 4), 16), parseInt(x.slice(4, 6), 16)]; }
   function mixHex(a, b, t){ var A = hexRgb(a), B = hexRgb(b); return '#' + A.map(function(v, i){ return Math.round(v * (1 - t) + B[i] * t).toString(16).padStart(2, '0'); }).join(''); }
-  var ENV_THEME_DEF = { code:'burgundy', docs:'emerald' };
+  var ENV_THEME_DEF = { code:'burgundy', docs:'emerald', wh:'graphite', mes:'graphite', fin:'midnight', hr:'midnight', crm:'burgundy', bi:'midnight' };
+  // акцент среды по умолчанию: на темах, чей собственный акцент спорит с цветом среды
+  function envAccent(th, theme){
+    if(typeof ENV === 'undefined' || !ENV || ENV.id === 'code') return th.accent;
+    theme = theme || 'burgundy';
+    if(ENV.id === 'docs') return theme === 'light' || theme === 'burgundy' ? (th.light ? '#15803D' : '#16A34A') : th.accent;
+    return readable(ENV.color, th.bg, 3);
+  }
   function applyTheme(){
     // у каждой среды своя палитра: запоминаем выбор для текущей среды
     if(typeof ENV !== 'undefined' && ENV){ UI.envs = UI.envs || {}; UI.envs[ENV.id] = { theme:UI.theme || ENV_THEME_DEF[ENV.id] || 'burgundy', accent:UI.accent || null }; }
     var th = THEMES[UI.theme] || THEMES.burgundy, root = document.documentElement.style;
     // у «Офиса» свой зелёный цвет: на темах с красным акцентом он сохраняется, пока пользователь не выберет другой акцент
-    var ac = UI.accent || (typeof ENV !== 'undefined' && ENV && ENV.id === 'docs' && (UI.theme === 'light' || UI.theme === 'burgundy' || !UI.theme) ? (th.light ? '#15803D' : '#16A34A') : th.accent);
+    var ac = UI.accent || envAccent(th, UI.theme);
     root.setProperty('--bg', th.bg); root.setProperty('--panel', th.panel); root.setProperty('--line', th.line); root.setProperty('--line2', th.line2);
     root.setProperty('--ink', th.ink); root.setProperty('--ink-strong', th.strong); root.setProperty('--muted', th.muted); root.setProperty('--dim', th.dim);
     root.setProperty('--dot', th.dot); root.setProperty('--tipbg', th.tip);
@@ -4263,7 +4270,7 @@ public class MovingAverage : IBlock
     });
     b.appendChild(section('Тема оформления — для среды «' + ENV.name + '» (у каждой среды своя)', tg));
     var th = THEMES[UI.theme || 'burgundy'];
-    var defAc = isDocs() && ((UI.theme || 'burgundy') === 'light' || (UI.theme || 'burgundy') === 'burgundy') ? (th.light ? '#15803D' : '#16A34A') : th.accent;
+    var defAc = envAccent(th, UI.theme);
     b.appendChild(section('Акцентный цвет (кнопки, выделение, активные инструменты)', colorRow(ACCENTS, UI.accent || null, function(c, live){ UI.accent = c; applyTheme(); if(!live) renderPers(); }, 'Акцент', isDocs() ? 'Цвет среды' : 'Цвет темы', defAc)));
     var gseg = h('div', { 'class':'seg' });
     [['dots','Точки'],['lines','Линии'],['none','Без сетки']].forEach(function(o){
@@ -4538,7 +4545,7 @@ public class MovingAverage : IBlock
     }
   }
   function render(){
-    if(typeof OF === 'object' && OF && isDocs() && OF.tab !== 'auto'){ ofRender(); return; }
+    if(typeof OF === 'object' && OF && isOffice() && OF.tab !== 'auto'){ ofRender(); return; }
     var isEd = S.view === 'editor';
     el.lib.hidden = !S.lib;
     el.canvas.hidden = isEd;
@@ -5107,7 +5114,7 @@ public class MovingAverage : IBlock
     Object.keys(ENVS).forEach(function(k){ if(k !== ENV.id) rows.push({ group:'Экосистема', label:'Перейти в среду «' + ENVS[k].name + '»', swatch:ENVS[k].color, act:function(){ goEnv(k); }, k:'среда переключить ' + ENVS[k].short }); });
     rows.push({ group:'Экосистема', label:'Экосистема — все среды', icon:'all', act:openEco, k:'среды сферы' });
     rows.push({ group:'Экосистема', label:'Пример офиса: связанные таблица, отчёт, презентация, форма', icon:'file', act:function(){ goEnv('docs', true); }, k:'демо пример офис' });
-    if(isDocs()){
+    if(isOffice()){
       ['doc', 'sheet', 'slides', 'form', 'folder'].forEach(function(t){ rows.push({ group:'Офис', label:'Создать: ' + FT[t].name.toLowerCase(), swatch:FT[t].color, act:function(){ if(OF.tab === 'auto') ofSetTab('desk'); newFile(t); }, k:'новый файл ' + FT[t].many }); });
       rows.push({ group:'Офис', label:'Шаблоны файлов', icon:'lib', act:openTpl, k:'шаблон' });
       rows.push({ group:'Офис', label:'Рабочий стол', icon:'folder', act:function(){ ofSetTab('desk'); } });
@@ -5751,10 +5758,10 @@ public class MovingAverage : IBlock
   function renderArc(){
     var b = $('arcBody'); b.innerHTML = '';
     var aiOff = AI.api === null, aiWait = AI.api === undefined;
-    var ta = h('textarea', { 'class':'bld-wish arc-in', rows:'4', placeholder:isDocs() ? 'Опишите процесс: какие документы, откуда данные, кто согласует и подписывает, куда выгрузить…' : 'Опишите задачу: откуда берём данные, что считаем, куда отправляем результат…', 'aria-label':'Задача для ИИ' });
+    var ta = h('textarea', { 'class':'bld-wish arc-in', rows:'4', placeholder:ENV.hint ? 'Опишите задачу: какие данные, что посчитать, какие документы и отчёты получить…' : isDocs() ? 'Опишите процесс: какие документы, откуда данные, кто согласует и подписывает, куда выгрузить…' : 'Опишите задачу: откуда берём данные, что считаем, куда отправляем результат…', 'aria-label':'Задача для ИИ' });
     ta.value = ARC.prompt; ta.addEventListener('input', function(){ ARC.prompt = ta.value; });
     ta.addEventListener('keydown', function(e){ if(e.key === 'Enter' && (e.ctrlKey || e.metaKey)){ e.preventDefault(); buildArc(); } });
-    var ex = h('div', { 'class':'arc-ex' }, (isDocs() ? ARC_EXAMPLES_DOCS : ARC_EXAMPLES).map(function(t){ return h('button', { type:'button', 'class':'chip', text:t, on:{ click:function(){ ARC.prompt = t; ta.value = t; ta.focus(); } } }); }));
+    var ex = h('div', { 'class':'arc-ex' }, (ENV.examples || (isDocs() ? ARC_EXAMPLES_DOCS : ARC_EXAMPLES)).map(function(t){ return h('button', { type:'button', 'class':'chip', text:t, on:{ click:function(){ ARC.prompt = t; ta.value = t; ta.focus(); } } }); }));
     if(ARC.fresh === null) ARC.fresh = G.nodes.length > 0;
     var fresh = toggleRow('Собрать в новом пространстве (текущая доска не изменится)', ARC.fresh, function(v){ ARC.fresh = v; });
     b.appendChild(section('Задача', h('div', { 'class':'arc-col' }, [ ta, ex, fresh,
@@ -5831,7 +5838,7 @@ public class MovingAverage : IBlock
   }
   function docsArcPrompt(q, catalog, ctxBoard){
     return [
-      'Ты — ИИ-архитектор Triosteum в среде «Документы и таблицы»: документооборот российского производственного предприятия.',
+      'Ты — ИИ-архитектор Triosteum в среде «' + (isOffice() ? 'Документы и таблицы' : ENV.name) + '»: ' + (isOffice() ? 'документооборот' : ENV.desc.toLowerCase().replace(/\.$/, '')) + ' — для российского производственного предприятия.',
       'Схема — блоки, соединённые связями; по связям идут записи (строки таблиц). Типы блоков:',
       '- sheet — таблица-источник или реестр. code: JSON {"rows":[["Заголовок",...],["значение",...]]}, все значения строками, формулы Excel начинаются с «=» (=B2*C2, =SUM(D2:D9), разделитель «;»).',
       '- doc — шаблон документа. code: HTML (h1, h2, p, b, i, u, ol, ul, li, table, tr, th, td, br, style="text-align:…"), поля из таблицы — {{Название столбца}}. Формируется по документу на каждую входящую запись.',
@@ -5839,17 +5846,20 @@ public class MovingAverage : IBlock
       '- cond — условие-фильтр: code JSON {"field":"столбец","op":"> < >= <= = != содержит","value":"…"}.',
       '- send — выгрузка: code JSON {"format":"xlsx|csv|html|email|1c|archive","to":"получатель","name":"название"}.',
       '- python — расчёт: плагин Triosteum, run(rows) получает список записей-словарей и возвращает список (формат ниже).',
+    ].concat(ENV.langs.filter(function(l){ return l.apply; }).map(function(l){
+      return '- ' + l.id + ' — ' + l.name.toLowerCase() + ' (' + l.tool + '). code: JSON ' + JSON.stringify(JSON.parse(l.tpl)) + '; ключи: ' + l.fields.map(function(f){ return f[0] + ' — ' + f[1] + (f[3] ? ' (' + f[3].map(function(o){ return o[0]; }).join('|') + ')' : ''); }).join('; ') + '.';
+    })).concat([
       'Правила: 1) в первую очередь бери готовые блоки из каталога (по id); 2) чего нет — создай сам с полным содержимым; 3) поля {{…}} в документах должны совпадать с заголовками таблиц; 4) 4–10 блоков, связи по ходу документа; 5) реалистичные данные и должности.',
       'Также напиши регламент процесса в Markdown (назначение, участники и ответственность, порядок действий со сроками, контроль, хранение) — поле backend.',
       'Ответь ТОЛЬКО одним блоком JSON (без текста до и после):',
       FENCE + 'json',
-      '{"title":"короткое название","summary":"2–3 предложения","blocks":[{"key":"b1","plugin":"<id из каталога>","name":"название на доске"},{"key":"b2","new":true,"name":"…","lang":"sheet|doc|step|cond|send|python","desc":"одна строка","code":"содержимое строкой"}],"links":[{"from":"b1","to":"b2"}],"backend":"регламент в Markdown"}',
+      '{"title":"короткое название","summary":"2–3 предложения","blocks":[{"key":"b1","plugin":"<id из каталога>","name":"название на доске"},{"key":"b2","new":true,"name":"…","lang":"' + ENV.langs.map(function(l){ return l.id; }).join('|') + '","desc":"одна строка","code":"содержимое строкой"}],"links":[{"from":"b1","to":"b2"}],"backend":"регламент в Markdown"}',
       FENCE,
       '', 'Каталог (id | тип | название — описание):', catalog,
       '', 'Формат Python-плагина:', FENCE + 'python', PY_LANG.tpl.replace(/\s+$/, ''), FENCE,
       ctxBoard ? '\n' + ctxBoard : '',
       '', 'Задача пользователя: ' + q
-    ].join('\n');
+    ]).join('\n');
   }
   function parseArc(text){
     var body = text, i = text.indexOf(FENCE + 'json');
@@ -6020,7 +6030,7 @@ public class MovingAverage : IBlock
     code:{ id:'code', name:'Разработка', short:'Код', color:'#3B82F6', defLang:'python', langs:CODE_LANGS, colors:CODE_COLORS, plugins:CODE_PLUGINS,
       desc:'Блоки с кодом на HTML, Python, C++, C# и 1С, связанные в схему, и целостный бэкенд.',
       word:{ lang:'Язык', plugin:'плагин', plugins:'плагинов', lib:'Библиотека плагинов', create:'Создать плагин', newTitle:'Новый плагин', kindLabel:'Язык', run:'Запустить схему', runSub:'Выполнить все блоки по порядку связей', scheme:'Целостный код схемы', schemeSub:'Бэкенд всей схемы: собранный из блоков и написанный ИИ', open:'Открыть код', libOpen:'Код' } },
-    docs:{ id:'docs', name:'Офис', short:'Офис', color:'#16A34A', defLang:'doc', langs:DOC_KINDS, colors:DOC_COLORS, plugins:DOC_PLUGINS,
+    docs:{ id:'docs', name:'Офис', short:'Офис', color:'#16A34A', route:true, defLang:'doc', langs:DOC_KINDS, colors:DOC_COLORS, plugins:DOC_PLUGINS,
       desc:'Документы как в Word, таблицы как в Excel, презентации и формы — связанные между собой. Плюс автоматизация маршрутов согласования.',
       word:{ lang:'Тип', plugin:'шаблон', plugins:'шаблонов', lib:'Библиотека шаблонов', create:'Создать шаблон', newTitle:'Новый шаблон', kindLabel:'Тип блока', run:'Запустить маршрут', runSub:'Провести записи по всем этапам схемы', scheme:'Регламент процесса', schemeSub:'Описание маршрута: собранное из схемы и написанное ИИ', open:'Открыть', libOpen:'Просмотр' } }
   };
@@ -6034,9 +6044,11 @@ public class MovingAverage : IBlock
   ];
   var ENV = ENVS.code;
   var ALLP = null;
-  function allPlugins(){ if(!ALLP){ var seen = {}; ALLP = CODE_PLUGINS.concat(DOC_PLUGINS).filter(function(p){ if(seen[p.id]) return false; seen[p.id] = 1; return true; }); } return ALLP; }
+  function allPlugins(){ if(!ALLP){ var seen = {}; ALLP = [].concat.apply([], Object.keys(ENVS).map(function(k){ return ENVS[k].plugins; })).filter(function(p){ if(seen[p.id]) return false; seen[p.id] = 1; return true; }); } return ALLP; }
   function myVis(){ return MY.filter(function(p){ return !!langById(p.lang); }); }
-  function isDocs(){ return ENV.id === 'docs'; }
+  // isDocs — среда с маршрутами данных (Офис и отраслевые), isOffice — только «Офис» с рабочим столом файлов
+  function isDocs(){ return !!ENV.route; }
+  function isOffice(){ return ENV.id === 'docs'; }
   function kindOf(n){ return n ? (n.lang) : null; }
   function isParamKind(id){ var l = langById(id); return !!(l && l.param); }
   /* ---------- таблицы: формулы как в Excel ---------- */
@@ -6196,7 +6208,8 @@ public class MovingAverage : IBlock
   var FORMATS = [['xlsx', 'Файл Excel (.xlsx)'], ['csv', 'Файл CSV'], ['html', 'Пакет документов (.html)'], ['email', 'Письмо по почте'], ['1c', 'Передача в 1С'], ['archive', 'Электронный архив']];
   function autoDesc(n){
     if(!isDocs()) return '';
-    var p = params(n);
+    var p = params(n), L = langById(n.lang);
+    if(L && L.sum) return L.sum(p);
     if(n.lang === 'step') return (p.action || 'Этап') + ' · ' + (p.who || 'ответственный') + (p.days ? ' · ' + p.days + ' дн.' : '');
     if(n.lang === 'cond') return 'если «' + (p.field || '?') + '» ' + (OPS.filter(function(o){ return o[0] === p.op; })[0] || ['', p.op])[1] + ' ' + (p.value || '');
     if(n.lang === 'send'){ var f = FORMATS.filter(function(o){ return o[0] === p.format; })[0]; return (f ? f[1] : 'выгрузка') + (p.to ? ' → ' + p.to : ''); }
@@ -6210,6 +6223,22 @@ public class MovingAverage : IBlock
     function field(label, ctl){ return h('label', { 'class':'prm-f' }, [ h('span', { text:label }), ctl ]); }
     function sel(list, val, k){ var s = h('select', { 'class':'input' }); list.forEach(function(o){ var op = h('option', { value:o[0], text:o[1] }); if(o[0] === val) op.selected = true; s.appendChild(op); }); s.addEventListener('change', function(){ upd(k, s.value); }); return s; }
     function inp(val, k, type){ var i = h('input', { 'class':'input', type:type || 'text' }); i.value = val === undefined ? '' : val; i.addEventListener('input', function(){ upd(k, type === 'number' ? Math.max(0, +i.value || 0) : i.value); }); return i; }
+    var L = langById(n.lang);
+    if(L && L.fields){
+      var keys = [], up = upstreamRows(n); if(up && up[0]) keys = Object.keys(up[0]);
+      var dlId = 'fl-' + n.id; if(keys.length){ var dl0 = h('datalist', { id:dlId }); keys.forEach(function(f){ dl0.appendChild(h('option', { value:f })); }); box.appendChild(dl0); }
+      L.fields.forEach(function(f){
+        var ctl;
+        if(f[2] === 's') ctl = sel(f[3], p[f[0]], f[0]);
+        else if(f[2] === 'n'){ ctl = h('input', { 'class':'input', type:'number', step:'any' }); ctl.value = p[f[0]] === undefined ? '' : p[f[0]]; ctl.addEventListener('input', function(){ var v = parseFloat(ctl.value); if(!isNaN(v)) upd(f[0], v); }); }
+        else ctl = inp(p[f[0]], f[0]);
+        if(f[2] === 'f' && keys.length) ctl.setAttribute('list', dlId);
+        box.appendChild(field(f[1], ctl));
+      });
+      if(keys.length) box.appendChild(h('div', { 'class':'prm-hint', text:'Поля таблицы выше по схеме: ' + keys.join(', ') + '. Поля, которые добавляют расчётные блоки, тоже можно указывать.' }));
+      if(L.tool) box.appendChild(h('div', { 'class':'prm-hint', text:L.tool }));
+      return box;
+    }
     if(n.lang === 'step'){
       var acts = ACTIONS.map(function(a){ return [a, a]; }); if(p.action && ACTIONS.indexOf(p.action) < 0) acts.unshift([p.action, p.action]);
       box.appendChild(field('Действие', sel(acts, p.action, 'action')));
@@ -6500,9 +6529,9 @@ public class MovingAverage : IBlock
               var tpl = nodeCode(n), src = hasIn ? rows : [{}];
               if(hasIn && !rows.length){ rlog('▶ ' + n.name + ' — входных записей нет, документы не сформированы', 'warn'); setRun(n, 'skip', 'Нет входных записей'); out = []; }
               else {
-                out = src.map(function(r){
+                out = src.map(function(r, ri){
                   docN++;
-                  var title = n.name + (lookup(r, 'Номер') ? ' № ' + lookup(r, 'Номер') : (src.length > 1 ? ' — ' + docN : ''));
+                  var title = n.name + (lookup(r, 'Номер') ? ' № ' + lookup(r, 'Номер') : (src.length > 1 ? ' — ' + (ri + 1) : ''));
                   var item = { type:'doc', title:title, html:sanitizeHtml(fillTemplate(tpl, r)), status:[] };
                   RES.items.push(item);
                   var o = {}; for(var k in r) o[k] = r[k]; o.__doc = item; o['Документ'] = title; return o;
@@ -6534,6 +6563,14 @@ public class MovingAverage : IBlock
               else if(p.format === 'email'){ rlog('▶ ' + n.name + ' — письмо «' + nm + '» для ' + (p.to || 'получателя') + ': вложений ' + docs.length + '. Отправка — после подключения почтового сервера', 'warn'); }
               else if(p.format === '1c'){ rlog('▶ ' + n.name + ' — передача ' + rows.length + ' записей в «' + (p.to || '1С') + '». Обмен — после подключения HTTP-сервиса 1С', 'warn'); }
               setRun(n, 'ok', 'Выгружено записей: ' + rows.length);
+            } else if(langById(n.lang) && langById(n.lang).apply){
+              p = params(n);
+              var ctx = { name:n.name, info:'', ins:ins.map(toRows),
+                log:function(t, c){ rlog('   ' + t, c || 'dim'); },
+                table:function(title, rs){ RES.items.push({ type:'table', title:title, rows:rs.map(plainRow) }); },
+                chart:function(o){ o.type = 'chart'; RES.items.push(o); } };
+              out = langById(n.lang).apply(rows, p, ctx) || [];
+              rlog('▶ ' + n.name + ' — ' + (ctx.info || 'записей: ' + out.length), 'ok'); setRun(n, 'ok', ctx.info || 'Записей: ' + out.length);
             } else if(n.lang === 'python'){
               if(!py){ rlog('▶ ' + n.name + ' — пропущен: Python не загрузился', 'warn'); stat.skip++; setRun(n, 'skip', 'Python не загрузился'); out = rows; }
               else {
@@ -6561,8 +6598,10 @@ public class MovingAverage : IBlock
         running = false;
         var total = Math.max.apply(0, [0].concat(Object.keys(days).map(function(k){ return days[k]; })));
         var nd = RES.items.filter(function(x){ return x.type === 'doc'; }).length, nt = RES.items.filter(function(x){ return x.type !== 'doc'; }).length;
-        runEl.sum.textContent = 'документов: ' + nd + ' · файлов: ' + nt + ' · срок маршрута: ' + total + ' раб. дн.';
-        rlog('Готово. Срок прохождения маршрута по самой длинной цепочке: ' + plural(total, 'рабочий день', 'рабочих дня', 'рабочих дней') + '.', stat.err ? 'warn' : 'ok');
+        var hasStep = plan.order.some(function(n){ return n.lang === 'step'; });
+        runEl.sum.textContent = (nd ? 'документов: ' + nd + ' · ' : '') + 'результатов: ' + nt + (hasStep ? ' · срок маршрута: ' + total + ' раб. дн.' : '');
+        if(hasStep) rlog('Готово. Срок прохождения маршрута по самой длинной цепочке: ' + plural(total, 'рабочий день', 'рабочих дня', 'рабочих дней') + '.', stat.err ? 'warn' : 'ok');
+        else rlog('Готово' + (stat.err ? ', с ошибками: ' + stat.err : '') + '.', stat.err ? 'warn' : 'ok');
         if(RES.items.length){
           var b = document.createElement('button'); b.type = 'button'; b.className = 'btn sm primary'; b.style.marginTop = '8px'; b.textContent = 'Открыть результаты (' + RES.items.length + ')';
           b.addEventListener('click', openRes); runEl.out.appendChild(document.createElement('br')); runEl.out.appendChild(b);
@@ -6586,15 +6625,16 @@ public class MovingAverage : IBlock
   }
   function itemBody(it){
     if(it.type === 'doc') return '<div class="page">' + it.html + (it.status.length ? '<p style="margin-top:24px;font:12px Arial;color:#555;border-top:1px solid #ccc;padding-top:8px">Отметки маршрута: ' + escHtml(it.status.join(' → ')) + '</p>' : '') + '</div>';
+    if(it.type === 'chart') return '<div class="page" style="max-width:none"><h1>' + escHtml(it.title) + '</h1>' + routeChartSvg(it) + '</div>';
     if(it.type === 'pack') return it.docs.map(function(d, i){ return '<div class="page' + (i < it.docs.length - 1 ? ' doc-sep' : '') + '">' + d.html + '</div>'; }).join('') || '<div class="page"><p>В пакете нет документов.</p></div>';
     return '<div class="page" style="max-width:none">' + '<h1>' + escHtml(it.title) + '</h1>' + tableHtml(it.rows).replace('class="rt"', 'style="width:100%;font:13px Arial"') + '</div>';
   }
   function renderRes(){
     var b = $('resBody'); b.innerHTML = '';
-    if(!RES.items.length){ b.appendChild(h('div', { 'class':'bld-stat', text:'Запустите маршрут — здесь появятся сформированные документы и файлы.' })); return; }
+    if(!RES.items.length){ b.appendChild(h('div', { 'class':'bld-stat', text:'Запустите схему — здесь появятся документы, таблицы и диаграммы.' })); return; }
     var list = h('div', { 'class':'res-list', role:'listbox', 'aria-label':'Результаты' });
     RES.items.forEach(function(it, i){
-      var kind = it.type === 'doc' ? 'Документ' : (it.type === 'pack' ? 'Пакет · ' + it.docs.length + ' док.' : 'Таблица · ' + it.rows.length + ' стр.');
+      var kind = it.type === 'doc' ? 'Документ' : it.type === 'chart' ? 'Диаграмма · ' + it.values.length : (it.type === 'pack' ? 'Пакет · ' + it.docs.length + ' док.' : 'Таблица · ' + it.rows.length + ' стр.');
       list.appendChild(h('button', { type:'button', role:'option', 'aria-selected':i === RES.cur ? 'true' : 'false', 'class':'res-i' + (i === RES.cur ? ' on' : ''),
         on:{ click:function(){ RES.cur = i; renderRes(); } } }, [ h('b', { text:it.title }), h('span', { text:kind + (it.status && it.status.length ? ' · ' + it.status[it.status.length - 1] : '') }) ]));
     });
@@ -6624,7 +6664,7 @@ public class MovingAverage : IBlock
     var docs = plan.order.filter(function(n){ return n.lang === 'doc'; }), sheets = plan.order.filter(function(n){ return n.lang === 'sheet'; });
     L.push('# Регламент процесса «' + curProj().name + '»', '', 'Сформирован автоматически по схеме в Triosteum, ' + today + '.', '');
     L.push('## 1. Назначение', '');
-    L.push('Регламент описывает порядок подготовки, согласования и учёта документов' + (docs.length ? ': ' + docs.map(function(n){ return '«' + n.name + '»'; }).join(', ') : '') + '.');
+    L.push((isOffice() || !plan.order.some(function(n){ var l = langById(n.lang); return l && l.apply; }) ? 'Регламент описывает порядок подготовки, согласования и учёта документов' : 'Регламент описывает порядок обработки данных в среде «' + ENV.name + '»: источники, расчёты, контроль и выпуск результатов') + (docs.length ? ': ' + docs.map(function(n){ return '«' + n.name + '»'; }).join(', ') : '') + '.');
     if(sheets.length) L.push('Источники данных: ' + sheets.map(function(n){ return '«' + n.name + '»'; }).join(', ') + '.');
     L.push('', '## 2. Участники', '');
     if(who.length) who.forEach(function(w){ L.push('- ' + w); }); else L.push('- Этапы с ответственными на схеме не заданы.');
@@ -6638,6 +6678,7 @@ public class MovingAverage : IBlock
       else if(n.lang === 'step') t += (p.action || 'этап') + '. Ответственный: ' + (p.who || 'не назначен') + '. Срок: ' + (+p.days || 0) + ' раб. дн.' + (p.note ? ' Примечание: ' + p.note + '.' : '');
       else if(n.lang === 'cond') t += 'дальше передаются только записи, где «' + (p.field || '?') + '» ' + (OPS.filter(function(o){ return o[0] === p.op; })[0] || ['', p.op])[1] + ' ' + (p.value || '') + '; остальные останавливаются на этом шаге.';
       else if(n.lang === 'send'){ var fm = FORMATS.filter(function(o){ return o[0] === p.format; })[0]; t += 'выгрузка: ' + (fm ? fm[1] : p.format) + (p.to ? ', получатель — ' + p.to : '') + (p.name ? ', «' + p.name + '»' : '') + '.'; }
+      else if(langById(n.lang) && langById(n.lang).apply) t += langById(n.lang).name.toLowerCase() + ': ' + langById(n.lang).sum(p) + '.' + (n.desc ? ' ' + n.desc : '');
       else if(n.lang === 'python') t += 'автоматический расчёт (Python): ' + (n.desc || 'обработка записей') + '.';
       else t += n.desc || '';
       L.push(t);
@@ -6646,6 +6687,651 @@ public class MovingAverage : IBlock
     L.push('', '## 4. Сроки', '', 'Нормативный срок прохождения маршрута по самой длинной цепочке этапов — **' + total + ' рабочих дней**.');
     L.push('', '## 5. Контроль и хранение', '', '- Статус каждого документа фиксируется на каждом этапе маршрута в Triosteum.', '- Сформированные документы и выгрузки хранятся в электронном архиве не менее 5 лет.', '- Изменения регламента вносятся изменением схемы; регламент формируется заново автоматически.');
     return L.join('\n') + '\n';
+  }
+
+  /* =====================================================================
+     РАСЧЁТНЫЕ БЛОКИ ОТРАСЛЕВЫХ СРЕД. Блок = параметры (JSON) + функция,
+     которая получает записи от блоков выше по схеме и отдаёт записи дальше.
+     Поля описания: [ключ, подпись, тип, варианты]; тип: f — поле записи,
+     t — текст, n — число, s — выбор из списка.
+     ===================================================================== */
+  function nv(r, f){ var v = num(lookup(r, f)); return typeof v === 'number' && isFinite(v) ? v : 0; }
+  function sv(r, f){ var v = lookup(r, f); return v === undefined || v === null ? '' : String(v); }
+  function r2(x, d){ var m = Math.pow(10, d === undefined ? 2 : d); return Math.round(x * m) / m; }
+  function cpRow(r){ var o = {}; for(var k in r) o[k] = r[k]; return o; }
+  function pct(a, b, d){ return b ? r2(a / b * 100, d === undefined ? 1 : d) : 0; }
+  function ruDate(s){
+    if(s instanceof Date) return s;
+    var m = String(s || '').trim().match(/^(\d{1,2})\.(\d{1,2})\.(\d{2,4})$/);
+    if(m){ var y = +m[3]; if(y < 100) y += 2000; return new Date(y, +m[2] - 1, +m[1]); }
+    m = String(s || '').trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+    return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null;
+  }
+  function ruDateStr(d){ return d ? d.toLocaleDateString('ru-RU') : ''; }
+  function today0(){ var d = new Date(); d.setHours(0, 0, 0, 0); return d; }
+  function dayDiff(a, b){ return Math.round((b - a) / 864e5); }
+  function money(x){ return fmtCell(r2(x, 2)); }
+  function opKind(id, name, tool, defaults, fields, apply, sum){
+    return { id:id, name:name, tool:tool, ext:'json', real:true, param:true, op:true, tpl:JSON.stringify(defaults), fields:fields, apply:apply, sum:sum };
+  }
+  var FNS = [['sum', 'сумма'], ['avg', 'среднее'], ['count', 'количество'], ['min', 'минимум'], ['max', 'максимум']];
+  function agg(list, fn){
+    if(fn === 'count') return list.length;
+    if(!list.length) return 0;
+    if(fn === 'avg') return r2(list.reduce(function(s, x){ return s + x; }, 0) / list.length);
+    if(fn === 'min') return Math.min.apply(0, list);
+    if(fn === 'max') return Math.max.apply(0, list);
+    return r2(list.reduce(function(s, x){ return s + x; }, 0));
+  }
+  function groupBy(rows, key){
+    var order = [], g = {};
+    rows.forEach(function(r){ var k = sv(r, key) || '(пусто)'; if(!g[k]){ g[k] = []; order.push(k); } g[k].push(r); });
+    return { keys:order, map:g };
+  }
+  // вычисление выражения с полями {Поле} через движок формул таблиц (ЕСЛИ, ОКРУГЛ, СУММ…)
+  function evalExpr(expr, row){
+    var keys = Object.keys(row).filter(function(k){ return k.indexOf('__') !== 0; });
+    var f = String(expr || '').replace(/^=/, '').replace(/\{([^{}]+)\}/g, function(m, k){
+      k = k.trim(); var i = keys.indexOf(k);
+      if(i < 0){ var lk = k.toLowerCase(); i = keys.map(function(x){ return x.toLowerCase(); }).indexOf(lk); }
+      return i < 0 ? '0' : colName(i) + '2';
+    });
+    var aoa = [keys.concat(['_']), keys.map(function(k){ var v = row[k]; return v === undefined || v === null ? '' : String(v); }).concat(['=' + f])];
+    return computeSheet(aoa)[1][keys.length];
+  }
+
+  /* ---------- общие для всех отраслевых сред ---------- */
+  var OP_CALC = opKind('calc', 'Вычисление', 'Новое поле по формуле: {Количество}*{Цена}, ЕСЛИ, ОКРУГЛ',
+    { name:'Сумма', expr:'{Количество}*{Цена}', round:2 },
+    [['name', 'Новое поле', 't'], ['expr', 'Формула (поля в фигурных скобках)', 't'], ['round', 'Знаков после запятой', 'n']],
+    function(rows, p, ctx){
+      var bad = 0, out = rows.map(function(r){ var o = cpRow(r), v = evalExpr(p.expr, r); if(v === '#ОШИБКА') bad++; else if(typeof v === 'number') v = r2(v, p.round === undefined ? 2 : +p.round); o[p.name || 'Результат'] = v; return o; });
+      if(bad) ctx.log('ошибка в формуле у ' + plural(bad, 'записи', 'записей', 'записей') + ' — проверьте названия полей', 'warn');
+      ctx.info = '«' + (p.name || 'Результат') + '» для ' + plural(out.length, 'записи', 'записей', 'записей'); return out;
+    }, function(p){ return (p.name || 'поле') + ' = ' + (p.expr || '…'); });
+  var OP_GROUP = opKind('group', 'Группировка', 'Итоги по группам: сумма, среднее, количество',
+    { by:'Категория', field:'Сумма', fn:'sum', order:'value' },
+    [['by', 'Группировать по полю', 'f'], ['field', 'Считать поле', 'f'], ['fn', 'Как считать', 's', FNS], ['order', 'Порядок групп', 's', [['value', 'по убыванию итога'], ['source', 'как в данных (для дат и месяцев)']]]],
+    function(rows, p, ctx){
+      var g = groupBy(rows, p.by), fnName = (FNS.filter(function(x){ return x[0] === p.fn; })[0] || FNS[0])[1];
+      var col = p.fn === 'count' ? 'Записей' : p.field + (p.fn === 'sum' ? '' : ' (' + fnName + ')');
+      var out = g.keys.map(function(k){ var o = {}; o[p.by] = k; o[col] = agg(g.map[k].map(function(r){ return nv(r, p.field); }), p.fn); if(p.fn !== 'count') o['Записей'] = g.map[k].length; return o; });
+      if(p.order !== 'source') out.sort(function(a, b){ return b[col] - a[col]; });
+      ctx.table(ctx.name, out); ctx.info = 'Групп: ' + out.length; return out;
+    }, function(p){ return 'по «' + (p.by || '?') + '»: ' + ((FNS.filter(function(x){ return x[0] === p.fn; })[0] || FNS[0])[1]) + (p.fn === 'count' ? '' : ' «' + (p.field || '?') + '»'); });
+  var OP_SORT = opKind('sort', 'Сортировка и топ', 'Упорядочить записи и оставить первые N',
+    { field:'Сумма', dir:'desc', top:10 },
+    [['field', 'Поле', 'f'], ['dir', 'Порядок', 's', [['desc', 'по убыванию'], ['asc', 'по возрастанию']]], ['top', 'Оставить первых (0 — все)', 'n']],
+    function(rows, p, ctx){
+      var k = p.dir === 'asc' ? 1 : -1, out = rows.slice().sort(function(a, b){
+        var x = num(lookup(a, p.field)), y = num(lookup(b, p.field));
+        if(typeof x === 'number' && typeof y === 'number') return (x - y) * k;
+        return String(x === undefined ? '' : x).localeCompare(String(y === undefined ? '' : y), 'ru') * k;
+      });
+      if(+p.top > 0) out = out.slice(0, +p.top);
+      ctx.info = 'Записей: ' + out.length; return out;
+    }, function(p){ return '«' + (p.field || '?') + '» ' + (p.dir === 'asc' ? '↑' : '↓') + (+p.top > 0 ? ', топ ' + p.top : ''); });
+  function abcRows(rows, nameF, valF, a, b, groupF){
+    var src = rows;
+    if(groupF){ var g = groupBy(rows, nameF); src = g.keys.map(function(k){ var o = {}; o[nameF] = k; o[valF] = r2(g.map[k].reduce(function(s, r){ return s + nv(r, valF); }, 0)); return o; }); }
+    var total = src.reduce(function(s, r){ return s + nv(r, valF); }, 0), acc = 0;
+    return src.slice().sort(function(x, y){ return nv(y, valF) - nv(x, valF); }).map(function(r){
+      var o = cpRow(r), share = total ? nv(r, valF) / total * 100 : 0, before = acc; acc += share;
+      o['Доля, %'] = r2(share, 1); o['Накопительно, %'] = r2(acc, 1); o['Группа'] = before < a ? 'A' : (before < b ? 'B' : 'C'); return o;
+    });
+  }
+  var OP_ABC = opKind('abc', 'ABC-анализ', 'Группы A, B, C по вкладу в итог (правило Парето)',
+    { name:'Артикул', field:'Сумма', a:80, b:95 },
+    [['name', 'Объект анализа (поле)', 'f'], ['field', 'Показатель', 'f'], ['a', 'Граница группы A, %', 'n'], ['b', 'Граница группы B, %', 'n']],
+    function(rows, p, ctx){
+      var out = abcRows(rows, p.name, p.field, +p.a || 80, +p.b || 95, true), c = { A:0, B:0, C:0 };
+      out.forEach(function(r){ c[r['Группа']]++; });
+      ctx.table(ctx.name, out); ctx.info = 'A: ' + c.A + ' · B: ' + c.B + ' · C: ' + c.C; return out;
+    }, function(p){ return '«' + (p.name || '?') + '» по «' + (p.field || '?') + '», A до ' + (p.a || 80) + '%'; });
+  var OP_CHART = opKind('chart', 'Диаграмма', 'Столбцы или линия по записям — в окне результатов',
+    { label:'Категория', value:'Сумма', type:'bar', top:15 },
+    [['label', 'Подписи (поле)', 'f'], ['value', 'Значения (поле)', 'f'], ['type', 'Вид', 's', [['bar', 'столбцы'], ['line', 'линия']]], ['top', 'Не больше элементов', 'n']],
+    function(rows, p, ctx){
+      var list = rows.slice(0, +p.top > 0 ? +p.top : 30);
+      ctx.chart({ title:ctx.name, kind:p.type || 'bar', labels:list.map(function(r){ return sv(r, p.label); }), values:list.map(function(r){ return nv(r, p.value); }), unit:p.value });
+      ctx.info = 'Элементов: ' + list.length; return rows;
+    }, function(p){ return (p.type === 'line' ? 'линия' : 'столбцы') + ': «' + (p.value || '?') + '» по «' + (p.label || '?') + '»'; });
+  var GEN_OPS = [OP_CALC, OP_GROUP, OP_SORT, OP_ABC, OP_CHART];
+  var GEN_COLORS = { calc:['#64748B', '#CBD5E1'], group:['#0891B2', '#67E8F9'], sort:['#475569', '#94A3B8'], abc:['#DB2777', '#F9A8D4'], chart:['#7C3AED', '#C4B5FD'] };
+
+  /* ---------- диаграмма в окне результатов ---------- */
+  function routeChartSvg(it){
+    var v = it.values, L = it.labels, n = v.length; if(!n) return '<p>Нет данных для диаграммы.</p>';
+    var max = Math.max.apply(0, v.concat([0])), min = Math.min.apply(0, v.concat([0])), span = (max - min) || 1;
+    var W = 720, padL = 12, padB = 70, H = 300, top = 16, cw = (W - padL * 2) / n, y = function(x){ return top + (max - x) / span * (H - top - padB); };
+    var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="font:11px Arial;max-width:' + W + 'px" role="img" aria-label="' + escHtml(it.title) + '">';
+    s += '<line x1="' + padL + '" x2="' + (W - padL) + '" y1="' + y(0) + '" y2="' + y(0) + '" stroke="#999"/>';
+    if(it.kind === 'line'){
+      s += '<polyline fill="none" stroke="#2563EB" stroke-width="2.5" points="' + v.map(function(x, i){ return (padL + cw * (i + 0.5)).toFixed(1) + ',' + y(x).toFixed(1); }).join(' ') + '"/>';
+      v.forEach(function(x, i){ var cx = (padL + cw * (i + 0.5)).toFixed(1); s += '<circle cx="' + cx + '" cy="' + y(x).toFixed(1) + '" r="3.5" fill="#2563EB"><title>' + escHtml(L[i] + ': ' + fmtCell(x)) + '</title></circle>'; if(n <= 24) s += '<text x="' + cx + '" y="' + (y(x) - 8).toFixed(1) + '" text-anchor="middle" fill="#333">' + escHtml(fmtCell(r2(x, 1))) + '</text>'; });
+    } else v.forEach(function(x, i){
+      var y0 = y(Math.max(x, 0)), hh = Math.max(1, Math.abs(y(x) - y(0)));
+      s += '<rect x="' + (padL + cw * i + cw * 0.15).toFixed(1) + '" y="' + y0.toFixed(1) + '" width="' + (cw * 0.7).toFixed(1) + '" height="' + hh.toFixed(1) + '" rx="2" fill="' + (x < 0 ? '#DC2626' : '#2563EB') + '"><title>' + escHtml(L[i] + ': ' + fmtCell(x)) + '</title></rect>';
+      if(n <= 16) s += '<text x="' + (padL + cw * (i + 0.5)).toFixed(1) + '" y="' + (y0 - 4).toFixed(1) + '" text-anchor="middle" fill="#333">' + escHtml(fmtCell(r2(x, 1))) + '</text>';
+    });
+    L.forEach(function(l, i){ var x = padL + cw * (i + 0.5); s += '<text transform="translate(' + x.toFixed(1) + ',' + (H - padB + 14) + ') rotate(-35)" text-anchor="end" fill="#333">' + escHtml(String(l).slice(0, 22)) + '</text>'; });
+    return s + '</svg><p style="font:12px Arial;color:#555">Показатель: ' + escHtml(it.unit || '') + '</p>';
+  }
+
+  /* =====================================================================
+     ОТРАСЛЕВЫЕ СРЕДЫ: склад, производство, финансы, персонал, продажи,
+     аналитика. У каждой: свои расчётные блоки, библиотека шаблонов и пример.
+     Таблицы, документы, условия, выгрузки, Python и запуск — общие с «Офисом».
+     ===================================================================== */
+  var K_SHEET = DOC_KINDS[1], K_DOC = DOC_KINDS[0], K_STEP = DOC_KINDS[2], K_COND = DOC_KINDS[3], K_SEND = DOC_KINDS[4];
+  function tbl(rows){ return JSON.stringify({ rows:rows }); }
+  function P(id, lang, name, desc, code){ return { id:id, lang:lang, name:name, desc:desc, code:typeof code === 'string' ? code : JSON.stringify(code) }; }
+
+  /* ---------- склад и логистика ---------- */
+  var WH_OPS = [
+    opKind('reorder', 'Точка заказа', 'Сколько и что заказать: точка заказа, страховой запас, дни запаса',
+      { stock:'Остаток', usage:'Расход в день', lead:'Срок поставки, дн.', safety:3, cover:14 },
+      [['stock', 'Остаток (поле)', 'f'], ['usage', 'Средний расход в день (поле)', 'f'], ['lead', 'Срок поставки, дней (поле)', 'f'], ['safety', 'Страховой запас, дней', 'n'], ['cover', 'Заказывать на, дней', 'n']],
+      function(rows, p, ctx){
+        var k = 0, out = rows.map(function(r){
+          var o = cpRow(r), st = nv(r, p.stock), u = nv(r, p.usage), ld = nv(r, p.lead) || 7, sf = +p.safety || 0, cv = +p.cover || 14;
+          var rop = u * (ld + sf), status = st <= u * ld ? 'Срочно' : (st <= rop ? 'Заказать' : 'Норма');
+          o['Точка заказа'] = r2(rop, 0); o['Запас, дн.'] = u ? r2(st / u, 1) : '∞';
+          o['К заказу'] = status === 'Норма' ? 0 : Math.ceil(Math.max(0, u * (ld + sf + cv) - st)); o['Статус'] = status;
+          if(status !== 'Норма') k++; return o;
+        });
+        ctx.info = 'Заказать: ' + k + ' из ' + out.length; ctx.table(ctx.name, out); return out;
+      }, function(p){ return 'страховой ' + (p.safety || 0) + ' дн., заказ на ' + (p.cover || 14) + ' дн.'; }),
+    opKind('pick', 'Резерв под заказы', 'Резервирует остатки под заказы клиентов по дате (две таблицы на входе)',
+      { item:'Артикул', qty:'Количество', stock:'Остаток', date:'Дата' },
+      [['item', 'Артикул (поле)', 'f'], ['qty', 'Количество в заказе (поле)', 'f'], ['stock', 'Остаток на складе (поле)', 'f'], ['date', 'Дата заказа (поле)', 'f']],
+      function(rows, p, ctx){
+        var hasStock = function(set){ return set.length && lookup(set[0], p.stock) !== undefined && lookup(set[0], p.qty) === undefined; };
+        var stockSet = ctx.ins.filter(hasStock)[0];
+        if(!stockSet){ ctx.log('нужна таблица остатков с полем «' + p.stock + '» — соедините её с этим блоком', 'warn'); ctx.info = 'Нет остатков'; return rows; }
+        var left = {}; stockSet.forEach(function(r){ left[sv(r, p.item)] = (left[sv(r, p.item)] || 0) + nv(r, p.stock); });
+        var orders = [].concat.apply([], ctx.ins.filter(function(s){ return s !== stockSet; }));
+        orders = orders.map(function(r, i){ return { r:r, i:i, d:ruDate(sv(r, p.date)) }; }).sort(function(a, b){ return (a.d || 0) - (b.d || 0) || a.i - b.i; });
+        var full = 0, out = orders.map(function(x){
+          var o = cpRow(x.r), it = sv(x.r, p.item), need = nv(x.r, p.qty), have = left[it] || 0, give = Math.min(need, have);
+          left[it] = have - give; o['Зарезервировано'] = give; o['Не хватает'] = need - give;
+          o['Статус'] = give >= need ? 'Собран' : (give > 0 ? 'Частично' : 'Нет в наличии'); if(give >= need) full++; return o;
+        });
+        ctx.info = 'Собрано полностью: ' + full + ' из ' + out.length; ctx.table(ctx.name, out); return out;
+      }, function(p){ return 'по «' + (p.item || '?') + '», очередь по «' + (p.date || '?') + '»'; }),
+    opKind('trips', 'Рейсы доставки', 'Раскладывает заказы по машинам с учётом грузоподъёмности и районов',
+      { zone:'Район', weight:'Вес, кг', cap:1500, cost:4500, id:'Номер' },
+      [['zone', 'Район доставки (поле)', 'f'], ['weight', 'Вес (поле)', 'f'], ['cap', 'Грузоподъёмность машины, кг', 'n'], ['cost', 'Стоимость рейса, руб.', 'n'], ['id', 'Номер заказа (поле)', 'f']],
+      function(rows, p, ctx){
+        var cap = +p.cap || 1500, g = groupBy(rows, p.zone), trips = [], over = 0;
+        g.keys.forEach(function(z){
+          var bins = [];
+          g.map[z].slice().sort(function(a, b){ return nv(b, p.weight) - nv(a, p.weight); }).forEach(function(r){
+            var w = nv(r, p.weight); if(w > cap) over++;
+            var b = bins.filter(function(x){ return x.w + w <= cap; })[0];
+            if(!b){ b = { w:0, list:[] }; bins.push(b); }
+            b.w += w; b.list.push(sv(r, p.id) || '—');
+          });
+          bins.forEach(function(b){ trips.push({ 'Рейс':'Р-' + (trips.length + 1), 'Район':z, 'Заказов':b.list.length, 'Заказы':b.list.join(', '), 'Вес, кг':r2(b.w, 1), 'Загрузка, %':pct(b.w, cap, 0), 'Стоимость, руб.':+p.cost || 0 }); });
+        });
+        if(over) ctx.log(plural(over, 'заказ тяжелее', 'заказа тяжелее', 'заказов тяжелее') + ' машины — нужен отдельный транспорт', 'warn');
+        ctx.info = 'Рейсов: ' + trips.length + ', затраты ' + money(trips.length * (+p.cost || 0)) + ' руб.'; ctx.table(ctx.name, trips); return trips;
+      }, function(p){ return 'машина ' + (p.cap || 1500) + ' кг, рейс ' + money(+p.cost || 0) + ' руб.'; })
+  ];
+  var WH_LIB = [
+    P('wh-stock', 'sheet', 'Остатки склада', 'Артикулы, остатки, средний расход и сроки поставки.', tbl([
+      ['Артикул', 'Наименование', 'Остаток', 'Ед.', 'Расход в день', 'Срок поставки, дн.', 'Цена', 'Поставщик'],
+      ['ЛГ-4', 'Лист г/к 4 мм', '18', 'т', '2.5', '10', '72000', 'ООО «СтальПром»'],
+      ['ПШ-6205', 'Подшипник 6205', '1450', 'шт', '60', '14', '135', 'АО «ТехМаш»'],
+      ['ЭЛ-МР3', 'Электроды МР-3, 3 мм', '320', 'кг', '45', '5', '210', 'ООО «ЭнергоРесурс»'],
+      ['КР-М12', 'Болт М12×40', '9800', 'шт', '400', '7', '9', 'ООО «Крепёж»'],
+      ['ТР-57', 'Труба 57×3,5', '4.2', 'т', '0.4', '12', '88000', 'ООО «СтальПром»'],
+      ['КЛ-1', 'Краска грунт ГФ-021', '95', 'кг', '12', '6', '260', 'ООО «ЛКМ-Центр»']])),
+    P('wh-orders', 'sheet', 'Заказы клиентов', 'Заказы на отгрузку: артикул, количество, район, вес.', tbl([
+      ['Номер', 'Дата', 'Клиент', 'Артикул', 'Количество', 'Район', 'Вес, кг'],
+      ['З-301', '02.11.2026', 'ООО «Монтаж-Сервис»', 'ПШ-6205', '600', 'Север', '420'],
+      ['З-302', '02.11.2026', 'АО «Энергомаш»', 'КР-М12', '5000', 'Юг', '640'],
+      ['З-303', '03.11.2026', 'ООО «Монтаж-Сервис»', 'ЭЛ-МР3', '200', 'Север', '200'],
+      ['З-304', '03.11.2026', 'ИП Сафонов', 'ПШ-6205', '1100', 'Восток', '770'],
+      ['З-305', '04.11.2026', 'АО «Энергомаш»', 'КЛ-1', '60', 'Юг', '60'],
+      ['З-306', '04.11.2026', 'ООО «РемСтрой»', 'КР-М12', '6000', 'Юг', '770']])),
+    P('wh-reorder', 'reorder', 'Точка заказа', 'Что пора заказать: страховой запас 3 дня, заказ на 2 недели.', { stock:'Остаток', usage:'Расход в день', lead:'Срок поставки, дн.', safety:3, cover:14 }),
+    P('wh-pick', 'pick', 'Резерв под заказы', 'Остатки резервируются под заказы в порядке поступления.', { item:'Артикул', qty:'Количество', stock:'Остаток', date:'Дата' }),
+    P('wh-trips', 'trips', 'Рейсы доставки', 'Газель 1,5 т, рейс 4 500 руб.', { zone:'Район', weight:'Вес, кг', cap:1500, cost:4500, id:'Номер' }),
+    P('wh-need', 'cond', 'Есть что заказать', 'Только позиции с ненулевым заказом.', { field:'К заказу', op:'>', value:'0' }),
+    P('wh-short', 'cond', 'Не хватает товара', 'Заказы, собранные не полностью.', { field:'Не хватает', op:'>', value:'0' }),
+    P('wh-po', 'doc', 'Заявка поставщику', 'Заявка на поставку по каждой позиции к заказу.',
+      '<p style="text-align:right">{{Поставщик}}</p>\n<h1 style="text-align:center">ЗАЯВКА НА ПОСТАВКУ</h1>\n<p style="text-align:center">от {{Дата}}</p>\n<p>Просим поставить следующий товар:</p>\n<table style="width:100%;border-collapse:collapse" border="1" cellpadding="6"><tr><th>Артикул</th><th>Наименование</th><th>Количество</th><th>Ед.</th><th>Цена, руб.</th></tr><tr><td>{{Артикул}}</td><td>{{Наименование}}</td><td style="text-align:right">{{К заказу}}</td><td>{{Ед.}}</td><td style="text-align:right">{{Цена}}</td></tr></table>\n<p>Текущий остаток: {{Остаток}} {{Ед.}}, запаса на {{Запас, дн.}} дн. Статус: <b>{{Статус}}</b>.</p>\n<p>Просим подтвердить сроки поставки.</p>\n<p>Начальник склада ____________</p>\n'),
+    P('wh-xlsx', 'send', 'План закупок в Excel', 'Позиции к заказу — файлом .xlsx.', { format:'xlsx', to:'', name:'План закупок' }),
+    P('wh-chart', 'chart', 'Загрузка рейсов', 'Столбцы: загрузка машин в процентах.', { label:'Рейс', value:'Загрузка, %', type:'bar', top:20 }),
+    P('wh-abc', 'abc', 'ABC запасов', 'Какие позиции держат основную стоимость склада.', { name:'Наименование', field:'Стоимость', a:80, b:95 }),
+    P('wh-value', 'calc', 'Стоимость остатка', 'Стоимость = Остаток × Цена.', { name:'Стоимость', expr:'{Остаток}*{Цена}', round:2 })
+  ];
+
+  /* ---------- производство (MES) ---------- */
+  var MES_OPS = [
+    opKind('oee', 'OEE', 'Общая эффективность оборудования: доступность × производительность × качество',
+      { plan:'Плановое время, мин', down:'Простои, мин', rate:'Норма, шт/мин', out:'Выпуск, шт', bad:'Брак, шт' },
+      [['plan', 'Плановое время, мин (поле)', 'f'], ['down', 'Простои, мин (поле)', 'f'], ['rate', 'Норма выработки, шт/мин (поле)', 'f'], ['out', 'Выпуск, шт (поле)', 'f'], ['bad', 'Брак, шт (поле)', 'f']],
+      function(rows, p, ctx){
+        var sum = 0, out = rows.map(function(r){
+          var o = cpRow(r), pl = nv(r, p.plan), run = Math.max(0, pl - nv(r, p.down)), q = nv(r, p.out), b = nv(r, p.bad), rt = nv(r, p.rate);
+          var A = pl ? run / pl : 0, Pf = run && rt ? Math.min(1, q / (run * rt)) : 0, Q = q ? (q - b) / q : 0, oee = A * Pf * Q;
+          o['Доступность, %'] = r2(A * 100, 1); o['Производительность, %'] = r2(Pf * 100, 1); o['Качество, %'] = r2(Q * 100, 1); o['OEE, %'] = r2(oee * 100, 1);
+          o['Оценка'] = oee >= 0.85 ? 'Мировой уровень' : (oee >= 0.6 ? 'Норма' : 'Низкая'); sum += oee; return o;
+        });
+        ctx.info = 'Средний OEE: ' + (out.length ? r2(sum / out.length * 100, 1) : 0) + '%'; ctx.table(ctx.name, out); return out;
+      }, function(){ return 'доступность × производительность × качество'; }),
+    opKind('shifts', 'Сменное задание', 'Распределяет заказы по сменам на каждой линии',
+      { line:'Линия', qty:'Количество', rate:'Норма, шт/ч', hours:8 },
+      [['line', 'Линия (поле)', 'f'], ['qty', 'Количество (поле)', 'f'], ['rate', 'Норма, шт/ч (поле)', 'f'], ['hours', 'Часов в смене', 'n']],
+      function(rows, p, ctx){
+        var H = +p.hours || 8, cum = {}, out = rows.map(function(r){
+          var o = cpRow(r), ln = sv(r, p.line) || 'Линия', need = nv(r, p.rate) ? nv(r, p.qty) / nv(r, p.rate) : 0, st = cum[ln] || 0;
+          cum[ln] = st + need; o['Часов'] = r2(need, 1);
+          o['Смены'] = Math.floor(st / H) + 1 === Math.max(1, Math.ceil((st + need) / H)) ? String(Math.floor(st / H) + 1) : (Math.floor(st / H) + 1) + '–' + Math.ceil((st + need) / H);
+          return o;
+        });
+        ctx.info = Object.keys(cum).map(function(k){ return k + ': ' + fmtCell(r2(cum[k] / H, 1)) + ' см.'; }).join(' · ');
+        ctx.table(ctx.name, out); return out;
+      }, function(p){ return 'смена ' + (p.hours || 8) + ' ч, по линиям'; }),
+    opKind('pareto', 'Парето простоев', 'Какие причины дают 80% потерь времени',
+      { reason:'Причина', mins:'Минут', a:80 },
+      [['reason', 'Причина (поле)', 'f'], ['mins', 'Длительность, мин (поле)', 'f'], ['a', 'Граница главных причин, %', 'n']],
+      function(rows, p, ctx){
+        var out = abcRows(rows, p.reason, p.mins, +p.a || 80, +p.a || 80, true).map(function(r){ r['Приоритет'] = r['Группа'] === 'A' ? 'Устранить в первую очередь' : 'Плановая работа'; delete r['Группа']; return r; });
+        var top = out.filter(function(r){ return r['Приоритет'].charAt(0) === 'У'; });
+        ctx.info = 'Главных причин: ' + top.length + ' из ' + out.length; ctx.table(ctx.name, out); return out;
+      }, function(p){ return 'по «' + (p.reason || '?') + '», граница ' + (p.a || 80) + '%'; }),
+    opKind('defects', 'Контроль брака', 'Процент брака и превышение допуска',
+      { out:'Выпуск, шт', bad:'Брак, шт', limit:2 },
+      [['out', 'Выпуск (поле)', 'f'], ['bad', 'Брак (поле)', 'f'], ['limit', 'Допустимый брак, %', 'n']],
+      function(rows, p, ctx){
+        var k = 0, out = rows.map(function(r){ var o = cpRow(r), x = pct(nv(r, p.bad), nv(r, p.out), 2); o['Брак, %'] = x; o['Качество'] = x > (+p.limit || 0) ? 'Превышение' : 'В норме'; if(x > (+p.limit || 0)) k++; return o; });
+        ctx.info = 'Превышение допуска: ' + k + ' из ' + out.length; return out;
+      }, function(p){ return 'допуск ' + (p.limit || 0) + '%'; })
+  ];
+  var MES_LIB = [
+    P('mes-shift', 'sheet', 'Итоги смен', 'Плановое время, простои, выпуск и брак по оборудованию.', tbl([
+      ['Дата', 'Смена', 'Оборудование', 'Плановое время, мин', 'Простои, мин', 'Норма, шт/мин', 'Выпуск, шт', 'Брак, шт'],
+      ['02.11.2026', '1', 'Пресс КД-2128', '480', '35', '4', '1610', '12'],
+      ['02.11.2026', '1', 'Станок ЧПУ 16К20', '480', '95', '1.2', '410', '9'],
+      ['02.11.2026', '2', 'Пресс КД-2128', '480', '20', '4', '1720', '6'],
+      ['02.11.2026', '2', 'Сварочный пост №3', '480', '60', '0.5', '190', '7'],
+      ['03.11.2026', '1', 'Станок ЧПУ 16К20', '480', '140', '1.2', '370', '4'],
+      ['03.11.2026', '1', 'Окрасочная камера', '480', '15', '2', '890', '31']])),
+    P('mes-down', 'sheet', 'Журнал простоев', 'Причины и длительность простоев за неделю.', tbl([
+      ['Дата', 'Оборудование', 'Причина', 'Минут'],
+      ['02.11.2026', 'Станок ЧПУ 16К20', 'Переналадка', '70'], ['02.11.2026', 'Пресс КД-2128', 'Нет заготовок', '35'],
+      ['02.11.2026', 'Сварочный пост №3', 'Поломка', '60'], ['03.11.2026', 'Станок ЧПУ 16К20', 'Переналадка', '90'],
+      ['03.11.2026', 'Станок ЧПУ 16К20', 'Поломка', '50'], ['03.11.2026', 'Окрасочная камера', 'Ожидание ОТК', '15'],
+      ['04.11.2026', 'Пресс КД-2128', 'Нет заготовок', '45'], ['04.11.2026', 'Сварочный пост №3', 'Нет оператора', '30']])),
+    P('mes-plan', 'sheet', 'Производственный план', 'Заказы на неделю по линиям.', tbl([
+      ['Заказ', 'Изделие', 'Линия', 'Количество', 'Норма, шт/ч', 'Срок'],
+      ['ПЗ-112', 'Кронштейн К-40', 'Линия 1', '2400', '240', '06.11.2026'], ['ПЗ-113', 'Фланец Ф-57', 'Линия 2', '600', '45', '07.11.2026'],
+      ['ПЗ-114', 'Кронштейн К-25', 'Линия 1', '1800', '240', '07.11.2026'], ['ПЗ-115', 'Корпус КП-3', 'Линия 2', '320', '20', '10.11.2026'],
+      ['ПЗ-116', 'Пластина П-8', 'Линия 1', '5000', '300', '11.11.2026']])),
+    P('mes-oee', 'oee', 'OEE оборудования', 'Расчёт OEE по итогам смен.', { plan:'Плановое время, мин', down:'Простои, мин', rate:'Норма, шт/мин', out:'Выпуск, шт', bad:'Брак, шт' }),
+    P('mes-shifts', 'shifts', 'Сменное задание', 'Заказы по сменам, смена 8 часов.', { line:'Линия', qty:'Количество', rate:'Норма, шт/ч', hours:8 }),
+    P('mes-pareto', 'pareto', 'Парето простоев', 'Главные причины потерь.', { reason:'Причина', mins:'Минут', a:80 }),
+    P('mes-defects', 'defects', 'Контроль брака 2%', 'Брак выше 2% — превышение.', { out:'Выпуск, шт', bad:'Брак, шт', limit:2 }),
+    P('mes-low', 'cond', 'Низкий OEE', 'Оборудование с OEE ниже 60%.', { field:'OEE, %', op:'<', value:'60' }),
+    P('mes-bad', 'cond', 'Брак выше допуска', 'Только записи с превышением.', { field:'Качество', op:'=', value:'Превышение' }),
+    P('mes-chart', 'chart', 'OEE по оборудованию', 'Столбцы OEE.', { label:'Оборудование', value:'OEE, %', type:'bar', top:20 }),
+    P('mes-pchart', 'chart', 'Простои по причинам', 'Столбцы минут простоя.', { label:'Причина', value:'Минут', type:'bar', top:10 }),
+    P('mes-task', 'doc', 'Сменное задание (бланк)', 'Бланк задания для мастера смены.',
+      '<h1 style="text-align:center">СМЕННОЕ ЗАДАНИЕ</h1>\n<p style="text-align:right">{{Дата}}</p>\n<p><b>{{Линия}}</b>, смены: {{Смены}}</p>\n<table style="width:100%;border-collapse:collapse" border="1" cellpadding="6"><tr><th>Заказ</th><th>Изделие</th><th>Количество</th><th>Норма, шт/ч</th><th>Часов</th><th>Срок</th></tr><tr><td>{{Заказ}}</td><td>{{Изделие}}</td><td style="text-align:right">{{Количество}}</td><td style="text-align:right">{{Норма, шт/ч}}</td><td style="text-align:right">{{Часов}}</td><td>{{Срок}}</td></tr></table>\n<p>Мастер смены ____________ &nbsp;&nbsp; Принял ____________</p>\n'),
+    P('mes-act', 'doc', 'Акт о браке', 'Акт на каждую запись с превышением допуска.',
+      '<h1 style="text-align:center">АКТ О БРАКЕ</h1>\n<p style="text-align:right">{{Дата}}</p>\n<p>Оборудование: <b>{{Оборудование}}</b>, смена {{Смена}}.</p>\n<p>Выпущено {{Выпуск, шт}} шт, из них брак {{Брак, шт}} шт ({{Брак, %}}%), что выше допустимого уровня.</p>\n<p>Причина: ____________________________. Меры: ____________________________.</p>\n<p>Начальник ОТК ____________ &nbsp;&nbsp; Мастер ____________</p>\n')
+  ];
+
+  /* ---------- финансы и бюджет ---------- */
+  var FIN_OPS = [
+    opKind('paycal', 'Платёжный календарь', 'Поступления и платежи по датам, остаток и кассовые разрывы',
+      { date:'Дата', sum:'Сумма', type:'Тип', open:3000000 },
+      [['date', 'Дата (поле)', 'f'], ['sum', 'Сумма (поле)', 'f'], ['type', 'Тип: поступление / платёж (поле)', 'f'], ['open', 'Остаток на начало, руб.', 'n']],
+      function(rows, p, ctx){
+        var bal = +p.open || 0, minB = bal, gap = null, list = rows.map(function(r, i){ return { r:r, i:i, d:ruDate(sv(r, p.date)) }; }).sort(function(a, b){ return (a.d || 0) - (b.d || 0) || a.i - b.i; });
+        var out = list.map(function(x){
+          var o = cpRow(x.r), s = nv(x.r, p.sum), t = sv(x.r, p.type).toLowerCase(), inc = t ? /поступ|приход|доход|оплата от/.test(t) : s >= 0;
+          s = Math.abs(s); bal += inc ? s : -s; o['Приход'] = inc ? s : 0; o['Расход'] = inc ? 0 : s; o['Остаток'] = r2(bal);
+          o['Разрыв'] = bal < 0 ? 'да' : ''; if(bal < 0 && !gap) gap = sv(x.r, p.date); minB = Math.min(minB, bal); return o;
+        });
+        if(gap) ctx.log('кассовый разрыв с ' + gap + ', минимум ' + money(minB) + ' руб.', 'warn');
+        ctx.info = 'Остаток на конец: ' + money(bal) + ' руб.' + (gap ? ' · разрыв с ' + gap : ''); ctx.table(ctx.name, out); return out;
+      }, function(p){ return 'остаток на начало ' + money(+p.open || 0) + ' руб.'; }),
+    opKind('planfact', 'План-факт', 'Отклонение факта от плана и статус статьи',
+      { plan:'План', fact:'Факт', limit:10, mode:'cost' },
+      [['plan', 'План (поле)', 'f'], ['fact', 'Факт (поле)', 'f'], ['limit', 'Допустимое отклонение, %', 'n'], ['mode', 'Что это', 's', [['cost', 'расходы — плохо, если больше плана'], ['income', 'доходы — плохо, если меньше плана']]]],
+      function(rows, p, ctx){
+        var k = 0, lim = +p.limit || 0, out = rows.map(function(r){
+          var o = cpRow(r), pl = nv(r, p.plan), f = nv(r, p.fact), d = f - pl, dp = pct(d, pl, 1), bad = p.mode === 'income' ? dp < -lim : dp > lim;
+          o['Отклонение'] = r2(d); o['Отклонение, %'] = dp; o['Статус'] = bad ? (p.mode === 'income' ? 'Недовыполнение' : 'Перерасход') : 'В пределах'; if(bad) k++; return o;
+        });
+        ctx.info = 'Вне допуска: ' + k + ' из ' + out.length; ctx.table(ctx.name, out); return out;
+      }, function(p){ return (p.mode === 'income' ? 'доходы' : 'расходы') + ', допуск ' + (p.limit || 0) + '%'; }),
+    opKind('aging', 'Долги по срокам', 'Дни просрочки и группы: не просрочено, до 30, 31–60, 61–90, больше 90 дней',
+      { due:'Срок оплаты', sum:'Сумма' },
+      [['due', 'Срок оплаты (поле)', 'f'], ['sum', 'Сумма долга (поле)', 'f']],
+      function(rows, p, ctx){
+        var t = today0(), B = ['Не просрочено', '1–30 дней', '31–60 дней', '61–90 дней', 'Больше 90 дней'], tot = {}, over = 0;
+        var out = rows.map(function(r){
+          var o = cpRow(r), d = ruDate(sv(r, p.due)), late = d ? Math.max(0, dayDiff(d, t)) : 0;
+          var b = late === 0 ? B[0] : (late <= 30 ? B[1] : (late <= 60 ? B[2] : (late <= 90 ? B[3] : B[4])));
+          o['Дней просрочки'] = late; o['Группа'] = b; tot[b] = (tot[b] || 0) + nv(r, p.sum); if(late) over += nv(r, p.sum); return o;
+        });
+        ctx.table(ctx.name + ': итоги', B.filter(function(b){ return tot[b]; }).map(function(b){ return { 'Группа':b, 'Сумма':r2(tot[b]) }; }));
+        ctx.info = 'Просрочено: ' + money(over) + ' руб.'; return out;
+      }, function(p){ return 'по «' + (p.due || '?') + '» на сегодня'; }),
+    opKind('alloc', 'Распределение затрат', 'Делит общую сумму между записями пропорционально базе',
+      { base:'Выпуск, шт', total:1200000, name:'Накладные расходы' },
+      [['base', 'База распределения (поле)', 'f'], ['total', 'Сумма к распределению, руб.', 'n'], ['name', 'Название нового поля', 't']],
+      function(rows, p, ctx){
+        var all = rows.reduce(function(s, r){ return s + nv(r, p.base); }, 0), T = +p.total || 0;
+        var out = rows.map(function(r){ var o = cpRow(r); o[p.name || 'Распределено'] = all ? r2(T * nv(r, p.base) / all) : 0; return o; });
+        ctx.info = 'Распределено ' + money(T) + ' руб. по «' + p.base + '»'; return out;
+      }, function(p){ return money(+p.total || 0) + ' руб. по «' + (p.base || '?') + '»'; })
+  ];
+  var FIN_LIB = [
+    P('fin-pay', 'sheet', 'Платежи на месяц', 'Ожидаемые поступления и платежи.', tbl([
+      ['Дата', 'Контрагент', 'Назначение', 'Тип', 'Сумма'],
+      ['05.11.2026', 'АО «Энергомаш»', 'оплата по договору Д-2026/087', 'Поступление', '4200000'],
+      ['06.11.2026', 'ООО «СтальПром»', 'металлопрокат', 'Платёж', '2450000'],
+      ['10.11.2026', 'Сотрудники', 'зарплата за октябрь, 2-я часть', 'Платёж', '3900000'],
+      ['12.11.2026', 'ФНС', 'НДС за III квартал', 'Платёж', '1350000'],
+      ['15.11.2026', 'ООО «ЭнергоСбыт»', 'электроэнергия', 'Платёж', '1912000'],
+      ['18.11.2026', 'ООО «Монтаж-Сервис»', 'предоплата 50%', 'Поступление', '1600000'],
+      ['25.11.2026', 'Сотрудники', 'аванс за ноябрь', 'Платёж', '2600000'],
+      ['28.11.2026', 'АО «ТехМаш»', 'оплата по договору Д-2026/091', 'Поступление', '3100000']])),
+    P('fin-budget', 'sheet', 'Бюджет: план / факт', 'Статьи затрат за октябрь.', tbl([
+      ['Статья', 'Подразделение', 'План', 'Факт'],
+      ['Сырьё и материалы', 'Производство', '12500000', '13120000'], ['Энергоресурсы', 'Производство', '2100000', '1980000'],
+      ['Фонд оплаты труда', 'Все', '8400000', '8400000'], ['Ремонт оборудования', 'Главный механик', '950000', '1410000'],
+      ['Логистика', 'Склад', '1300000', '1215000'], ['ИТ и связь', 'Администрация', '420000', '515000']])),
+    P('fin-ar', 'sheet', 'Дебиторская задолженность', 'Неоплаченные счета покупателей.', tbl([
+      ['Счёт', 'Покупатель', 'Сумма', 'Срок оплаты', 'Менеджер'],
+      ['С-1201', 'АО «Энергомаш»', '1840000', '20.11.2026', 'Орлова Е.'], ['С-1144', 'ООО «РемСтрой»', '420000', '15.10.2026', 'Кузнецов Д.'],
+      ['С-1098', 'ИП Сафонов', '96000', '20.09.2026', 'Кузнецов Д.'], ['С-1032', 'ООО «Монтаж-Сервис»', '310000', '01.07.2026', 'Орлова Е.'],
+      ['С-1187', 'АО «ТехМаш»', '760000', '28.10.2026', 'Орлова Е.']])),
+    P('fin-cal', 'paycal', 'Платёжный календарь', 'Остаток на начало 3 млн руб.', { date:'Дата', sum:'Сумма', type:'Тип', open:3000000 }),
+    P('fin-pf', 'planfact', 'План-факт расходов', 'Перерасход больше 10% — вне допуска.', { plan:'План', fact:'Факт', limit:10, mode:'cost' }),
+    P('fin-aging', 'aging', 'Долги по срокам', 'Группировка долгов по дням просрочки.', { due:'Срок оплаты', sum:'Сумма' }),
+    P('fin-alloc', 'alloc', 'Распределение накладных', '1,2 млн руб. пропорционально выпуску.', { base:'Выпуск, шт', total:1200000, name:'Накладные расходы' }),
+    P('fin-gap', 'cond', 'Дни с разрывом', 'Только даты, где остаток ниже нуля.', { field:'Разрыв', op:'=', value:'да' }),
+    P('fin-over', 'cond', 'Вне бюджета', 'Статьи с перерасходом.', { field:'Статус', op:'=', value:'Перерасход' }),
+    P('fin-late', 'cond', 'Просроченные долги', 'Просрочка больше нуля дней.', { field:'Дней просрочки', op:'>', value:'0' }),
+    P('fin-bal', 'chart', 'Остаток по дням', 'Линия остатка денежных средств.', { label:'Дата', value:'Остаток', type:'line', top:60 }),
+    P('fin-head', 'step', 'Согласование финдиректором', 'Финансовый директор, 1 день.', { action:'Согласовать', who:'Финансовый директор', days:1, note:'' }),
+    P('fin-claim', 'doc', 'Претензия о просрочке', 'Претензия должнику по каждому просроченному счёту.',
+      '<p style="text-align:right">{{Покупатель}}</p>\n<h1 style="text-align:center">ПРЕТЕНЗИЯ</h1>\n<p style="text-align:right">{{Дата}}</p>\n<p>По счёту № {{Счёт}} на сумму <b>{{Сумма}} руб.</b> срок оплаты истёк {{Срок оплаты}}. Просрочка составляет {{Дней просрочки}} дн.</p>\n<p>Просим погасить задолженность в течение 10 календарных дней. В противном случае мы будем вынуждены обратиться в арбитражный суд и взыскать неустойку по договору.</p>\n<p>Ответственный менеджер: {{Менеджер}}</p>\n<p>Генеральный директор ____________</p>\n'),
+    P('fin-memo', 'doc', 'Записка о перерасходе', 'Объяснительная по статье вне бюджета.',
+      '<p style="text-align:right">Финансовому директору</p>\n<h1 style="text-align:center">Служебная записка</h1>\n<p style="text-align:center">{{Дата}}</p>\n<p>По статье «{{Статья}}» ({{Подразделение}}) факт {{Факт}} руб. при плане {{План}} руб.; отклонение {{Отклонение}} руб. ({{Отклонение, %}}%).</p>\n<p>Причины: ________________________________. Предложения: ________________________________.</p>\n<p>Руководитель подразделения ____________</p>\n')
+  ];
+
+  /* ---------- персонал и табель ---------- */
+  var HR_OPS = [
+    opKind('timesheet', 'Табель', 'Переработки и недоработки относительно нормы часов',
+      { worked:'Отработано, ч', norm:'Норма, ч' },
+      [['worked', 'Отработано, ч (поле)', 'f'], ['norm', 'Норма, ч (поле)', 'f']],
+      function(rows, p, ctx){
+        var ov = 0, out = rows.map(function(r){ var o = cpRow(r), w = nv(r, p.worked), n = nv(r, p.norm); o['Переработка, ч'] = Math.max(0, r2(w - n, 1)); o['Недоработка, ч'] = Math.max(0, r2(n - w, 1)); o['Выполнение нормы, %'] = pct(w, n, 1); ov += o['Переработка, ч']; return o; });
+        ctx.info = 'Переработка всего: ' + fmtCell(r2(ov, 1)) + ' ч'; return out;
+      }, function(){ return 'сравнение с нормой часов'; }),
+    opKind('payroll', 'Расчёт зарплаты', 'Оклад пропорционально часам, сверхурочные ×1,5 (упрощённо), премия, НДФЛ',
+      { salary:'Оклад', worked:'Отработано, ч', norm:'Норма, ч', bonus:'Премия, %', ndfl:13 },
+      [['salary', 'Оклад (поле)', 'f'], ['worked', 'Отработано, ч (поле)', 'f'], ['norm', 'Норма, ч (поле)', 'f'], ['bonus', 'Премия, % (поле)', 'f'], ['ndfl', 'Ставка НДФЛ, %', 'n']],
+      function(rows, p, ctx){
+        var fund = 0, out = rows.map(function(r){
+          var o = cpRow(r), s = nv(r, p.salary), w = nv(r, p.worked), n = nv(r, p.norm) || 1, base = s * Math.min(w, n) / n, ot = s / n * Math.max(0, w - n) * 1.5, bn = base * nv(r, p.bonus) / 100, tot = base + ot + bn, tax = Math.round(tot * (+p.ndfl || 0) / 100);
+          o['По окладу'] = r2(base); o['Сверхурочные'] = r2(ot); o['Премия'] = r2(bn); o['Начислено'] = r2(tot); o['НДФЛ'] = tax; o['К выплате'] = r2(tot - tax); fund += tot; return o;
+        });
+        ctx.log('расчёт упрощённый: проверьте ставки НДФЛ, районный коэффициент и правила оплаты сверхурочных в 1С', 'dim');
+        ctx.info = 'Фонд оплаты: ' + money(fund) + ' руб.'; ctx.table(ctx.name, out); return out;
+      }, function(p){ return 'НДФЛ ' + (p.ndfl || 0) + '%, сверхурочные ×1,5'; }),
+    opKind('kpi', 'Оценка KPI', 'Выполнение плана и премия по KPI',
+      { plan:'План', fact:'Факт', base:'Премия, %', min:80, max:120 },
+      [['plan', 'План (поле)', 'f'], ['fact', 'Факт (поле)', 'f'], ['base', 'Базовая премия, % (поле)', 'f'], ['min', 'Порог выплаты, %', 'n'], ['max', 'Максимум учёта, %', 'n']],
+      function(rows, p, ctx){
+        var k = 0, out = rows.map(function(r){ var o = cpRow(r), c = pct(nv(r, p.fact), nv(r, p.plan), 1), coef = c < (+p.min || 0) ? 0 : Math.min(c, +p.max || 120) / 100; o['Выполнение, %'] = c; o['Премия к выплате, %'] = r2(nv(r, p.base) * coef, 1); if(c >= 100) k++; return o; });
+        ctx.info = 'Выполнили план: ' + k + ' из ' + out.length; return out;
+      }, function(p){ return 'порог ' + (p.min || 0) + '%, максимум ' + (p.max || 120) + '%'; }),
+    opKind('leave', 'Остаток отпуска', 'Положено и осталось дней отпуска',
+      { months:'Отработано, мес.', used:'Использовано, дн.', days:28 },
+      [['months', 'Отработано месяцев (поле)', 'f'], ['used', 'Использовано дней (поле)', 'f'], ['days', 'Дней отпуска в год', 'n']],
+      function(rows, p, ctx){
+        var out = rows.map(function(r){ var o = cpRow(r), e = r2((+p.days || 28) / 12 * nv(r, p.months), 2); o['Положено, дн.'] = e; o['Остаток, дн.'] = r2(e - nv(r, p.used), 2); return o; });
+        ctx.info = 'Сотрудников: ' + out.length; return out;
+      }, function(p){ return (p.days || 28) + ' дн. в год'; })
+  ];
+  var HR_LIB = [
+    P('hr-staff', 'sheet', 'Табель за октябрь', 'Сотрудники, оклады, отработанные часы и премии.', tbl([
+      ['Табельный №', 'ФИО', 'Подразделение', 'Должность', 'Оклад', 'Норма, ч', 'Отработано, ч', 'Премия, %'],
+      ['0012', 'Иванов Иван Иванович', 'Снабжение', 'Начальник отдела', '120000', '184', '184', '20'],
+      ['0027', 'Петрова Анна Сергеевна', 'Финансы', 'Финансовый директор', '210000', '184', '176', '25'],
+      ['0041', 'Сидоров Павел Викторович', 'Производство', 'Главный инженер', '165000', '184', '200', '20'],
+      ['0058', 'Козлов Артём Олегович', 'Производство', 'Оператор ЧПУ', '78000', '184', '208', '15'],
+      ['0063', 'Морозова Ольга Игоревна', 'Склад', 'Кладовщик', '58000', '184', '168', '10'],
+      ['0071', 'Белов Никита Андреевич', 'Производство', 'Сварщик', '82000', '184', '192', '15']])),
+    P('hr-kpi', 'sheet', 'KPI за квартал', 'План и факт по ключевому показателю.', tbl([
+      ['ФИО', 'Показатель', 'План', 'Факт', 'Премия, %'],
+      ['Иванов И. И.', 'Экономия закупок, руб.', '1500000', '1720000', '30'], ['Сидоров П. В.', 'OEE, %', '70', '64', '30'],
+      ['Козлов А. О.', 'Выпуск, шт', '9000', '9450', '20'], ['Морозова О. И.', 'Точность учёта, %', '99', '97.5', '15'],
+      ['Белов Н. А.', 'Швы без дефектов, %', '98', '99.1', '20']])),
+    P('hr-leave', 'sheet', 'Отпуска', 'Стаж в рабочем году и использованные дни.', tbl([
+      ['ФИО', 'Подразделение', 'Отработано, мес.', 'Использовано, дн.'],
+      ['Иванов И. И.', 'Снабжение', '10', '14'], ['Петрова А. С.', 'Финансы', '10', '28'], ['Сидоров П. В.', 'Производство', '7', '0'],
+      ['Козлов А. О.', 'Производство', '10', '7'], ['Морозова О. И.', 'Склад', '4', '0']])),
+    P('hr-ts', 'timesheet', 'Табель: отклонения', 'Переработки и недоработки.', { worked:'Отработано, ч', norm:'Норма, ч' }),
+    P('hr-pay', 'payroll', 'Расчёт зарплаты', 'Начисления, НДФЛ 13%, к выплате.', { salary:'Оклад', worked:'Отработано, ч', norm:'Норма, ч', bonus:'Премия, %', ndfl:13 }),
+    P('hr-kpi-calc', 'kpi', 'Премия по KPI', 'Порог 80%, учёт не выше 120%.', { plan:'План', fact:'Факт', base:'Премия, %', min:80, max:120 }),
+    P('hr-leave-calc', 'leave', 'Остаток отпуска', '28 дней в год.', { months:'Отработано, мес.', used:'Использовано, дн.', days:28 }),
+    P('hr-over', 'cond', 'Есть переработка', 'Только сотрудники с переработкой.', { field:'Переработка, ч', op:'>', value:'0' }),
+    P('hr-dept', 'group', 'Фонд по подразделениям', 'Сумма начислений по подразделениям.', { by:'Подразделение', field:'Начислено', fn:'sum' }),
+    P('hr-chart', 'chart', 'Фонд оплаты по подразделениям', 'Столбцы.', { label:'Подразделение', value:'Начислено', type:'bar', top:20 }),
+    P('hr-head', 'step', 'Утверждение директором', 'Генеральный директор, 1 день.', { action:'Утвердить', who:'Генеральный директор', days:1, note:'' }),
+    P('hr-slip', 'doc', 'Расчётный листок', 'Листок на каждого сотрудника.',
+      '<h1 style="text-align:center">РАСЧЁТНЫЙ ЛИСТОК</h1>\n<p style="text-align:center">за октябрь 2026 г.</p>\n<p><b>{{ФИО}}</b>, таб. № {{Табельный №}}, {{Должность}} ({{Подразделение}})</p>\n<table style="width:100%;border-collapse:collapse" border="1" cellpadding="6"><tr><th>Вид</th><th>Сумма, руб.</th></tr><tr><td>Оплата по окладу ({{Отработано, ч}} ч из {{Норма, ч}})</td><td style="text-align:right">{{По окладу}}</td></tr><tr><td>Сверхурочные</td><td style="text-align:right">{{Сверхурочные}}</td></tr><tr><td>Премия {{Премия, %}}%</td><td style="text-align:right">{{Премия}}</td></tr><tr><td><b>Начислено</b></td><td style="text-align:right"><b>{{Начислено}}</b></td></tr><tr><td>НДФЛ</td><td style="text-align:right">{{НДФЛ}}</td></tr><tr><td><b>К выплате</b></td><td style="text-align:right"><b>{{К выплате}}</b></td></tr></table>\n<p style="font-size:12px;color:#555">Расчёт сформирован в Triosteum, сверьте с данными 1С.</p>\n'),
+    P('hr-order', 'doc', 'Приказ о премировании', 'Приказ по каждому сотруднику с премией.',
+      '<p style="text-align:center"><b>ООО «Ваша компания»</b></p>\n<h1 style="text-align:center">ПРИКАЗ</h1>\n<p style="text-align:center">о премировании, {{Дата}}</p>\n<p>За выполнение показателя «{{Показатель}}» на {{Выполнение, %}}% ПРИКАЗЫВАЮ: выплатить {{ФИО}} премию в размере {{Премия к выплате, %}}% должностного оклада.</p>\n<p>Генеральный директор ____________</p>\n')
+  ];
+
+  /* ---------- продажи и CRM ---------- */
+  var STAGES = 'Лид, Квалификация, КП, Переговоры, Договор, Оплата';
+  function stageList(s){ return String(s || STAGES).split(',').map(function(x){ return x.trim(); }).filter(Boolean); }
+  var CRM_OPS = [
+    opKind('funnel', 'Воронка продаж', 'Сколько сделок дошло до каждого этапа и конверсия между этапами',
+      { stage:'Этап', sum:'Сумма', order:STAGES },
+      [['stage', 'Этап (поле)', 'f'], ['sum', 'Сумма сделки (поле)', 'f'], ['order', 'Этапы по порядку, через запятую', 't']],
+      function(rows, p, ctx){
+        var st = stageList(p.order), lc = st.map(function(x){ return x.toLowerCase(); }), idx = rows.map(function(r){ return lc.indexOf(sv(r, p.stage).trim().toLowerCase()); });
+        var lost = idx.filter(function(i){ return i < 0; }).length, prev = null;
+        var out = st.map(function(s, i){
+          var reach = rows.filter(function(r, k){ return idx[k] >= i; }), n = reach.length;
+          var o = { 'Этап':s, 'Сделок дошло':n, 'Сумма':r2(reach.reduce(function(a, r){ return a + nv(r, p.sum); }, 0)), 'Конверсия, %':prev === null ? 100 : pct(n, prev, 1) };
+          prev = n; return o;
+        });
+        if(lost) ctx.log(plural(lost, 'сделка', 'сделки', 'сделок') + ' с этапом не из списка (например, «Отказ») не учтены', 'dim');
+        ctx.info = 'Сквозная конверсия: ' + (out.length && out[0]['Сделок дошло'] ? pct(out[out.length - 1]['Сделок дошло'], out[0]['Сделок дошло'], 1) : 0) + '%'; ctx.table(ctx.name, out); return out;
+      }, function(p){ return stageList(p.order).length + ' этапов'; }),
+    opKind('margin', 'Маржинальность', 'Маржа в рублях и процентах',
+      { rev:'Выручка', cost:'Себестоимость', min:20 },
+      [['rev', 'Выручка (поле)', 'f'], ['cost', 'Себестоимость (поле)', 'f'], ['min', 'Минимальная маржа, %', 'n']],
+      function(rows, p, ctx){
+        var R = 0, M = 0, low = 0, out = rows.map(function(r){ var o = cpRow(r), rv = nv(r, p.rev), m = rv - nv(r, p.cost); o['Маржа'] = r2(m); o['Маржа, %'] = pct(m, rv, 1); o['Оценка'] = o['Маржа, %'] < (+p.min || 0) ? 'Низкая' : 'Норма'; if(o['Оценка'] === 'Низкая') low++; R += rv; M += m; return o; });
+        ctx.info = 'Маржа: ' + money(M) + ' руб. (' + pct(M, R, 1) + '%), низкая у ' + low; return out;
+      }, function(p){ return 'минимум ' + (p.min || 0) + '%'; }),
+    opKind('stale', 'Зависшие сделки', 'Сделки без контакта дольше N дней — задачи менеджерам',
+      { date:'Последний контакт', days:14, stage:'Этап', closed:'Оплата, Отказ' },
+      [['date', 'Последний контакт (поле)', 'f'], ['days', 'Дней без контакта', 'n'], ['stage', 'Этап (поле)', 'f'], ['closed', 'Закрытые этапы (не трогать)', 't']],
+      function(rows, p, ctx){
+        var t = today0(), cl = stageList(p.closed).map(function(x){ return x.toLowerCase(); });
+        var out = rows.filter(function(r){ return cl.indexOf(sv(r, p.stage).trim().toLowerCase()) < 0; }).map(function(r){ var o = cpRow(r), d = ruDate(sv(r, p.date)); o['Дней без контакта'] = d ? dayDiff(d, t) : ''; return o; })
+          .filter(function(o){ return o['Дней без контакта'] === '' || o['Дней без контакта'] > (+p.days || 0); })
+          .map(function(o){ o['Задача'] = 'Связаться с клиентом и обновить статус'; return o; });
+        ctx.info = 'Зависло: ' + out.length + ' из ' + rows.length; ctx.table(ctx.name, out); return out;
+      }, function(p){ return 'больше ' + (p.days || 0) + ' дн. без контакта'; }),
+    opKind('forecast', 'Прогноз выручки', 'Взвешенная сумма сделок по вероятности этапа',
+      { stage:'Этап', sum:'Сумма', probs:'Лид:10, Квалификация:20, КП:40, Переговоры:60, Договор:80, Оплата:100' },
+      [['stage', 'Этап (поле)', 'f'], ['sum', 'Сумма (поле)', 'f'], ['probs', 'Вероятности этапов, %', 't']],
+      function(rows, p, ctx){
+        var pr = {}; String(p.probs || '').split(',').forEach(function(x){ var m = x.split(':'); if(m.length === 2) pr[m[0].trim().toLowerCase()] = +m[1] || 0; });
+        var tot = 0, out = rows.map(function(r){ var o = cpRow(r), v = pr[sv(r, p.stage).trim().toLowerCase()] || 0; o['Вероятность, %'] = v; o['Прогноз'] = r2(nv(r, p.sum) * v / 100); tot += o['Прогноз']; return o; });
+        ctx.info = 'Прогноз: ' + money(tot) + ' руб.'; return out;
+      }, function(){ return 'сумма × вероятность этапа'; })
+  ];
+  var CRM_LIB = [
+    P('crm-deals', 'sheet', 'Сделки', 'Сделки с этапами, суммами и датой последнего контакта.', tbl([
+      ['Сделка', 'Клиент', 'Менеджер', 'Этап', 'Сумма', 'Себестоимость', 'Последний контакт', 'Канал'],
+      ['СД-501', 'АО «Энергомаш»', 'Орлова Е.', 'Договор', '4200000', '3150000', '30.10.2026', 'Тендер'],
+      ['СД-502', 'ООО «Монтаж-Сервис»', 'Кузнецов Д.', 'КП', '860000', '590000', '12.10.2026', 'Сайт'],
+      ['СД-503', 'ООО «РемСтрой»', 'Кузнецов Д.', 'Переговоры', '1520000', '1290000', '28.10.2026', 'Звонок'],
+      ['СД-504', 'ИП Сафонов', 'Орлова Е.', 'Лид', '240000', '170000', '01.11.2026', 'Выставка'],
+      ['СД-505', 'АО «ТехМаш»', 'Орлова Е.', 'Оплата', '3100000', '2280000', '27.10.2026', 'Повторный'],
+      ['СД-506', 'ООО «Северсталь-Сервис»', 'Кузнецов Д.', 'Квалификация', '5600000', '4200000', '05.10.2026', 'Тендер'],
+      ['СД-507', 'ООО «ЛогистикПлюс»', 'Орлова Е.', 'Отказ', '700000', '520000', '20.09.2026', 'Сайт'],
+      ['СД-508', 'АО «Уралхиммаш»', 'Кузнецов Д.', 'КП', '2300000', '1610000', '24.10.2026', 'Выставка']])),
+    P('crm-funnel', 'funnel', 'Воронка продаж', 'Конверсия по этапам.', { stage:'Этап', sum:'Сумма', order:STAGES }),
+    P('crm-margin', 'margin', 'Маржинальность сделок', 'Маржа ниже 20% — низкая.', { rev:'Сумма', cost:'Себестоимость', min:20 }),
+    P('crm-stale', 'stale', 'Зависшие сделки', 'Без контакта больше 14 дней.', { date:'Последний контакт', days:14, stage:'Этап', closed:'Оплата, Отказ' }),
+    P('crm-fc', 'forecast', 'Прогноз выручки', 'Вероятности по этапам воронки.', { stage:'Этап', sum:'Сумма', probs:'Лид:10, Квалификация:20, КП:40, Переговоры:60, Договор:80, Оплата:100' }),
+    P('crm-by-mgr', 'group', 'Прогноз по менеджерам', 'Сумма прогноза по каждому менеджеру.', { by:'Менеджер', field:'Прогноз', fn:'sum' }),
+    P('crm-abc', 'abc', 'ABC клиентов', 'Ключевые клиенты по сумме сделок.', { name:'Клиент', field:'Сумма', a:80, b:95 }),
+    P('crm-fchart', 'chart', 'Воронка: диаграмма', 'Сделок на каждом этапе.', { label:'Этап', value:'Сделок дошло', type:'bar', top:10 }),
+    P('crm-low', 'cond', 'Низкая маржа', 'Сделки с маржой ниже нормы.', { field:'Оценка', op:'=', value:'Низкая' }),
+    P('crm-kp', 'doc', 'Коммерческое предложение', 'КП на каждую сделку.',
+      '<p style="text-align:right">{{Клиент}}</p>\n<h1 style="text-align:center">КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ</h1>\n<p style="text-align:right">№ {{Сделка}} от {{Дата}}</p>\n<p>Благодарим за интерес к нашей продукции. Предлагаем поставку на сумму <b>{{Сумма}} руб.</b>, в том числе НДС 20%.</p>\n<p>Условия: предоплата 50%, отгрузка в течение 10 рабочих дней после оплаты, доставка нашим транспортом.</p>\n<p>Предложение действительно 30 календарных дней.</p>\n<p>С уважением,<br>{{Менеджер}}</p>\n'),
+    P('crm-task', 'send', 'Задачи менеджерам', 'Письмо со списком зависших сделок.', { format:'email', to:'sales@company.ru', name:'Зависшие сделки' })
+  ];
+
+  /* ---------- аналитика и дашборды ---------- */
+  var BI_OPS = [
+    opKind('join', 'Объединение по ключу', 'Склеивает таблицы по общему полю (как ВПР)',
+      { key:'Артикул' },
+      [['key', 'Общее поле', 'f']],
+      function(rows, p, ctx){
+        if(ctx.ins.length < 2){ ctx.info = 'Один вход — данные без изменений'; return rows; }
+        var base = ctx.ins[0], idx = {}, miss = 0;
+        ctx.ins.slice(1).forEach(function(set){ set.forEach(function(r){ var k = sv(r, p.key); idx[k] = idx[k] || {}; for(var f in r){ if(f.indexOf('__') !== 0) idx[k][f] = r[f]; } }); });
+        var out = base.map(function(r){ var o = cpRow(r), x = idx[sv(r, p.key)]; if(!x){ miss++; return o; } for(var f in x){ if(o[f] === undefined) o[f] = x[f]; } return o; });
+        if(miss) ctx.log('без пары: ' + miss, 'dim');
+        ctx.info = 'Объединено: ' + (out.length - miss) + ' из ' + out.length; return out;
+      }, function(p){ return 'по «' + (p.key || '?') + '»'; }),
+    opKind('pivot', 'Сводная таблица', 'Строки × столбцы с суммой, как сводная в Excel',
+      { rows:'Подразделение', cols:'Месяц', val:'Сумма' },
+      [['rows', 'Строки (поле)', 'f'], ['cols', 'Столбцы (поле)', 'f'], ['val', 'Значение (поле)', 'f']],
+      function(rows, p, ctx){
+        var gr = groupBy(rows, p.rows), cols = groupBy(rows, p.cols).keys;
+        var out = gr.keys.map(function(k){ var o = {}, t = 0; o[p.rows] = k; cols.forEach(function(c){ var s = r2(gr.map[k].filter(function(r){ return (sv(r, p.cols) || '(пусто)') === c; }).reduce(function(a, r){ return a + nv(r, p.val); }, 0)); o[c] = s; t += s; }); o['Итого'] = r2(t); return o; });
+        var tot = {}; tot[p.rows] = 'Итого'; cols.concat(['Итого']).forEach(function(c){ tot[c] = r2(out.reduce(function(a, r){ return a + r[c]; }, 0)); }); out.push(tot);
+        ctx.info = gr.keys.length + ' × ' + cols.length; ctx.table(ctx.name, out); return out;
+      }, function(p){ return (p.rows || '?') + ' × ' + (p.cols || '?') + ': ' + (p.val || '?'); }),
+    opKind('metric', 'Показатель', 'Одно число для дашборда: итог, среднее, цель и выполнение',
+      { title:'Выручка', field:'Сумма', fn:'sum', target:0 },
+      [['title', 'Название показателя', 't'], ['field', 'Поле', 'f'], ['fn', 'Как считать', 's', FNS], ['target', 'Цель (0 — без цели)', 'n']],
+      function(rows, p, ctx){
+        var v = agg(rows.map(function(r){ return nv(r, p.field); }), p.fn), o = { 'Показатель':p.title || p.field, 'Значение':v };
+        if(+p.target){ o['Цель'] = +p.target; o['Выполнение, %'] = pct(v, +p.target, 1); }
+        ctx.info = (p.title || p.field) + ': ' + fmtCell(v) + (+p.target ? ' (' + o['Выполнение, %'] + '% цели)' : ''); return [o];
+      }, function(p){ return (p.title || '?') + (+p.target ? ', цель ' + fmtCell(+p.target) : ''); })
+  ];
+  var BI_LIB = [
+    P('bi-sales', 'sheet', 'Продажи по месяцам', 'Выручка по подразделениям и месяцам.', tbl([
+      ['Месяц', 'Подразделение', 'Товарная группа', 'Сумма', 'Себестоимость'],
+      ['Август', 'Металлоконструкции', 'Кронштейны', '6200000', '4650000'], ['Август', 'Механообработка', 'Фланцы', '3100000', '2170000'],
+      ['Сентябрь', 'Металлоконструкции', 'Кронштейны', '7100000', '5250000'], ['Сентябрь', 'Механообработка', 'Фланцы', '2800000', '2010000'],
+      ['Сентябрь', 'Механообработка', 'Корпуса', '1900000', '1220000'], ['Октябрь', 'Металлоконструкции', 'Кронштейны', '7900000', '5770000'],
+      ['Октябрь', 'Механообработка', 'Фланцы', '3400000', '2380000'], ['Октябрь', 'Механообработка', 'Корпуса', '2300000', '1490000']])),
+    P('bi-plan', 'sheet', 'План продаж', 'План по подразделениям на квартал.', tbl([
+      ['Подразделение', 'План квартала', 'Руководитель'], ['Металлоконструкции', '21000000', 'Сидоров П. В.'], ['Механообработка', '14000000', 'Белов Н. А.']])),
+    P('bi-pivot', 'pivot', 'Выручка: подразделения × месяцы', 'Сводная таблица.', { rows:'Подразделение', cols:'Месяц', val:'Сумма' }),
+    P('bi-month', 'group', 'Выручка по месяцам', 'Сумма по месяцам.', { by:'Месяц', field:'Сумма', fn:'sum', order:'source' }),
+    P('bi-dept', 'group', 'Выручка по подразделениям', 'Сумма по подразделениям.', { by:'Подразделение', field:'Сумма', fn:'sum' }),
+    P('bi-join', 'join', 'Факт + план', 'Присоединяет план к факту по подразделению.', { key:'Подразделение' }),
+    P('bi-done', 'calc', 'Выполнение плана, %', 'Сумма / План квартала × 100.', { name:'Выполнение, %', expr:'{Сумма}/{План квартала}*100', round:1 }),
+    P('bi-rev', 'metric', 'Выручка за период', 'Итог выручки, цель 36 млн.', { title:'Выручка', field:'Сумма', fn:'sum', target:36000000 }),
+    P('bi-margin', 'calc', 'Маржа', 'Сумма − Себестоимость.', { name:'Маржа', expr:'{Сумма}-{Себестоимость}', round:2 }),
+    P('bi-trend', 'chart', 'Динамика выручки', 'Линия по месяцам.', { label:'Месяц', value:'Сумма', type:'line', top:24 }),
+    P('bi-bars', 'chart', 'Выполнение по подразделениям', 'Столбцы выполнения плана.', { label:'Подразделение', value:'Выполнение, %', type:'bar', top:20 }),
+    P('bi-report', 'doc', 'Аналитическая справка', 'Справка по каждому подразделению.',
+      '<h1>Аналитическая справка</h1>\n<p>{{Дата}}</p>\n<h2>{{Подразделение}}</h2>\n<p>Выручка за период: <b>{{Сумма}} руб.</b> при плане квартала {{План квартала}} руб. Выполнение: <b>{{Выполнение, %}}%</b>.</p>\n<p>Ответственный: {{Руководитель}}.</p>\n<p>Выводы: ________________________________________________</p>\n')
+  ];
+
+  /* ---------- регистрация сред ---------- */
+  var BASE_KINDS = [K_SHEET, K_DOC, K_COND, K_SEND, PY_LANG];
+  var BASE_COLORS = { doc:DOC_COLORS.doc, sheet:DOC_COLORS.sheet, step:DOC_COLORS.step, cond:DOC_COLORS.cond, send:DOC_COLORS.send, python:DOC_COLORS.python };
+  function industryEnv(id, o){
+    var colors = {}, k; for(k in BASE_COLORS) colors[k] = BASE_COLORS[k]; for(k in GEN_COLORS) colors[k] = GEN_COLORS[k]; for(k in o.colors) colors[k] = o.colors[k];
+    var langs = BASE_KINDS.slice(0, 2).concat(o.ops, GEN_OPS, o.step ? [K_STEP] : [], BASE_KINDS.slice(2));
+    var py = DOC_PLUGINS.filter(function(p){ return p.lang === 'python'; }).slice(0, 2);
+    ENVS[id] = { id:id, name:o.name, short:o.short, color:o.color, ic:o.ic, route:true, defLang:o.ops[0].id, langs:langs, colors:colors, plugins:o.lib.concat(py),
+      desc:o.desc, hint:o.hint, examples:o.examples, demo:o.demo, theme:o.theme, newName:o.newName,
+      word:{ lang:'Тип', plugin:'шаблон', plugins:'шаблонов', lib:'Библиотека: ' + o.short.toLowerCase(), create:'Создать шаблон', newTitle:'Новый шаблон', kindLabel:'Тип блока', run:'Запустить схему', runSub:'Провести данные через все блоки по связям', scheme:'Регламент процесса', schemeSub:'Описание процесса: собранное из схемы и написанное ИИ', open:'Открыть', libOpen:'Просмотр' } };
+  }
+  industryEnv('wh', { name:'Склад и логистика', short:'Склад', color:'#F59E0B', theme:'graphite', newName:'Склад',
+    ic:'<path d="M3 9l9-5 9 5v11H3z"/><path d="M8 20v-6h8v6"/>', ops:WH_OPS,
+    colors:{ reorder:['#F59E0B', '#FDE68A'], pick:['#EA580C', '#FDBA74'], trips:['#0D9488', '#5EEAD4'] },
+    desc:'Остатки и точка заказа, резерв под заказы клиентов, рейсы доставки, заявки поставщикам.',
+    hint:'Соберите схему: остатки → точка заказа → заявки поставщикам; заказы + остатки → резерв → рейсы. Нажмите «Запустить».',
+    examples:['Каждое утро проверять остатки и формировать заявки поставщикам на всё, что ниже точки заказа', 'Резервировать товар под заказы клиентов и разложить отгрузки по рейсам на Газелях'],
+    lib:WH_LIB, demo:{ name:'Склад — пример', spec:['wh-stock', 'wh-reorder', 'wh-need', 'wh-po', 'wh-xlsx', 'wh-orders', 'wh-pick', 'wh-trips', 'wh-chart'], links:[[0, 1], [1, 2], [2, 3], [2, 4], [0, 6], [5, 6], [6, 7], [7, 8]],
+      note:'Верхняя цепочка: остатки → что пора заказать → заявки поставщикам и план закупок. Нижняя: заказы клиентов резервируются по остаткам и раскладываются по рейсам. Нажмите «Запустить».' } });
+  industryEnv('mes', { name:'Производство (MES)', short:'Производство', color:'#EF4444', theme:'graphite', newName:'Производство',
+    ic:'<path d="M3 20V9l6 4V9l6 4V5h6v15z"/>', ops:MES_OPS,
+    colors:{ oee:['#EF4444', '#FCA5A5'], shifts:['#F97316', '#FDBA74'], pareto:['#B91C1C', '#F87171'], defects:['#9333EA', '#D8B4FE'] },
+    desc:'OEE оборудования, сменные задания, анализ простоев по Парето, контроль брака.',
+    hint:'Соберите схему: итоги смен → OEE → низкий OEE → диаграмма; журнал простоев → Парето; план → сменные задания. Нажмите «Запустить».',
+    examples:['Считать OEE по итогам смен и показывать оборудование ниже 60%', 'Найти причины, которые дают 80% простоев, и составить акт о браке при превышении 2%'],
+    lib:MES_LIB, demo:{ name:'Производство — пример', spec:['mes-shift', 'mes-oee', 'mes-chart', 'mes-defects', 'mes-bad', 'mes-act', 'mes-down', 'mes-pareto', 'mes-pchart', 'mes-plan', 'mes-shifts', 'mes-task'], links:[[0, 1], [1, 2], [0, 3], [3, 4], [4, 5], [6, 7], [7, 8], [9, 10], [10, 11]],
+      note:'Три цепочки: OEE по итогам смен, брак выше допуска → акты, Парето простоев, производственный план → сменные задания. Нажмите «Запустить».' } });
+  industryEnv('fin', { name:'Финансы и бюджет', short:'Финансы', color:'#0EA5E9', theme:'midnight', step:true, newName:'Финансы',
+    ic:'<circle cx="12" cy="12" r="8"/><path d="M9 9h4a2 2 0 010 4H9v-4zM9 13v4"/>', ops:FIN_OPS,
+    colors:{ paycal:['#0EA5E9', '#7DD3FC'], planfact:['#2563EB', '#93C5FD'], aging:['#DC2626', '#FCA5A5'], alloc:['#0891B2', '#67E8F9'] },
+    desc:'Платёжный календарь и кассовые разрывы, план-факт бюджета, долги по срокам, распределение затрат.',
+    hint:'Соберите схему: платежи → платёжный календарь → дни с разрывом; бюджет → план-факт → перерасход → записка. Нажмите «Запустить».',
+    examples:['Платёжный календарь на месяц: показать даты кассовых разрывов и согласовать перенос платежей', 'Найти просроченную дебиторку и подготовить претензии должникам'],
+    lib:FIN_LIB, demo:{ name:'Финансы — пример', spec:['fin-pay', 'fin-cal', 'fin-bal', 'fin-gap', 'fin-budget', 'fin-pf', 'fin-over', 'fin-memo', 'fin-head', 'fin-ar', 'fin-aging', 'fin-late', 'fin-claim'], links:[[0, 1], [1, 2], [1, 3], [4, 5], [5, 6], [6, 7], [7, 8], [9, 10], [10, 11], [11, 12]],
+      note:'Платёжный календарь с остатком по дням, план-факт бюджета с записками о перерасходе и претензии по просроченным долгам. Нажмите «Запустить».' } });
+  industryEnv('hr', { name:'Персонал и табель', short:'Персонал', color:'#8B5CF6', theme:'midnight', step:true, newName:'Персонал',
+    ic:'<circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0112 0M17 11a3 3 0 100-6M21 20a6 6 0 00-4-5.6"/>', ops:HR_OPS,
+    colors:{ timesheet:['#8B5CF6', '#C4B5FD'], payroll:['#7C3AED', '#A78BFA'], kpi:['#DB2777', '#F9A8D4'], leave:['#0D9488', '#5EEAD4'] },
+    desc:'Табель и переработки, расчёт зарплаты и расчётные листки, премии по KPI, остатки отпусков.',
+    hint:'Соберите схему: табель → расчёт зарплаты → листки; KPI → премия → приказ. Нажмите «Запустить».',
+    examples:['Рассчитать зарплату по табелю и сформировать расчётные листки', 'Начислить премии по KPI за квартал и подготовить приказы на утверждение'],
+    lib:HR_LIB, demo:{ name:'Персонал — пример', spec:['hr-staff', 'hr-ts', 'hr-pay', 'hr-slip', 'hr-dept', 'hr-chart', 'hr-kpi', 'hr-kpi-calc', 'hr-order', 'hr-head'], links:[[0, 1], [1, 2], [2, 3], [2, 4], [4, 5], [6, 7], [7, 8], [8, 9]],
+      note:'Табель → зарплата → расчётные листки и фонд по подразделениям; KPI за квартал → премии → приказы на утверждение. Нажмите «Запустить».' } });
+  industryEnv('crm', { name:'Продажи и CRM', short:'Продажи', color:'#EC4899', theme:'burgundy', step:true, newName:'Продажи',
+    ic:'<path d="M3 5h18l-7 8v6l-4-2v-4z"/>', ops:CRM_OPS,
+    colors:{ funnel:['#EC4899', '#F9A8D4'], margin:['#16A34A', '#86EFAC'], stale:['#F59E0B', '#FDE68A'], forecast:['#6366F1', '#A5B4FC'] },
+    desc:'Воронка и конверсия, маржинальность сделок, зависшие сделки, прогноз выручки.',
+    hint:'Соберите схему: сделки → воронка → диаграмма; сделки → прогноз → по менеджерам; сделки → зависшие → задачи. Нажмите «Запустить».',
+    examples:['Показать воронку продаж и прогноз выручки по менеджерам', 'Найти сделки без контакта больше двух недель и разослать задачи менеджерам'],
+    lib:CRM_LIB, demo:{ name:'Продажи — пример', spec:['crm-deals', 'crm-funnel', 'crm-fchart', 'crm-fc', 'crm-by-mgr', 'crm-stale', 'crm-task', 'crm-margin', 'crm-low'], links:[[0, 1], [1, 2], [0, 3], [3, 4], [0, 5], [5, 6], [0, 7], [7, 8]],
+      note:'Из одной таблицы сделок: воронка с диаграммой, прогноз выручки по менеджерам, зависшие сделки с задачами, сделки с низкой маржой. Нажмите «Запустить».' } });
+  industryEnv('bi', { name:'Аналитика и дашборды', short:'Аналитика', color:'#14B8A6', theme:'midnight', newName:'Аналитика',
+    ic:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>', ops:BI_OPS,
+    colors:{ join:['#14B8A6', '#5EEAD4'], pivot:['#0EA5E9', '#7DD3FC'], metric:['#F59E0B', '#FDE68A'] },
+    desc:'Сводные таблицы, объединение данных, показатели и диаграммы — сквозные отчёты по любым таблицам.',
+    hint:'Соберите схему: таблицы → объединение / сводная → показатели и диаграммы. Нажмите «Запустить» — графики откроются в окне результатов.',
+    examples:['Сводная выручки по подразделениям и месяцам с графиком динамики', 'Сравнить факт продаж с планом квартала и показать выполнение по подразделениям'],
+    lib:BI_LIB, demo:{ name:'Аналитика — пример', spec:['bi-sales', 'bi-pivot', 'bi-month', 'bi-trend', 'bi-rev', 'bi-dept', 'bi-plan', 'bi-join', 'bi-done', 'bi-bars', 'bi-report'], links:[[0, 1], [0, 2], [2, 3], [0, 4], [0, 5], [5, 7], [6, 7], [7, 8], [8, 9], [8, 10]],
+      note:'Продажи → сводная, динамика по месяцам, итог выручки; факт по подразделениям + план → выполнение плана → диаграмма и справки. Нажмите «Запустить».' } });
+  FUTURE_ENVS.length = 0;
+  ALLP = null;
+
+  // пример для любой отраслевой среды
+  function makeEnvDemo(id){
+    var e = ENVS[id], d = e && e.demo; if(!d) return;
+    newProj(d.name, null, id);
+    var ids = d.spec.map(function(pid){
+      var p = pluginById(pid), n = { id:newId('n'), name:p.name, lang:p.lang, x:0, y:0, codes:{}, pluginId:p.id, family:null, desc:p.desc, colors:null };
+      G.nodes.push(n); return n;
+    });
+    d.links.forEach(function(l){ G.edges.push({ id:newId('e'), from:ids[l[0]].id, to:ids[l[1]].id, taps:[] }); });
+    var c = viewCenter(); layoutSet(ids, c.x - 900, c.y);
+    var minY = Math.min.apply(0, ids.map(function(n){ return n.y; })), minX = Math.min.apply(0, ids.map(function(n){ return n.x; }));
+    G.notes.push({ id:newId('t'), text:d.note, x:Math.round(minX), y:Math.round(minY - 200), fs:14, tint:'blue' });
+    saveGraph(); renderGraph(); setTimeout(fitView, 30);
+    toast('Открыт пример среды «' + e.name + '»');
   }
 
   /* ---------- переключение среды ---------- */
@@ -6666,16 +7352,16 @@ public class MovingAverage : IBlock
     document.body.setAttribute('data-env', ENV.id);
     var w = ENV.word;
     function tip(id, t, s){ var b = $(id); if(b){ b.setAttribute('data-tip', t + '|' + s); b.setAttribute('aria-label', t); } }
-    tip('bLib', w.lib, isDocs() ? 'Документы, таблицы, этапы и выгрузки' : 'Готовые и ваши плагины');
+    tip('bLib', w.lib, isOffice() ? 'Документы, таблицы, этапы и выгрузки' : (isDocs() ? 'Таблицы, расчёты, документы и выгрузки' : 'Готовые и ваши плагины'));
     tip('bScheme', w.scheme, w.schemeSub);
-    tip('bCreate', w.create, isDocs() ? 'Документ, таблица, этап или расчёт' : 'Задайте название и язык');
+    tip('bCreate', w.create, isDocs() ? 'Таблица, документ, расчёт или выгрузка' : 'Задайте название и язык');
     tip('bRun', w.run, w.runSub);
     var lh = document.querySelector('#libHead h2'); if(lh) lh.textContent = w.lib;
     $('newTitle').textContent = w.newTitle; $('newLangLabel').textContent = w.kindLabel;
     var sh = document.querySelector('#schemeW .pers-h h2'); if(sh) sh.textContent = w.scheme;
     $('envName').textContent = ENV.name; $('envDot').style.background = ENV.color;
     var hp = el.hint.querySelector('p'), coarse = window.matchMedia && matchMedia('(pointer:coarse)').matches;
-    if(hp) hp.textContent = isDocs()
+    if(hp) hp.textContent = ENV.hint ? ENV.hint + ' Добавить блок — ' + (coarse ? 'удерживайте палец на доске' : 'правый клик по доске') + ', готовые — в библиотеке.' : isDocs()
       ? 'Соберите маршрут документа: таблица с данными → шаблон документа → этапы согласования → выгрузка. Нажмите кнопку выше, ' + (coarse ? 'удерживайте палец на доске' : 'правый клик по доске') + ' или кнопку «AI» — ИИ соберёт маршрут по описанию.'
       : (coarse ? 'Удерживайте палец на доске, чтобы добавить элемент, или откройте плагин из библиотеки. Кнопка с лупой вверху — поиск и все команды.'
         : 'Нажмите правой кнопкой по доске, чтобы добавить элемент, откройте плагин из библиотеки или нажмите ' + (IS_MAC ? '⌘K' : 'Ctrl+K') + ' — поиск и команды. Файл пространства можно перетащить прямо сюда.');
@@ -6687,12 +7373,14 @@ public class MovingAverage : IBlock
 
   /* ---------- экран экосистемы ---------- */
   function envProjects(id){ return PROJ.list.filter(function(p){ return (p.env || 'code') === id; }).sort(function(a, b){ return b.t - a.t; }); }
+  function envNewName(k){ return k === 'docs' ? 'Документооборот' : (ENVS[k] && ENVS[k].newName) || 'Новое пространство'; }
   function goEnv(id, demo){
     closeEco();
     if(demo && id === 'docs'){ makeDocsDemo(); return; }
+    if(demo && ENVS[id] && ENVS[id].demo){ makeEnvDemo(id); return; }
     var list = envProjects(id);
     if(list.length){ if(list[0].id !== PROJ.cur) switchProj(list[0].id); else toast('Вы уже в среде «' + ENVS[id].name + '»'); }
-    else { newProj(id === 'docs' ? 'Документооборот' : 'Новое пространство', null, id); toast('Создано пространство в среде «' + ENVS[id].name + '»'); }
+    else { newProj(envNewName(id), null, id); toast('Создано пространство в среде «' + ENVS[id].name + '»'); }
   }
   function openEco(){
     closeCtx(); hidePop(); renderEco(); $('eco').hidden = false;
@@ -6703,15 +7391,15 @@ public class MovingAverage : IBlock
     var g = $('ecoGrid'); g.innerHTML = '';
     Object.keys(ENVS).forEach(function(k){
       var e = ENVS[k], n = envProjects(k).length, here = ENV.id === k;
-      var ic = k === 'code' ? '<path d="M8 7l-5 5 5 5M16 7l5 5-5 5M14 4l-4 16"/>' : '<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h6"/>';
+      var ic = e.ic || (k === 'code' ? '<path d="M8 7l-5 5 5 5M16 7l5 5-5 5M14 4l-4 16"/>' : '<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h6"/>');
       var card = h('article', { 'class':'eco-card go' + (here ? ' here' : ''), style:'--ec:' + e.color, role:'button', tabindex:'0', 'aria-label':'Открыть среду «' + e.name + '»' }, [
         h('div', { 'class':'eco-top' }, [ h('span', { 'class':'eco-ic', html:'<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ic + '</svg>' }),
           here ? h('span', { 'class':'eco-tag', text:'вы здесь' }) : null ].filter(Boolean)),
         h('h3', { text:e.name }), h('p', { text:e.desc }),
         h('div', { 'class':'eco-meta', text:'Пространств: ' + n + ' · типов блоков: ' + e.langs.length + ' · в библиотеке: ' + e.plugins.length }),
         h('div', { 'class':'eco-acts' }, [
-          h('button', { type:'button', 'class':'btn', text:'Новое пространство', on:{ click:function(ev){ ev.stopPropagation(); closeEco(); newProj(k === 'docs' ? 'Документооборот' : 'Новое пространство', null, k); } } }),
-          k === 'docs' ? h('button', { type:'button', 'class':'btn', text:'Пример офиса', on:{ click:function(ev){ ev.stopPropagation(); goEnv('docs', true); } } }) : null
+          h('button', { type:'button', 'class':'btn', text:'Новое пространство', on:{ click:function(ev){ ev.stopPropagation(); closeEco(); newProj(envNewName(k), null, k); } } }),
+          k === 'docs' || e.demo ? h('button', { type:'button', 'class':'btn', text:k === 'docs' ? 'Пример офиса' : 'Пример', on:{ click:function(ev){ ev.stopPropagation(); goEnv(k, true); } } }) : null
         ].filter(Boolean))
       ]);
       card.addEventListener('click', function(){ goEnv(k); });
@@ -6881,14 +7569,14 @@ public class MovingAverage : IBlock
 
   /* ---------- оболочка: вкладки, проводник ---------- */
   function ofApplyMode(){
-    var on = isDocs();
+    var on = isOffice();
     $('otabs').hidden = !on;
     document.body.setAttribute('data-mode', on && OF.tab !== 'auto' ? 'office' : (on ? 'auto' : 'code'));
     $('office').hidden = !officeOn();
   }
   function ofRender(){
     ofApplyMode();
-    if(!isDocs()) return;
+    if(!isOffice()) return;
     ofRenderTabs();
     if(!officeOn()){ status(); return; }
     el.canvas.hidden = true; el.editor.hidden = true; el.lib.hidden = true; hidePop();
@@ -8402,7 +9090,7 @@ public class MovingAverage : IBlock
     var s = G.files, a = s && s.active;
     OF.tab = a && (a === 'desk' || a === 'auto' || ofFile(a)) ? a : 'desk';
     OF.dir = null; OF.sel = []; OF.commit = null; SG.f = null; SE.f = null; FE.f = null; DE.f = null; OA.res = null; OA.err = null;
-    if(isDocs() && OF.tab === 'auto'){ S.view = 'canvas'; render(); renderGraph(); }
+    if(isOffice() && OF.tab === 'auto'){ S.view = 'canvas'; render(); renderGraph(); }
     ofRender();
   }
   /* ---------- состояние, клавиши, запуск ---------- */

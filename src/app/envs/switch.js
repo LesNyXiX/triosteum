@@ -16,16 +16,16 @@
     document.body.setAttribute('data-env', ENV.id);
     var w = ENV.word;
     function tip(id, t, s){ var b = $(id); if(b){ b.setAttribute('data-tip', t + '|' + s); b.setAttribute('aria-label', t); } }
-    tip('bLib', w.lib, isDocs() ? 'Документы, таблицы, этапы и выгрузки' : 'Готовые и ваши плагины');
+    tip('bLib', w.lib, isOffice() ? 'Документы, таблицы, этапы и выгрузки' : (isDocs() ? 'Таблицы, расчёты, документы и выгрузки' : 'Готовые и ваши плагины'));
     tip('bScheme', w.scheme, w.schemeSub);
-    tip('bCreate', w.create, isDocs() ? 'Документ, таблица, этап или расчёт' : 'Задайте название и язык');
+    tip('bCreate', w.create, isDocs() ? 'Таблица, документ, расчёт или выгрузка' : 'Задайте название и язык');
     tip('bRun', w.run, w.runSub);
     var lh = document.querySelector('#libHead h2'); if(lh) lh.textContent = w.lib;
     $('newTitle').textContent = w.newTitle; $('newLangLabel').textContent = w.kindLabel;
     var sh = document.querySelector('#schemeW .pers-h h2'); if(sh) sh.textContent = w.scheme;
     $('envName').textContent = ENV.name; $('envDot').style.background = ENV.color;
     var hp = el.hint.querySelector('p'), coarse = window.matchMedia && matchMedia('(pointer:coarse)').matches;
-    if(hp) hp.textContent = isDocs()
+    if(hp) hp.textContent = ENV.hint ? ENV.hint + ' Добавить блок — ' + (coarse ? 'удерживайте палец на доске' : 'правый клик по доске') + ', готовые — в библиотеке.' : isDocs()
       ? 'Соберите маршрут документа: таблица с данными → шаблон документа → этапы согласования → выгрузка. Нажмите кнопку выше, ' + (coarse ? 'удерживайте палец на доске' : 'правый клик по доске') + ' или кнопку «AI» — ИИ соберёт маршрут по описанию.'
       : (coarse ? 'Удерживайте палец на доске, чтобы добавить элемент, или откройте плагин из библиотеки. Кнопка с лупой вверху — поиск и все команды.'
         : 'Нажмите правой кнопкой по доске, чтобы добавить элемент, откройте плагин из библиотеки или нажмите ' + (IS_MAC ? '⌘K' : 'Ctrl+K') + ' — поиск и команды. Файл пространства можно перетащить прямо сюда.');

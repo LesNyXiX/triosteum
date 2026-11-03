@@ -5,7 +5,8 @@
   var FORMATS = [['xlsx', 'Файл Excel (.xlsx)'], ['csv', 'Файл CSV'], ['html', 'Пакет документов (.html)'], ['email', 'Письмо по почте'], ['1c', 'Передача в 1С'], ['archive', 'Электронный архив']];
   function autoDesc(n){
     if(!isDocs()) return '';
-    var p = params(n);
+    var p = params(n), L = langById(n.lang);
+    if(L && L.sum) return L.sum(p);
     if(n.lang === 'step') return (p.action || 'Этап') + ' · ' + (p.who || 'ответственный') + (p.days ? ' · ' + p.days + ' дн.' : '');
     if(n.lang === 'cond') return 'если «' + (p.field || '?') + '» ' + (OPS.filter(function(o){ return o[0] === p.op; })[0] || ['', p.op])[1] + ' ' + (p.value || '');
     if(n.lang === 'send'){ var f = FORMATS.filter(function(o){ return o[0] === p.format; })[0]; return (f ? f[1] : 'выгрузка') + (p.to ? ' → ' + p.to : ''); }
@@ -19,6 +20,22 @@
     function field(label, ctl){ return h('label', { 'class':'prm-f' }, [ h('span', { text:label }), ctl ]); }
     function sel(list, val, k){ var s = h('select', { 'class':'input' }); list.forEach(function(o){ var op = h('option', { value:o[0], text:o[1] }); if(o[0] === val) op.selected = true; s.appendChild(op); }); s.addEventListener('change', function(){ upd(k, s.value); }); return s; }
     function inp(val, k, type){ var i = h('input', { 'class':'input', type:type || 'text' }); i.value = val === undefined ? '' : val; i.addEventListener('input', function(){ upd(k, type === 'number' ? Math.max(0, +i.value || 0) : i.value); }); return i; }
+    var L = langById(n.lang);
+    if(L && L.fields){
+      var keys = [], up = upstreamRows(n); if(up && up[0]) keys = Object.keys(up[0]);
+      var dlId = 'fl-' + n.id; if(keys.length){ var dl0 = h('datalist', { id:dlId }); keys.forEach(function(f){ dl0.appendChild(h('option', { value:f })); }); box.appendChild(dl0); }
+      L.fields.forEach(function(f){
+        var ctl;
+        if(f[2] === 's') ctl = sel(f[3], p[f[0]], f[0]);
+        else if(f[2] === 'n'){ ctl = h('input', { 'class':'input', type:'number', step:'any' }); ctl.value = p[f[0]] === undefined ? '' : p[f[0]]; ctl.addEventListener('input', function(){ var v = parseFloat(ctl.value); if(!isNaN(v)) upd(f[0], v); }); }
+        else ctl = inp(p[f[0]], f[0]);
+        if(f[2] === 'f' && keys.length) ctl.setAttribute('list', dlId);
+        box.appendChild(field(f[1], ctl));
+      });
+      if(keys.length) box.appendChild(h('div', { 'class':'prm-hint', text:'Поля таблицы выше по схеме: ' + keys.join(', ') + '. Поля, которые добавляют расчётные блоки, тоже можно указывать.' }));
+      if(L.tool) box.appendChild(h('div', { 'class':'prm-hint', text:L.tool }));
+      return box;
+    }
     if(n.lang === 'step'){
       var acts = ACTIONS.map(function(a){ return [a, a]; }); if(p.action && ACTIONS.indexOf(p.action) < 0) acts.unshift([p.action, p.action]);
       box.appendChild(field('Действие', sel(acts, p.action, 'action')));

@@ -366,14 +366,14 @@ def me(w: Who = Depends(need)):
 
 class SpaceIn(BaseModel):
     name: str = Field(default="Пространство", min_length=1, max_length=200)
-    env: str = Field(default="code", pattern="^(code|docs)$")
+    env: str = Field(default="code", pattern="^[a-z]{2,12}$")
     content: dict[str, Any] = Field(default_factory=dict)
     base_rev: int = Field(default=0, ge=0)
 
 
 class SpacePatch(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=200)
-    env: str | None = Field(default=None, pattern="^(code|docs)$")
+    env: str | None = Field(default=None, pattern="^[a-z]{2,12}$")
 
 
 def check_id(space_id: str) -> str:
@@ -889,7 +889,7 @@ def put_pref(name: str, body: PrefIn, w: Who = Depends(need)):
 class ImportSpace(BaseModel):
     id: str
     name: str = Field(default="Пространство", min_length=1, max_length=200)
-    env: str = Field(default="code", pattern="^(code|docs)$")
+    env: str = Field(default="code", pattern="^[a-z]{2,12}$")
     content: dict[str, Any] = Field(default_factory=dict)
 
 

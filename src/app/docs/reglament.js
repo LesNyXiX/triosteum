@@ -6,7 +6,7 @@
     var docs = plan.order.filter(function(n){ return n.lang === 'doc'; }), sheets = plan.order.filter(function(n){ return n.lang === 'sheet'; });
     L.push('# Регламент процесса «' + curProj().name + '»', '', 'Сформирован автоматически по схеме в Triosteum, ' + today + '.', '');
     L.push('## 1. Назначение', '');
-    L.push('Регламент описывает порядок подготовки, согласования и учёта документов' + (docs.length ? ': ' + docs.map(function(n){ return '«' + n.name + '»'; }).join(', ') : '') + '.');
+    L.push((isOffice() || !plan.order.some(function(n){ var l = langById(n.lang); return l && l.apply; }) ? 'Регламент описывает порядок подготовки, согласования и учёта документов' : 'Регламент описывает порядок обработки данных в среде «' + ENV.name + '»: источники, расчёты, контроль и выпуск результатов') + (docs.length ? ': ' + docs.map(function(n){ return '«' + n.name + '»'; }).join(', ') : '') + '.');
     if(sheets.length) L.push('Источники данных: ' + sheets.map(function(n){ return '«' + n.name + '»'; }).join(', ') + '.');
     L.push('', '## 2. Участники', '');
     if(who.length) who.forEach(function(w){ L.push('- ' + w); }); else L.push('- Этапы с ответственными на схеме не заданы.');
@@ -20,6 +20,7 @@
       else if(n.lang === 'step') t += (p.action || 'этап') + '. Ответственный: ' + (p.who || 'не назначен') + '. Срок: ' + (+p.days || 0) + ' раб. дн.' + (p.note ? ' Примечание: ' + p.note + '.' : '');
       else if(n.lang === 'cond') t += 'дальше передаются только записи, где «' + (p.field || '?') + '» ' + (OPS.filter(function(o){ return o[0] === p.op; })[0] || ['', p.op])[1] + ' ' + (p.value || '') + '; остальные останавливаются на этом шаге.';
       else if(n.lang === 'send'){ var fm = FORMATS.filter(function(o){ return o[0] === p.format; })[0]; t += 'выгрузка: ' + (fm ? fm[1] : p.format) + (p.to ? ', получатель — ' + p.to : '') + (p.name ? ', «' + p.name + '»' : '') + '.'; }
+      else if(langById(n.lang) && langById(n.lang).apply) t += langById(n.lang).name.toLowerCase() + ': ' + langById(n.lang).sum(p) + '.' + (n.desc ? ' ' + n.desc : '');
       else if(n.lang === 'python') t += 'автоматический расчёт (Python): ' + (n.desc || 'обработка записей') + '.';
       else t += n.desc || '';
       L.push(t);

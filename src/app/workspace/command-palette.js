@@ -51,7 +51,7 @@
     Object.keys(ENVS).forEach(function(k){ if(k !== ENV.id) rows.push({ group:'Экосистема', label:'Перейти в среду «' + ENVS[k].name + '»', swatch:ENVS[k].color, act:function(){ goEnv(k); }, k:'среда переключить ' + ENVS[k].short }); });
     rows.push({ group:'Экосистема', label:'Экосистема — все среды', icon:'all', act:openEco, k:'среды сферы' });
     rows.push({ group:'Экосистема', label:'Пример офиса: связанные таблица, отчёт, презентация, форма', icon:'file', act:function(){ goEnv('docs', true); }, k:'демо пример офис' });
-    if(isDocs()){
+    if(isOffice()){
       ['doc', 'sheet', 'slides', 'form', 'folder'].forEach(function(t){ rows.push({ group:'Офис', label:'Создать: ' + FT[t].name.toLowerCase(), swatch:FT[t].color, act:function(){ if(OF.tab === 'auto') ofSetTab('desk'); newFile(t); }, k:'новый файл ' + FT[t].many }); });
       rows.push({ group:'Офис', label:'Шаблоны файлов', icon:'lib', act:openTpl, k:'шаблон' });
       rows.push({ group:'Офис', label:'Рабочий стол', icon:'folder', act:function(){ ofSetTab('desk'); } });

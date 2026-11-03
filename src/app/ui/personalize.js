@@ -37,13 +37,20 @@
   }
   function hexRgb(x){ x = x.replace('#', ''); return [parseInt(x.slice(0, 2), 16), parseInt(x.slice(2, 4), 16), parseInt(x.slice(4, 6), 16)]; }
   function mixHex(a, b, t){ var A = hexRgb(a), B = hexRgb(b); return '#' + A.map(function(v, i){ return Math.round(v * (1 - t) + B[i] * t).toString(16).padStart(2, '0'); }).join(''); }
-  var ENV_THEME_DEF = { code:'burgundy', docs:'emerald' };
+  var ENV_THEME_DEF = { code:'burgundy', docs:'emerald', wh:'graphite', mes:'graphite', fin:'midnight', hr:'midnight', crm:'burgundy', bi:'midnight' };
+  // акцент среды по умолчанию: на темах, чей собственный акцент спорит с цветом среды
+  function envAccent(th, theme){
+    if(typeof ENV === 'undefined' || !ENV || ENV.id === 'code') return th.accent;
+    theme = theme || 'burgundy';
+    if(ENV.id === 'docs') return theme === 'light' || theme === 'burgundy' ? (th.light ? '#15803D' : '#16A34A') : th.accent;
+    return readable(ENV.color, th.bg, 3);
+  }
   function applyTheme(){
     // у каждой среды своя палитра: запоминаем выбор для текущей среды
     if(typeof ENV !== 'undefined' && ENV){ UI.envs = UI.envs || {}; UI.envs[ENV.id] = { theme:UI.theme || ENV_THEME_DEF[ENV.id] || 'burgundy', accent:UI.accent || null }; }
     var th = THEMES[UI.theme] || THEMES.burgundy, root = document.documentElement.style;
     // у «Офиса» свой зелёный цвет: на темах с красным акцентом он сохраняется, пока пользователь не выберет другой акцент
-    var ac = UI.accent || (typeof ENV !== 'undefined' && ENV && ENV.id === 'docs' && (UI.theme === 'light' || UI.theme === 'burgundy' || !UI.theme) ? (th.light ? '#15803D' : '#16A34A') : th.accent);
+    var ac = UI.accent || envAccent(th, UI.theme);
     root.setProperty('--bg', th.bg); root.setProperty('--panel', th.panel); root.setProperty('--line', th.line); root.setProperty('--line2', th.line2);
     root.setProperty('--ink', th.ink); root.setProperty('--ink-strong', th.strong); root.setProperty('--muted', th.muted); root.setProperty('--dim', th.dim);
     root.setProperty('--dot', th.dot); root.setProperty('--tipbg', th.tip);
@@ -95,7 +102,7 @@
     });
     b.appendChild(section('Тема оформления — для среды «' + ENV.name + '» (у каждой среды своя)', tg));
     var th = THEMES[UI.theme || 'burgundy'];
-    var defAc = isDocs() && ((UI.theme || 'burgundy') === 'light' || (UI.theme || 'burgundy') === 'burgundy') ? (th.light ? '#15803D' : '#16A34A') : th.accent;
+    var defAc = envAccent(th, UI.theme);
     b.appendChild(section('Акцентный цвет (кнопки, выделение, активные инструменты)', colorRow(ACCENTS, UI.accent || null, function(c, live){ UI.accent = c; applyTheme(); if(!live) renderPers(); }, 'Акцент', isDocs() ? 'Цвет среды' : 'Цвет темы', defAc)));
     var gseg = h('div', { 'class':'seg' });
     [['dots','Точки'],['lines','Линии'],['none','Без сетки']].forEach(function(o){

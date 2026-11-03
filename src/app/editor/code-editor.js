@@ -42,7 +42,7 @@
     }
   }
   function render(){
-    if(typeof OF === 'object' && OF && isDocs() && OF.tab !== 'auto'){ ofRender(); return; }
+    if(typeof OF === 'object' && OF && isOffice() && OF.tab !== 'auto'){ ofRender(); return; }
     var isEd = S.view === 'editor';
     el.lib.hidden = !S.lib;
     el.canvas.hidden = isEd;
