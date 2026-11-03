@@ -45,3 +45,25 @@
     var ne = domOf('node', id); if(ne){ dg.el = ne; ne.classList.add('dragging', 'shaken'); }
     toastAct('Связи «' + n.name + '» перешли на узел (' + cnt + ')', 'Вернуть', undo);
   }
+  /* ---------- точки на связях ---------- */
+  // потрясли точку: сначала отцепляются подключённые блоки, пустая точка снимается со связи
+  function shakeTap(dg){
+    var tp = dg.tap, e0 = dg.edge, ids = tapIds(tp).filter(function(x){ return nodeById(x); });
+    if(ids.length){ tp.nodes = []; renderEdges(); toastAct('От точки отцеплено блоков: ' + ids.length, 'Вернуть', undo); }
+    else { e0.taps = (e0.taps || []).filter(function(x){ return x !== tp; }); dg.dead = true; S.sel = null; hidePop(); renderEdges(); toastAct('Точка снята со связи', 'Вернуть', undo); }
+  }
+  // точку утянули от связи: она становится узлом, подключённые блоки переходят к нему
+  function tearTap(dg, e){
+    var tp = dg.tap, e0 = dg.edge, w = toWorld(e.clientX, e.clientY), ids = tapIds(tp).filter(function(x){ return nodeById(x); });
+    e0.taps = (e0.taps || []).filter(function(x){ return x !== tp; });
+    var first = ids.length ? nodeById(ids[0]) : null;
+    var hub = { id:newId('n'), name:tp.name || ('Узел ' + (G.nodes.filter(function(x){ return x.kind === 'hub'; }).length + 1)), lang:first ? first.lang : S.lang, kind:'hub',
+      x:Math.round(w.x - HUB / 2), y:Math.round(w.y - HUB / 2), codes:{}, pluginId:null, family:null, desc:'Точка, снятая со связи', colors:tp.color ? [tp.color, tp.color] : null };
+    G.nodes.push(hub);
+    ids.forEach(function(id){ G.edges.push({ id:newId('e'), from:id, to:hub.id, taps:[] }); });
+    S.sel = { type:'node', id:hub.id }; S.multi = []; hidePop();
+    renderGraph();
+    var el2 = domOf('node', hub.id); if(el2) el2.classList.add('dragging');
+    drag = { mode:'move', type:'node', item:hub, el:el2, ox:hub.x, oy:hub.y, dx:HUB / 2, dy:HUB / 2, sx:e.clientX, sy:e.clientY, moved:true, sticky:false, group:null, shook:true };
+    toastAct('Точка снята со связи и стала узлом' + (ids.length ? ' — блоки остались подключены' : ''), 'Вернуть', undo);
+  }

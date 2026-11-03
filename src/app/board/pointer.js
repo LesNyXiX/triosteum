@@ -258,6 +258,7 @@
       if(UI.snap && !e.altKey){ drag.tx = Math.round(drag.tx / GRID) * GRID; drag.ty = Math.round(drag.ty / GRID) * GRID; }
       smoothMove(drag);
       if(drag.type === 'node') shakeTrack(drag, e);
+      jellyMove(drag, e, drag.el);
     } else if(drag.mode === 'edgegrab'){
       if(Math.abs(e.clientX - drag.sx) + Math.abs(e.clientY - drag.sy) < 5) return;
       var ge = drag.edge, r0 = nearestOnEdge(ge, drag.w0), useTo = !r0 || r0.t >= 0.5;
@@ -283,7 +284,12 @@
     } else if(drag.mode === 'tap'){
       if(!drag.moved && !drag.sticky && Math.abs(e.clientX - drag.sx) + Math.abs(e.clientY - drag.sy) < 4) return;
       drag.moved = true;
+      if(drag.dead) return;
+      drag.sh = drag.sh || {};
+      if(!drag.shook && shakeDetect(drag.sh, e)){ drag.shook = true; shakeTap(drag); return; }
       var r = nearestOnEdge(drag.edge, toWorld(e.clientX, e.clientY));
+      // далеко от связи — точка снимается со связи и становится узлом вместе с подключёнными блоками
+      if(r && r.dist * G.cam.k > 70 && !drag.shook){ tearTap(drag, e); return; }
       if(r){ drag.tap.t = clampT(r.t); renderEdges(); }
     }
   }
@@ -337,7 +343,7 @@
     if(dd.mode === 'edgegrab'){ lastTap = { key:'e:' + dd.edge.id, t:Date.now() }; applyCursor(); return; }
     if(dd.mode === 'tlinkgrab'){ S.sel = { type:'tap', id:dd.tap.id, edge:dd.edge.id }; lastTap = { key:'tl:' + dd.tap.id + ':' + dd.node.id, t:Date.now() }; renderEdges(); applyCursor(); return; }
     if(dd.mode === 'move'){
-      dd.el.classList.remove('dragging');
+      dd.el.classList.remove('dragging'); jellyEnd(dd, dd.el);
       if(dd.moved){
         lastTap = { key:null, t:0 };
         if(dd.tx != null && (Math.abs(dd.vx - dd.tx) > 0.4 || Math.abs(dd.vy - dd.ty) > 0.4) && !document.body.classList.contains('noanim')){ dd.finishing = true; smoothMove(dd); }

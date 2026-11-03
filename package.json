@@ -13,7 +13,8 @@
     "test:envs": "node tests/envs-e2e.mjs",
     "test:office": "node tests/office-map-e2e.mjs",
     "test:graphics": "node tests/graphics-e2e.mjs",
-    "test:universal": "node tests/universal-e2e.mjs"
+    "test:universal": "node tests/universal-e2e.mjs",
+    "test:board": "node tests/board-e2e.mjs"
   },
   "devDependencies": {
     "playwright": "^1.48.0"

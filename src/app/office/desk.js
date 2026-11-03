@@ -101,6 +101,7 @@
       d.moved = true; clearTimeout(lp);
       var z = UI.scale / 100 || 1;
       d.group.forEach(function(g){ g.f.x = Math.max(0, Math.round(g.x + dx)); g.f.y = Math.max(0, Math.round(g.y + dy)); if(g.el){ g.el.style.left = g.f.x + 'px'; g.el.style.top = g.f.y + 'px'; g.el.classList.add('drag'); } });
+      var pel = d.group.filter(function(g){ return g.f === d.f; })[0]; jellyMove(d, e, pel && pel.el);
       var under = document.elementsFromPoint(e.clientX, e.clientY).filter(function(x){ return x.classList && x.classList.contains('fcard') && OF.sel.indexOf(x.dataset.fid) < 0; })[0];
       Array.prototype.forEach.call(document.querySelectorAll('.fcard.drop'), function(x){ x.classList.remove('drop'); });
       d.over = null;
@@ -110,6 +111,7 @@
       var d = OF.drag; OF.drag = null; clearTimeout(lp); if(!d) return;
       Array.prototype.forEach.call(document.querySelectorAll('.fcard.drag,.fcard.drop'), function(x){ x.classList.remove('drag', 'drop'); });
       if(d.moved){
+        var pel2 = d.group.filter(function(g){ return g.f === d.f; })[0]; jellyEnd(d, pel2 && pel2.el);
         if(d.over){ ofMoveTo(d.group.map(function(g){ return g.f.id; }), d.over.id); toast('Перемещено в «' + d.over.name + '»'); }
         else saveGraph();
         return;

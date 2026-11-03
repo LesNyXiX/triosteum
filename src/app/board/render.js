@@ -33,7 +33,7 @@
       el.edgeLayer.appendChild(svg('path', { 'class':'clink', d:'M' + x1 + ' ' + y1 + ' C' + (x1 + 30) + ' ' + y1 + ' ' + (x2 - 30) + ' ' + y2 + ' ' + x2 + ' ' + y2 }));
     });
     edgePaths = {};
-    var tapDraw = [];
+    var tapDraw = [], tlinkHits = [];
     G.edges.forEach(function(e){
       var a = nodeById(e.from), b = nodeById(e.to);
       if(!a || !b) return;
@@ -58,7 +58,7 @@
         var pt = line.getPointAtLength(tp.t * len), srcs = tapNodes(tp);
         srcs.forEach(function(src){
           var td = curve(portOut(src), pt, true);
-          el.edgeLayer.insertBefore(svg('path', { 'class':'tlink-hit', d:td, 'data-edge':e.id, 'data-tap':tp.id, 'data-node':src.id }), el.edgeLayer.firstChild);
+          tlinkHits.push(svg('path', { 'class':'tlink-hit', d:td, 'data-edge':e.id, 'data-tap':tp.id, 'data-node':src.id }));
           el.edgeLayer.insertBefore(svg('path', { 'class':'tap-link', d:td, stroke:colorsOf(src)[1] }), el.edgeLayer.firstChild);
         });
         tapDraw.push({ e:e, tp:tp, i:i, pt:pt, n:srcs.length, col:srcs.length ? colorsOf(srcs[0])[1] : '#C29CA4' });
@@ -68,6 +68,8 @@
     var outs = {};
     G.edges.forEach(function(e){ outs[e.from] = true; (e.taps || []).forEach(function(tp){ tapIds(tp).forEach(function(id){ outs[id] = true; }); }); });
     Array.prototype.forEach.call(el.nodes.children, function(d){ d.classList.toggle('linked', !!outs[d.dataset.id]); });
+    // зоны захвата отростков к точкам — поверх связей, чтобы отросток можно было снять в любом месте
+    tlinkHits.forEach(function(x){ el.edgeLayer.appendChild(x); });
     tapDraw.forEach(function(o){
       var tp = o.tp, x = o.pt.x, y = o.pt.y, r = TAP_R[tp.size || 'm'];
       var g = svg('g', { 'class':'tap-g' + (S.sel && S.sel.type === 'tap' && S.sel.id === tp.id ? ' sel' : '') });

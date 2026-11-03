@@ -279,8 +279,17 @@
   .note.imgnote img{display:block;max-width:420px;width:260px;border-radius:6px;pointer-events:none;user-select:none}
   .note.imgnote img + *{margin-top:4px}
   /* блок другой среды: метка родной среды */
-  .node .env-tag{position:absolute;left:10px;bottom:-9px;padding:1px 7px;border-radius:8px;font:600 9.5px/14px var(--ui,system-ui);letter-spacing:.02em;background:var(--tipbg);color:var(--c1);border:1px solid color-mix(in srgb,var(--c1) 60%,var(--line2));pointer-events:none;white-space:nowrap}
+  .node .env-tag{position:absolute;left:10px;bottom:-9px;padding:1px 7px;border-radius:8px;font:600 9.5px/14px Inter,system-ui,sans-serif;letter-spacing:.02em;background:var(--tipbg);color:var(--c1);border:1px solid color-mix(in srgb,var(--c1) 60%,var(--line2));pointer-events:none;white-space:nowrap}
   .node.bridged{box-shadow:0 0 0 2px var(--c1),0 10px 26px rgba(0,0,0,.35)}
+  /* меню «Добавление элементов» → варианты блоков */
+  .am-sub{z-index:96;max-height:calc(100vh - 16px);overflow-y:auto;min-width:270px;max-width:340px}
+  .am-sub .am-kind{display:flex;align-items:center;gap:10px}
+  .am-sub .am-sw{flex:none;width:12px;height:12px;border-radius:4px}
+  .am-sub .am-kt{display:flex;flex-direction:column;min-width:0;flex:1;text-align:left}
+  .am-sub .am-kt b{font-weight:600;font-size:13px;color:var(--ink-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .am-sub .am-kt small{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .am-sub .am-ck{color:var(--red);font-weight:700}
+  .am-sub .am-kind.on{background:color-mix(in srgb,var(--red) 10%,transparent)}
 
   /* ---------- заметки ---------- */
   .note{position:absolute;width:max-content;min-width:140px;max-width:360px;min-height:22px;padding:10px 12px;border-radius:10px;
@@ -812,7 +821,7 @@
   @keyframes howIn{from{opacity:0}to{opacity:1}}
   .how-card{width:min(480px,94vw);max-height:84vh;overflow:auto;background:var(--panel);border:1px solid var(--line2);border-radius:16px;box-shadow:0 24px 60px rgba(0,0,0,.5);padding:16px}
   .how-h{display:flex;align-items:flex-start;gap:10px;margin-bottom:12px}.how-h>div{flex:1;min-width:0}
-  .how-h h2{margin:0;font:600 16px var(--ui,system-ui);color:var(--ink-strong)}
+  .how-h h2{margin:0;font:600 16px Inter,system-ui,sans-serif;color:var(--ink-strong)}
   .how-h p{margin:4px 0 0;font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .how-list{display:flex;flex-direction:column;gap:6px}
   .how-i{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:10px 12px;border-radius:11px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer;font:inherit}
@@ -970,6 +979,11 @@
   /* встряхивание блока: связи переходят на узел */
   @keyframes tShake{0%,100%{transform:translateX(0)}20%{transform:translateX(-5px) rotate(-2deg)}40%{transform:translateX(5px) rotate(2deg)}60%{transform:translateX(-4px) rotate(-1deg)}80%{transform:translateX(3px)}}
   body:not(.noanim) .node.shaken,body:not(.noanim) .fm-node.shaken{animation:tShake .45s ease}
+
+  /* желе: элемент тянется за курсором и пружинит, когда его отпускают */
+  body:not(.noanim) .jelly-on{transition:transform .1s ease-out;will-change:transform}
+  body:not(.noanim) .jelly-end{animation:tJelly .6s ease-out}
+  @keyframes tJelly{0%{transform:scale(1.08,.92)}22%{transform:scale(.94,1.06)}44%{transform:scale(1.04,.96)}66%{transform:scale(.985,1.015)}84%{transform:scale(1.005,.995)}100%{transform:none}}
 
   /* --- первый вход: «Добро пожаловать» --- */
   .welcome{position:fixed;inset:0;z-index:200;display:grid;place-items:center;padding:24px;overflow:auto;
@@ -2627,7 +2641,7 @@ public class MovingAverage : IBlock
       el.edgeLayer.appendChild(svg('path', { 'class':'clink', d:'M' + x1 + ' ' + y1 + ' C' + (x1 + 30) + ' ' + y1 + ' ' + (x2 - 30) + ' ' + y2 + ' ' + x2 + ' ' + y2 }));
     });
     edgePaths = {};
-    var tapDraw = [];
+    var tapDraw = [], tlinkHits = [];
     G.edges.forEach(function(e){
       var a = nodeById(e.from), b = nodeById(e.to);
       if(!a || !b) return;
@@ -2652,7 +2666,7 @@ public class MovingAverage : IBlock
         var pt = line.getPointAtLength(tp.t * len), srcs = tapNodes(tp);
         srcs.forEach(function(src){
           var td = curve(portOut(src), pt, true);
-          el.edgeLayer.insertBefore(svg('path', { 'class':'tlink-hit', d:td, 'data-edge':e.id, 'data-tap':tp.id, 'data-node':src.id }), el.edgeLayer.firstChild);
+          tlinkHits.push(svg('path', { 'class':'tlink-hit', d:td, 'data-edge':e.id, 'data-tap':tp.id, 'data-node':src.id }));
           el.edgeLayer.insertBefore(svg('path', { 'class':'tap-link', d:td, stroke:colorsOf(src)[1] }), el.edgeLayer.firstChild);
         });
         tapDraw.push({ e:e, tp:tp, i:i, pt:pt, n:srcs.length, col:srcs.length ? colorsOf(srcs[0])[1] : '#C29CA4' });
@@ -2662,6 +2676,8 @@ public class MovingAverage : IBlock
     var outs = {};
     G.edges.forEach(function(e){ outs[e.from] = true; (e.taps || []).forEach(function(tp){ tapIds(tp).forEach(function(id){ outs[id] = true; }); }); });
     Array.prototype.forEach.call(el.nodes.children, function(d){ d.classList.toggle('linked', !!outs[d.dataset.id]); });
+    // зоны захвата отростков к точкам — поверх связей, чтобы отросток можно было снять в любом месте
+    tlinkHits.forEach(function(x){ el.edgeLayer.appendChild(x); });
     tapDraw.forEach(function(o){
       var tp = o.tp, x = o.pt.x, y = o.pt.y, r = TAP_R[tp.size || 'm'];
       var g = svg('g', { 'class':'tap-g' + (S.sel && S.sel.type === 'tap' && S.sel.id === tp.id ? ' sel' : '') });
@@ -3683,6 +3699,7 @@ public class MovingAverage : IBlock
       if(UI.snap && !e.altKey){ drag.tx = Math.round(drag.tx / GRID) * GRID; drag.ty = Math.round(drag.ty / GRID) * GRID; }
       smoothMove(drag);
       if(drag.type === 'node') shakeTrack(drag, e);
+      jellyMove(drag, e, drag.el);
     } else if(drag.mode === 'edgegrab'){
       if(Math.abs(e.clientX - drag.sx) + Math.abs(e.clientY - drag.sy) < 5) return;
       var ge = drag.edge, r0 = nearestOnEdge(ge, drag.w0), useTo = !r0 || r0.t >= 0.5;
@@ -3708,7 +3725,12 @@ public class MovingAverage : IBlock
     } else if(drag.mode === 'tap'){
       if(!drag.moved && !drag.sticky && Math.abs(e.clientX - drag.sx) + Math.abs(e.clientY - drag.sy) < 4) return;
       drag.moved = true;
+      if(drag.dead) return;
+      drag.sh = drag.sh || {};
+      if(!drag.shook && shakeDetect(drag.sh, e)){ drag.shook = true; shakeTap(drag); return; }
       var r = nearestOnEdge(drag.edge, toWorld(e.clientX, e.clientY));
+      // далеко от связи — точка снимается со связи и становится узлом вместе с подключёнными блоками
+      if(r && r.dist * G.cam.k > 70 && !drag.shook){ tearTap(drag, e); return; }
       if(r){ drag.tap.t = clampT(r.t); renderEdges(); }
     }
   }
@@ -3762,7 +3784,7 @@ public class MovingAverage : IBlock
     if(dd.mode === 'edgegrab'){ lastTap = { key:'e:' + dd.edge.id, t:Date.now() }; applyCursor(); return; }
     if(dd.mode === 'tlinkgrab'){ S.sel = { type:'tap', id:dd.tap.id, edge:dd.edge.id }; lastTap = { key:'tl:' + dd.tap.id + ':' + dd.node.id, t:Date.now() }; renderEdges(); applyCursor(); return; }
     if(dd.mode === 'move'){
-      dd.el.classList.remove('dragging');
+      dd.el.classList.remove('dragging'); jellyEnd(dd, dd.el);
       if(dd.moved){
         lastTap = { key:null, t:0 };
         if(dd.tx != null && (Math.abs(dd.vx - dd.tx) > 0.4 || Math.abs(dd.vy - dd.ty) > 0.4) && !document.body.classList.contains('noanim')){ dd.finishing = true; smoothMove(dd); }
@@ -3922,6 +3944,28 @@ public class MovingAverage : IBlock
     renderGraph();
     var ne = domOf('node', id); if(ne){ dg.el = ne; ne.classList.add('dragging', 'shaken'); }
     toastAct('Связи «' + n.name + '» перешли на узел (' + cnt + ')', 'Вернуть', undo);
+  }
+  /* ---------- точки на связях ---------- */
+  // потрясли точку: сначала отцепляются подключённые блоки, пустая точка снимается со связи
+  function shakeTap(dg){
+    var tp = dg.tap, e0 = dg.edge, ids = tapIds(tp).filter(function(x){ return nodeById(x); });
+    if(ids.length){ tp.nodes = []; renderEdges(); toastAct('От точки отцеплено блоков: ' + ids.length, 'Вернуть', undo); }
+    else { e0.taps = (e0.taps || []).filter(function(x){ return x !== tp; }); dg.dead = true; S.sel = null; hidePop(); renderEdges(); toastAct('Точка снята со связи', 'Вернуть', undo); }
+  }
+  // точку утянули от связи: она становится узлом, подключённые блоки переходят к нему
+  function tearTap(dg, e){
+    var tp = dg.tap, e0 = dg.edge, w = toWorld(e.clientX, e.clientY), ids = tapIds(tp).filter(function(x){ return nodeById(x); });
+    e0.taps = (e0.taps || []).filter(function(x){ return x !== tp; });
+    var first = ids.length ? nodeById(ids[0]) : null;
+    var hub = { id:newId('n'), name:tp.name || ('Узел ' + (G.nodes.filter(function(x){ return x.kind === 'hub'; }).length + 1)), lang:first ? first.lang : S.lang, kind:'hub',
+      x:Math.round(w.x - HUB / 2), y:Math.round(w.y - HUB / 2), codes:{}, pluginId:null, family:null, desc:'Точка, снятая со связи', colors:tp.color ? [tp.color, tp.color] : null };
+    G.nodes.push(hub);
+    ids.forEach(function(id){ G.edges.push({ id:newId('e'), from:id, to:hub.id, taps:[] }); });
+    S.sel = { type:'node', id:hub.id }; S.multi = []; hidePop();
+    renderGraph();
+    var el2 = domOf('node', hub.id); if(el2) el2.classList.add('dragging');
+    drag = { mode:'move', type:'node', item:hub, el:el2, ox:hub.x, oy:hub.y, dx:HUB / 2, dy:HUB / 2, sx:e.clientX, sy:e.clientY, moved:true, sticky:false, group:null, shook:true };
+    toastAct('Точка снята со связи и стала узлом' + (ids.length ? ' — блоки остались подключены' : ''), 'Вернуть', undo);
   }
 
   /* ---------- выделить всё, копировать, вставить ---------- */
@@ -4087,6 +4131,30 @@ public class MovingAverage : IBlock
       }
       next();
     }, function(err){ running = false; rlog(err.message + '. Проверьте подключение к интернету.', 'err'); });
+  }
+
+  /* ---------- «желе»: элементы тянутся за курсором и пружинят при остановке ---------- */
+  function jellyOff(){ return document.body.classList.contains('noanim') || (window.matchMedia && matchMedia('(prefers-reduced-motion:reduce)').matches); }
+  function jellyMove(st, e, el){
+    if(!el || jellyOff()) return;
+    var now = performance.now();
+    if(st.jt === undefined){ st.jx = e.clientX; st.jy = e.clientY; st.jt = now; st.vx = 0; st.vy = 0; el.classList.remove('jelly-end'); el.classList.add('jelly-on'); return; }
+    var dt = Math.max(8, now - st.jt), vx = (e.clientX - st.jx) / dt, vy = (e.clientY - st.jy) / dt;
+    st.vx = st.vx * 0.6 + vx * 0.4; st.vy = st.vy * 0.6 + vy * 0.4; st.jx = e.clientX; st.jy = e.clientY; st.jt = now;
+    var sp = Math.min(0.09, Math.hypot(st.vx, st.vy) * 0.035), a = Math.atan2(st.vy, st.vx) * 180 / Math.PI;
+    var sk = Math.max(-10, Math.min(10, -st.vx * 5)), sy = Math.max(-5, Math.min(5, -st.vy * 2));
+    el.style.transform = 'skew(' + sk.toFixed(2) + 'deg,' + sy.toFixed(2) + 'deg) rotate(' + a.toFixed(1) + 'deg) scale(' + (1 + sp).toFixed(3) + ',' + (1 - sp * 0.8).toFixed(3) + ') rotate(' + (-a).toFixed(1) + 'deg)';
+    clearTimeout(st.jidle);
+    st.jidle = setTimeout(function(){ st.vx = 0; st.vy = 0; el.style.transform = ''; }, 90);
+  }
+  // отпустили — короткая пружинящая волна
+  function jellyEnd(st, el){
+    if(!el) return;
+    if(st) clearTimeout(st.jidle);
+    el.style.transform = ''; el.classList.remove('jelly-on');
+    if(jellyOff()) return;
+    el.classList.remove('jelly-end'); void el.offsetWidth; el.classList.add('jelly-end');
+    setTimeout(function(){ el.classList.remove('jelly-end'); }, 620);
   }
 
   /* ---------- оформление текста: шрифт, цвет, обводка ---------- */
@@ -4685,6 +4753,74 @@ public class MovingAverage : IBlock
     if(e.key === 'ArrowUp'){ e.preventDefault(); items[(i - 1 + items.length) % items.length].focus(); }
   });
   document.addEventListener('click', function(e){ if(!addMenu.hidden && !addMenu.contains(e.target) && e.target !== bAdd) closeAddMenu(); });
+  /* ---------- «Блок» → сразу варианты блоков этой среды ---------- */
+  var amSub = null, amSubT = null;
+  function blockGroups(){
+    var code = CODE_LANGS.filter(function(l){ return true; }), codeIds = code.map(function(l){ return l.id; });
+    var native = LANGS.slice(), groups = [];
+    if(ENV.id === 'code') return [{ head:'Блок с кодом', list:native }];
+    var ops = native.filter(function(l){ return l.op && (typeof GEN_OPS === 'undefined' || GEN_OPS.indexOf(l) < 0); }), gen = typeof GEN_OPS === 'undefined' ? [] : native.filter(function(l){ return GEN_OPS.indexOf(l) >= 0; });
+    var data = native.filter(function(l){ return !l.op && codeIds.indexOf(l.id) < 0; });
+    if(ops.length) groups.push({ head:ENV.ops ? 'Расчёты среды «' + ENV.short + '»' : 'Обработка', list:ops });
+    if(data.length) groups.push({ head:isDocs() ? 'Данные, документы, выгрузки' : 'Блоки', list:data });
+    if(gen.length) groups.push({ head:'Общие расчёты', list:gen });
+    groups.push({ head:'Код — выполняется вместе со схемой', list:code });
+    return groups;
+  }
+  function closeAmSub(){ clearTimeout(amSubT); if(amSub){ amSub.remove(); amSub = null; } var b = addMenu.querySelector('.am-item[data-add="block"]'); if(b) b.setAttribute('aria-expanded', 'false'); }
+  function openAmSub(btn, focus){
+    clearTimeout(amSubT);
+    if(amSub && amSub._btn === btn){ if(focus){ var f0 = amSub.querySelector('.ctx-i'); if(f0) f0.focus(); } return; }
+    closeAmSub();
+    amSub = document.createElement('div'); amSub.className = 'ctx am-sub'; amSub.setAttribute('role', 'menu'); amSub.setAttribute('aria-label', 'Варианты блоков'); amSub._btn = btn;
+    blockGroups().forEach(function(g){
+      if(!g.list.length) return;
+      var hd = document.createElement('div'); hd.className = 'ctx-h'; hd.textContent = g.head; amSub.appendChild(hd);
+      g.list.forEach(function(l){
+        var it = document.createElement('button'); it.type = 'button'; it.className = 'ctx-i am-kind' + (S.lang === l.id ? ' on' : ''); it.setAttribute('role', 'menuitem');
+        var sw = document.createElement('span'); sw.className = 'am-sw'; sw.style.background = grad(COLORS[l.id] || colorsOf({ lang:l.id }));
+        var tx = document.createElement('span'); tx.className = 'am-kt';
+        var t1 = document.createElement('b'); t1.textContent = isDocs() || ENV.id !== 'code' ? (l.name || shortName(l)) : shortName(l);
+        var t2 = document.createElement('small'); t2.textContent = String(l.tool || '').split(/[:—]/)[0].slice(0, 60);
+        tx.appendChild(t1); tx.appendChild(t2); it.appendChild(sw); it.appendChild(tx);
+        if(S.lang === l.id){ var ck = document.createElement('span'); ck.className = 'am-ck'; ck.textContent = '✓'; it.appendChild(ck); }
+        it.addEventListener('click', function(e){
+          e.stopPropagation();
+          S.lang = l.id; save('triosteum.lang.' + ENV.id, l.id); S.tool = 'block';
+          closeAmSub(); closeAddMenu(); closeLang(); hidePop();
+          if(S.view !== 'canvas'){ S.view = 'canvas'; render(); renderGraph(); } else render();
+          toast('Нажмите на доску, чтобы поставить блок «' + (l.name || shortName(l)) + '»');
+        });
+        amSub.appendChild(it);
+      });
+    });
+    amSub.addEventListener('mouseenter', function(){ clearTimeout(amSubT); });
+    amSub.addEventListener('mouseleave', function(){ amSubT = setTimeout(function(){ if(!addMenu.matches(':hover')) closeAmSub(); }, 260); });
+    amSub.addEventListener('keydown', function(e){
+      var items = Array.prototype.slice.call(amSub.querySelectorAll('.ctx-i')), i = items.indexOf(document.activeElement);
+      if(e.key === 'Escape' || e.key === 'ArrowLeft'){ e.preventDefault(); e.stopPropagation(); closeAmSub(); btn.focus(); }
+      else if(e.key === 'ArrowDown'){ e.preventDefault(); items[(i + 1) % items.length].focus(); }
+      else if(e.key === 'ArrowUp'){ e.preventDefault(); items[(i - 1 + items.length) % items.length].focus(); }
+    });
+    document.body.appendChild(amSub);
+    var r = btn.getBoundingClientRect(), mr = addMenu.getBoundingClientRect(), z = UI.scale / 100 || 1, w = amSub.offsetWidth * z, hh = amSub.offsetHeight * z;
+    var x = mr.right + 6; if(x + w > window.innerWidth - 8) x = Math.max(8, mr.left - w - 6);
+    var y = Math.max(8, Math.min(r.top - 8, window.innerHeight - hh - 8));
+    amSub.style.left = x / z + 'px'; amSub.style.top = y / z + 'px';
+    btn.setAttribute('aria-haspopup', 'menu'); btn.setAttribute('aria-expanded', 'true');
+    if(focus){ var f = amSub.querySelector('.ctx-i'); if(f) f.focus(); }
+  }
+  (function(){
+    var bb = addMenu.querySelector('.am-item[data-add="block"]');
+    bb.addEventListener('mouseenter', function(){ openAmSub(bb); });
+    bb.addEventListener('focus', function(){ if(bb.matches(':focus-visible')) openAmSub(bb); });
+    bb.addEventListener('keydown', function(e){ if(e.key === 'ArrowRight' || e.key === 'Enter' && false){ e.preventDefault(); openAmSub(bb, true); } });
+    Array.prototype.forEach.call(addMenu.querySelectorAll('.am-item:not([data-add="block"])'), function(o){ o.addEventListener('mouseenter', function(){ amSubT = setTimeout(closeAmSub, 120); }); o.addEventListener('focus', closeAmSub); });
+    addMenu.addEventListener('mouseleave', function(){ amSubT = setTimeout(function(){ if(!(amSub && amSub.matches(':hover'))) closeAmSub(); }, 260); });
+    var _closeAddMenu = closeAddMenu;
+    closeAddMenu = function(){ closeAmSub(); _closeAddMenu(); };
+    document.addEventListener('click', function(e){ if(amSub && !amSub.contains(e.target) && !addMenu.contains(e.target)) closeAmSub(); });
+  })();
 
   /* ---------- горячие клавиши (Windows: Ctrl, Mac: ⌘) ---------- */
   var IS_MAC = /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent || '');
@@ -4701,6 +4837,7 @@ public class MovingAverage : IBlock
     'Shift+клик, Shift+рамка — выделить несколько',
     'Двойной клик по блоку — открыть (блок другой среды — в его родной среде)',
     'Зажать блок и потрясти — связи перейдут на узел; потрясти узел — связи отцепятся',
+    'Точка на связи: потрясти — отцепить блоки (пустая — снять); утянуть от связи — станет узлом',
     'Стрелки — сдвинуть (Shift — на 10)',
     'Delete / Backspace — удалить',
     'Esc — закрыть окно или снять выделение'
@@ -10969,6 +11106,7 @@ public class MovingAverage : IBlock
       d.moved = true; clearTimeout(lp);
       var z = UI.scale / 100 || 1;
       d.group.forEach(function(g){ g.f.x = Math.max(0, Math.round(g.x + dx)); g.f.y = Math.max(0, Math.round(g.y + dy)); if(g.el){ g.el.style.left = g.f.x + 'px'; g.el.style.top = g.f.y + 'px'; g.el.classList.add('drag'); } });
+      var pel = d.group.filter(function(g){ return g.f === d.f; })[0]; jellyMove(d, e, pel && pel.el);
       var under = document.elementsFromPoint(e.clientX, e.clientY).filter(function(x){ return x.classList && x.classList.contains('fcard') && OF.sel.indexOf(x.dataset.fid) < 0; })[0];
       Array.prototype.forEach.call(document.querySelectorAll('.fcard.drop'), function(x){ x.classList.remove('drop'); });
       d.over = null;
@@ -10978,6 +11116,7 @@ public class MovingAverage : IBlock
       var d = OF.drag; OF.drag = null; clearTimeout(lp); if(!d) return;
       Array.prototype.forEach.call(document.querySelectorAll('.fcard.drag,.fcard.drop'), function(x){ x.classList.remove('drag', 'drop'); });
       if(d.moved){
+        var pel2 = d.group.filter(function(g){ return g.f === d.f; })[0]; jellyEnd(d, pel2 && pel2.el);
         if(d.over){ ofMoveTo(d.group.map(function(g){ return g.f.id; }), d.over.id); toast('Перемещено в «' + d.over.name + '»'); }
         else saveGraph();
         return;
@@ -12390,8 +12529,9 @@ public class MovingAverage : IBlock
           grp.forEach(function(g){ g.o.x = Math.round(g.x + dx); g.o.y = Math.round(g.y + dy); if(g.el){ g.el.style.left = g.o.x + 'px'; g.el.style.top = g.o.y + 'px'; } });
           fmSyncNotes(); fmDrawEdges(fmEdges());
           if(node && !dg.shook && fmShakeTrack(dg, ev)){ fmShakeFile(ofFile(id), node); }
+          if(moved) jellyMove(dg, ev, node || note);
         };
-        var up = function(){ document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); if(moved) saveGraph(); };
+        var up = function(){ document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); if(moved){ jellyEnd(dg, node || note); saveGraph(); } };
         document.addEventListener('pointermove', mv); document.addEventListener('pointerup', up); return;
       }
       FM.selE = null;

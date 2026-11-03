@@ -257,7 +257,7 @@
   @keyframes howIn{from{opacity:0}to{opacity:1}}
   .how-card{width:min(480px,94vw);max-height:84vh;overflow:auto;background:var(--panel);border:1px solid var(--line2);border-radius:16px;box-shadow:0 24px 60px rgba(0,0,0,.5);padding:16px}
   .how-h{display:flex;align-items:flex-start;gap:10px;margin-bottom:12px}.how-h>div{flex:1;min-width:0}
-  .how-h h2{margin:0;font:600 16px var(--ui,system-ui);color:var(--ink-strong)}
+  .how-h h2{margin:0;font:600 16px Inter,system-ui,sans-serif;color:var(--ink-strong)}
   .how-h p{margin:4px 0 0;font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .how-list{display:flex;flex-direction:column;gap:6px}
   .how-i{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:10px 12px;border-radius:11px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer;font:inherit}

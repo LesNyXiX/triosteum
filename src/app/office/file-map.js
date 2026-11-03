@@ -190,8 +190,9 @@
           grp.forEach(function(g){ g.o.x = Math.round(g.x + dx); g.o.y = Math.round(g.y + dy); if(g.el){ g.el.style.left = g.o.x + 'px'; g.el.style.top = g.o.y + 'px'; } });
           fmSyncNotes(); fmDrawEdges(fmEdges());
           if(node && !dg.shook && fmShakeTrack(dg, ev)){ fmShakeFile(ofFile(id), node); }
+          if(moved) jellyMove(dg, ev, node || note);
         };
-        var up = function(){ document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); if(moved) saveGraph(); };
+        var up = function(){ document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); if(moved){ jellyEnd(dg, node || note); saveGraph(); } };
         document.addEventListener('pointermove', mv); document.addEventListener('pointerup', up); return;
       }
       FM.selE = null;

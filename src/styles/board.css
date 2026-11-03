@@ -141,5 +141,14 @@
   .note.imgnote img{display:block;max-width:420px;width:260px;border-radius:6px;pointer-events:none;user-select:none}
   .note.imgnote img + *{margin-top:4px}
   /* блок другой среды: метка родной среды */
-  .node .env-tag{position:absolute;left:10px;bottom:-9px;padding:1px 7px;border-radius:8px;font:600 9.5px/14px var(--ui,system-ui);letter-spacing:.02em;background:var(--tipbg);color:var(--c1);border:1px solid color-mix(in srgb,var(--c1) 60%,var(--line2));pointer-events:none;white-space:nowrap}
+  .node .env-tag{position:absolute;left:10px;bottom:-9px;padding:1px 7px;border-radius:8px;font:600 9.5px/14px Inter,system-ui,sans-serif;letter-spacing:.02em;background:var(--tipbg);color:var(--c1);border:1px solid color-mix(in srgb,var(--c1) 60%,var(--line2));pointer-events:none;white-space:nowrap}
   .node.bridged{box-shadow:0 0 0 2px var(--c1),0 10px 26px rgba(0,0,0,.35)}
+  /* меню «Добавление элементов» → варианты блоков */
+  .am-sub{z-index:96;max-height:calc(100vh - 16px);overflow-y:auto;min-width:270px;max-width:340px}
+  .am-sub .am-kind{display:flex;align-items:center;gap:10px}
+  .am-sub .am-sw{flex:none;width:12px;height:12px;border-radius:4px}
+  .am-sub .am-kt{display:flex;flex-direction:column;min-width:0;flex:1;text-align:left}
+  .am-sub .am-kt b{font-weight:600;font-size:13px;color:var(--ink-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .am-sub .am-kt small{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .am-sub .am-ck{color:var(--red);font-weight:700}
+  .am-sub .am-kind.on{background:color-mix(in srgb,var(--red) 10%,transparent)}
