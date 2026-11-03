@@ -39,6 +39,7 @@
     "app/ui/font-size.js",
     "app/ui/add-menu.js",
     "app/ui/hotkeys.js",
+    "app/editor/highlight.js",
     "app/editor/new-plugin.js",
     "app/editor/code-editor.js",
     "app/editor/run.js",

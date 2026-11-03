@@ -107,9 +107,34 @@
   .opt.on .chk{visibility:visible}
 
   .work{flex:1;min-height:0;display:flex;gap:16px;padding:16px;flex-wrap:wrap}
-  .code-box{flex:999 1 480px;min-width:0;min-height:240px;display:flex;border-radius:12px;border:1px solid var(--line);background:color-mix(in srgb,var(--panel) 94%,transparent);overflow:hidden}
-  .gutter{flex:none;margin:0;padding:16px 12px 16px 16px;text-align:right;font-family:var(--mono);font-size:var(--code-fs,14px);line-height:calc(var(--code-fs,14px) * 1.57);color:var(--dim);user-select:none;border-right:1px solid var(--line);overflow:hidden;white-space:pre}
-  textarea.code{flex:1;min-width:0;margin:0;padding:16px;border:0;outline:none;resize:none;background:transparent;color:var(--ink-strong);caret-color:var(--red-soft);font-family:var(--mono);font-size:var(--code-fs,14px);line-height:calc(var(--code-fs,14px) * 1.57);white-space:pre;overflow:auto;tab-size:4}
+  .code-box{flex:999 1 480px;min-width:0;min-height:240px;height:100%;box-sizing:border-box;display:flex;flex-direction:column;border-radius:12px;border:1px solid var(--ide-border,var(--line));background:var(--ide-bg,color-mix(in srgb,var(--panel) 94%,transparent));overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+  .ide-bar{flex:none;display:flex;align-items:flex-end;gap:10px;height:32px;padding:0 10px;background:var(--ide-bar,var(--panel));color:var(--ide-bar-fg,var(--ink));font:12px/1 Inter,system-ui,sans-serif;border-bottom:1px solid var(--ide-border,var(--line))}
+  .ide-file{align-self:flex-end;padding:8px 14px 7px;border-radius:7px 7px 0 0;background:var(--ide-bg);color:var(--ide-fg);font-family:var(--ide-font,var(--mono));font-size:12px;border:1px solid var(--ide-border);border-bottom:0;margin-bottom:-1px;position:relative}
+  .ide-file::before{content:"";display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:8px;background:var(--h-kw,var(--red));vertical-align:1px}
+  .ide-name{margin-left:auto;align-self:center;opacity:.7;letter-spacing:.02em}
+  .code-body{flex:1;min-height:0;display:flex;overflow:hidden}
+  @media (max-width:900px){ .code-box{height:auto;min-height:55vh} .code-body{contain:size} }
+  .gutter{flex:none;margin:0;padding:16px 12px 16px 16px;text-align:right;font-family:var(--ide-font,var(--mono));font-size:var(--code-fs,14px);line-height:calc(var(--code-fs,14px) * 1.57);color:var(--ide-gut-fg,var(--dim));background:var(--ide-gut-bg,transparent);user-select:none;border-right:1px solid var(--ide-border,var(--line));overflow:hidden;white-space:pre}
+  .code-wrap{position:relative;flex:1;min-width:0;overflow:hidden}
+  .code-hl{position:absolute;left:0;top:0;margin:0;padding:16px;min-width:100%;box-sizing:border-box;font-family:var(--ide-font,var(--mono));font-size:var(--code-fs,14px);line-height:calc(var(--code-fs,14px) * 1.57);white-space:pre;tab-size:4;color:var(--ide-fg,var(--ink-strong));pointer-events:none;will-change:transform}
+  .code-cur{position:absolute;left:0;right:0;background:var(--ide-line,transparent);pointer-events:none}
+  textarea.code{position:relative;z-index:1;display:block;width:100%;height:100%;box-sizing:border-box;margin:0;padding:16px;border:0;outline:none;resize:none;background:transparent;color:transparent;-webkit-text-fill-color:transparent;caret-color:var(--ide-caret,var(--red-soft));font-family:var(--ide-font,var(--mono));font-size:var(--code-fs,14px);line-height:calc(var(--code-fs,14px) * 1.57);white-space:pre;overflow:auto;tab-size:4}
+  textarea.code::selection{background:var(--ide-sel);-webkit-text-fill-color:transparent;color:transparent}
+  /* цвета подсветки — из профиля среды (PyCharm, Visual Studio, VS Code, Конфигуратор 1С) */
+  .ide .h-kw{color:var(--h-kw)}.ide .h-ctl{color:var(--h-ctl,var(--h-kw))}.ide .h-type{color:var(--h-type,inherit)}.ide .h-fn{color:var(--h-fn,inherit)}
+  .ide .h-str{color:var(--h-str)}.ide .h-num{color:var(--h-num)}.ide .h-com{color:var(--h-com)}.ide .h-doc{color:var(--h-doc,var(--h-com))}
+  .ide .h-deco{color:var(--h-deco,inherit)}.ide .h-bi{color:var(--h-bi,inherit)}.ide .h-self{color:var(--h-self,inherit)}.ide .h-op{color:var(--h-op,inherit)}
+  .ide .h-const{color:var(--h-const,inherit)}.ide .h-param{color:var(--h-param,inherit)}.ide .h-esc{color:var(--h-esc,inherit)}.ide .h-pre{color:var(--h-pre,inherit)}.ide .h-inc{color:var(--h-inc,var(--h-str))}
+  .ide .h-tag{color:var(--h-tag)}.ide .h-attr{color:var(--h-attr)}.ide .h-aval{color:var(--h-aval)}.ide .h-punct{color:var(--h-punct)}.ide .h-ent{color:var(--h-ent)}
+  .ide .h-var{color:var(--h-var,inherit)}.ide .h-prop{color:var(--h-prop,inherit)}.ide .h-cssval{color:var(--h-cssval,inherit)}.ide .h-sel{color:var(--h-sel,inherit)}.ide .h-key{color:var(--h-key,inherit)}
+  .ide .h-id{color:var(--h-id,inherit)}.ide .h-date{color:var(--h-date,inherit)}.ide .h-qkw{color:var(--h-qkw,inherit)}.ide .h-call{color:var(--h-call,inherit)}
+  .ide[data-ide="python"] .h-com,.ide[data-ide="python"] .h-doc{font-style:italic}
+  .ide[data-ide="python"] .h-kw{font-weight:400}
+  .ide[data-ide="1c"] .h-kw,.ide[data-ide="1c"] .h-op{font-weight:400}
+  pre.ide-pre{background:var(--ide-bg);color:var(--ide-fg);font-family:var(--ide-font,var(--mono));border:1px solid var(--ide-border);border-radius:8px;padding:12px 14px;white-space:pre;overflow:auto;line-height:1.55}
+  #editor.ide .console-head{background:var(--ide-bar);color:var(--ide-bar-fg)}
+  .ide-chip{display:inline-flex;max-width:100%;box-sizing:border-box;overflow:hidden;align-items:center;gap:3px;margin-top:6px;padding:3px 7px;border-radius:6px;border:1px solid;font:600 10.5px/1.2 Inter,system-ui,sans-serif;white-space:nowrap}
+  .ide-chip i{width:6px;height:6px;border-radius:50%;flex:none}.ide-chip span{margin-left:4px;overflow:hidden;text-overflow:ellipsis}
   .preview{flex:1 1 360px;min-width:0;min-height:240px;display:flex;flex-direction:column;border-radius:12px;border:1px solid var(--line);overflow:hidden;background:#fff}
   .preview .ph{padding:8px 12px;font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);background:var(--panel);border-bottom:1px solid var(--line)}
   .preview iframe{flex:1;width:100%;border:0;background:#fff}

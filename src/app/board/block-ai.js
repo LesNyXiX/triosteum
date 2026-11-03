@@ -52,7 +52,7 @@
     box.innerHTML = '';
     text.split(FENCE).forEach(function(part, i){
       if(i % 2 === 0){ var t = part.replace(/^\n+|\n+$/g, ''); if(t) box.appendChild(document.createTextNode(t + '\n')); }
-      else { var pre = document.createElement('pre'); pre.textContent = part.replace(/^[^\n]*\n/, ''); box.appendChild(pre); }
+      else { var pre = document.createElement('pre'), tag = (/^([^\n]*)\n/.exec(part) || [])[1], body = part.replace(/^[^\n]*\n/, ''), lg = langOfFence(tag) || (typeof docNode === 'function' && docNode() ? docNode().lang : null); if(lg && (IDE[lg] || lg === 'json')) hlBlock(pre, body, lg); else pre.textContent = body; box.appendChild(pre); }
     });
   }
   function aiFail(err){

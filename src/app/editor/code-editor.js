@@ -21,6 +21,28 @@
     for(var i=1;i<=n;i++){ s += i + (i<n ? '\n' : ''); }
     el.gutter.textContent = s;
     el.gutter.scrollTop = el.code.scrollTop;
+    paintCode();
+  }
+  // подсветка кода и оформление среды по языку блока или плагина
+  var paintRaf = 0;
+  function paintCode(){
+    if(paintRaf) return;
+    paintRaf = requestAnimationFrame(function(){
+      paintRaf = 0;
+      var l = cur(), id = l ? l.id : 'python', box = $('codeBox'), hl = $('codeHl');
+      if(!box || !hl) return;
+      if(box.getAttribute('data-ide') !== id){ applyIde(box, id); applyIde(el.editor, id); var p = ideFor(id); $('ideName').textContent = p.ide + ' · ' + p.theme; }
+      $('ideFile').textContent = fileName();
+      hl.innerHTML = hlCode(el.code.value, id) + '\n';
+      syncCodeScroll(); markCurLine();
+    });
+  }
+  function syncCodeScroll(){ var hl = $('codeHl'); if(!hl) return; hl.style.transform = 'translate(' + (-el.code.scrollLeft) + 'px,' + (-el.code.scrollTop) + 'px)'; el.gutter.scrollTop = el.code.scrollTop; markCurLine(); }
+  function markCurLine(){
+    var c = $('codeCur'); if(!c) return;
+    var line = el.code.value.slice(0, el.code.selectionStart).split('\n').length - 1, lh = parseFloat(getComputedStyle(el.code).lineHeight) || 22;
+    c.style.top = (16 + line * lh - el.code.scrollTop) + 'px'; c.style.height = lh + 'px';
+    c.hidden = document.activeElement !== el.code;
   }
   var previewTimer = null;
   function updatePreview(now){
@@ -133,7 +155,8 @@
   document.addEventListener('click', function(e){ if(S.langOpen && !el.langList.contains(e.target)) closeLang(); });
 
   el.code.addEventListener('input', function(){ setCode(el.code.value); updateGutter(); updatePreview(false); status(); });
-  el.code.addEventListener('scroll', function(){ el.gutter.scrollTop = el.code.scrollTop; });
+  el.code.addEventListener('scroll', syncCodeScroll);
+  ['keyup', 'click', 'focus', 'blur', 'select'].forEach(function(ev){ el.code.addEventListener(ev, markCurLine); });
   el.code.addEventListener('keydown', function(e){
     if(e.key === 'Tab' && !e.shiftKey){
       e.preventDefault();

@@ -1,23 +1,22 @@
   /* ---------- встряхивание: зажать блок и потрясти ----------
      Блок: все его связи переходят на новую связующую точку на его месте —
      ничего не теряется, блок свободен. Точка: все её связи отцепляются. */
-  var SHAKE = { flips:4, minRun:14, window:1000 };
-  // распознавание встряхивания: несколько резких разворотов движения за короткое время —
-  // в любом направлении (влево-вправо, вверх-вниз, по диагонали)
+  var SHAKE = { flips:3, minRun:16, window:1100 };
+  // распознавание встряхивания: смены направления по каждой оси отдельно — работает и для
+  // диагональной тряски, и для коротких быстрых движений мышью или пальцем
   function shakeDetect(sh, e){
     var now = performance.now();
-    if(sh.x === undefined){ sh.x = e.clientX; sh.y = e.clientY; sh.dx = 0; sh.dy = 0; sh.pdx = 0; sh.pdy = 0; sh.plen = 0; sh.flips = []; return false; }
-    var mx = e.clientX - sh.x, my = e.clientY - sh.y; sh.x = e.clientX; sh.y = e.clientY;
-    if(Math.abs(mx) + Math.abs(my) < 1.5) return false;
-    var len = Math.hypot(sh.dx, sh.dy);
-    // текущий отрезок продолжается, пока направление не развернулось больше чем на ~110°
-    if(len > 0 && (mx * sh.dx + my * sh.dy) / (Math.hypot(mx, my) * len) < -0.35){
-      if(len >= SHAKE.minRun && sh.plen >= SHAKE.minRun * 0.6 && (sh.dx * sh.pdx + sh.dy * sh.pdy) / (len * sh.plen) < -0.2) sh.flips.push(now);
-      else if(len >= SHAKE.minRun && !sh.plen) sh.flips.push(now);
-      sh.pdx = sh.dx; sh.pdy = sh.dy; sh.plen = len; sh.dx = mx; sh.dy = my;
-    } else { sh.dx += mx; sh.dy += my; }
+    if(sh.x === undefined){ sh.x = e.clientX; sh.y = e.clientY; sh.ax = { dir:0, run:0 }; sh.ay = { dir:0, run:0 }; sh.flips = []; return false; }
+    var dx = e.clientX - sh.x, dy = e.clientY - sh.y; sh.x = e.clientX; sh.y = e.clientY;
+    [[sh.ax, dx], [sh.ay, dy]].forEach(function(p){
+      var a = p[0], d = p[1]; if(Math.abs(d) < 1) return;
+      var dir = Math.sign(d);
+      if(a.dir && dir !== a.dir){ if(a.run >= SHAKE.minRun) sh.flips.push(now); a.run = 0; }
+      a.dir = dir; a.run += Math.abs(d);
+    });
     sh.flips = sh.flips.filter(function(t){ return now - t < SHAKE.window; });
-    return sh.flips.length >= SHAKE.flips;
+    if(sh.flips.length >= SHAKE.flips){ sh.flips = []; return true; }
+    return false;
   }
   function shakeTrack(dg, e){
     if(dg.shook || dg.type !== 'node' || dg.group) return false;

@@ -116,7 +116,7 @@
       b.appendChild(h('div', { 'class':'bld-issue info', text:isDocs() ? 'ИИ ещё не писал регламент для этой схемы. Он прочитает шаблоны, таблицы и этапы и напишет положение о процессе: участники, ответственность, порядок, сроки, контроль.' : 'ИИ ещё не писал бэкенд для этой схемы. Он прочитает все блоки и связи и напишет единый файл с конвейером, обработкой ошибок и подключением к 1С и серверным модулям.' }));
     }
     if(code !== null){
-      var pre = h('pre', { 'class':'sc-code', tabindex:'0', 'aria-label':'Код схемы' }); pre.textContent = code;
+      var pre = h('pre', { 'class':'sc-code', tabindex:'0', 'aria-label':'Код схемы' }); if(isDocs()) pre.textContent = code; else hlBlock(pre, code, 'python');
       b.appendChild(pre);
       b.appendChild(h('div', { 'class':'bld-stat', text:'Строк: ' + code.split('\n').length }));
     }

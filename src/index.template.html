@@ -128,10 +128,17 @@
       </div>
 
       <div class="work">
-        <div class="code-box">
-          <pre class="gutter" id="gutter" aria-hidden="true">1</pre>
-          <label for="code" class="sr">Код плагина</label>
-          <textarea class="code" id="code" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>
+        <div class="code-box ide" id="codeBox">
+          <div class="ide-bar" id="ideBar"><span class="ide-file" id="ideFile">plugin.py</span><span class="ide-name" id="ideName">PyCharm · Darcula</span></div>
+          <div class="code-body">
+            <pre class="gutter" id="gutter" aria-hidden="true">1</pre>
+            <div class="code-wrap">
+              <div class="code-cur" id="codeCur" aria-hidden="true"></div>
+              <pre class="code-hl" id="codeHl" aria-hidden="true"></pre>
+              <label for="code" class="sr">Код плагина</label>
+              <textarea class="code" id="code" spellcheck="false" autocomplete="off" autocapitalize="off" wrap="off"></textarea>
+            </div>
+          </div>
         </div>
         <div class="dpane" id="docPane" hidden>
           <div class="dp-tools" id="dpTools" role="toolbar" aria-label="Оформление документа">

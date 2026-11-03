@@ -50,6 +50,16 @@ await page.mouse.move(mid.x, mid.y); await page.mouse.down(); await page.mouse.m
 await page.keyboard.press('Escape'); await page.waitForTimeout(150);
 check(await tlinks() === 1, 'отросток к точке 2 снимается протягиванием');
 
+console.log('Встряхивание по диагонали (как на видео)');
+await page.keyboard.press('Escape');
+const before2 = await page.$$eval('.edge-g', (x) => x.length);
+const hb = await page.locator('#nodes .node', { hasText: 'Python верх' }).boundingBox();
+let sx = hb.x + 100, sy = hb.y + 30; await page.mouse.move(sx, sy); await page.mouse.down();
+for (let i = 0; i < 6; i++) await page.mouse.move(sx + (i % 2 ? -70 : 70) + i * 4, sy + (i % 2 ? -45 : 45), { steps: 4 });
+await page.mouse.up(); await page.waitForTimeout(300);
+check(await page.$$eval('#nodes .node.hub', (x) => x.length) >= 1 && await page.$$eval('.edge-g', (x) => x.length) === before2, 'диагональная тряска блока — связи перешли на узел');
+await page.keyboard.press('Control+z'); await page.waitForTimeout(300);
+
 console.log('Желе');
 const nb = await page.locator('#nodes .node', { hasText: 'C#' }).boundingBox();
 await page.mouse.move(nb.x + 100, nb.y + 30); await page.mouse.down();
