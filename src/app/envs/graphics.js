@@ -25,10 +25,11 @@
     ofOpen(f.id); toast('Открыт пример: попробуйте кисть (B), выделение (M) и меню «Коррекция»');
   }
   function gfxLogo(){
-    return { w:600, h:600, bg:'transparent', items:[
-      { id:'g1', t:'ellipse', name:'Круг', x:60, y:60, w:480, h:480, r:0, fill:'#0F172A', fill2:'#1E40AF', gang:45, stroke:'#FFFFFF', sw:10, op:1, shadow:{ dx:6, dy:10, b:14, c:'#000000', o:0.35 } },
-      { id:'g2', t:'star', name:'Звезда', x:170, y:150, w:260, h:250, r:0, n:5, ir:0.45, fill:'#FBBF24', fill2:'#F97316', gang:90, stroke:'#FFFFFF', sw:4, op:1 },
-      { id:'g3', t:'text', name:'Надпись', text:'ТРИОСТЕУМ', x:155, y:430, w:290, h:46, r:0, fill:'#FFFFFF', stroke:'#000000', sw:0, fs:40, ff:'Inter, system-ui, sans-serif', fw:true, op:1 }
+    var t = { id:'g3', t:'text', name:'Надпись', text:'Triosteum', x:110, y:440, w:380, h:80, r:0, fill:'#F7F1F2', stroke:'#000000', sw:0, fs:72, ff:'Inter, system-ui, sans-serif', fw:true, op:1 };
+    veTextBox(t); t.x = (600 - t.w) / 2;
+    return { w:600, h:600, bg:'#12070B', items:[
+      { id:'g1', t:'svg', name:'Знак Triosteum', vb:'0 0 200 200', markup:'<g transform="translate(0.00 0.00) scale(1.0000)"><path d="M22.07 61.83 A150 150 0 0 1 177.93 61.83" stroke="#D7263D" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M35.58 84.05 A124 124 0 0 1 57.45 73.53 A22 22 0 0 1 87.00 94.19 L87.00 182" stroke="#E8566A" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M164.42 84.05 A124 124 0 0 0 142.55 73.53 A22 22 0 0 0 113.00 94.19 L113.00 182" stroke="#F39AA8" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g>', x:150, y:70, w:300, h:300, r:0, op:1 },
+      t
     ] };
   }
   function gfxSeedVector(){

@@ -17,7 +17,7 @@ from urllib.parse import urlsplit
 
 import httpx
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 
@@ -198,6 +198,18 @@ def index(request: Request):
     tag = "<script>window.TRIOSTEUM_BOOT = " + json.dumps(boot, ensure_ascii=False).replace("<", "\\u003c") + ";</script>"
     html = read_html(settings.client_html).replace("<!--@@BOOT@@-->", tag, 1)
     return HTMLResponse(html, headers={"Cache-Control": "no-store"})
+
+
+BRAND_DIR = Path(__file__).parent / "static" / "brand"
+
+
+@app.get("/brand/{name}")
+def brand_file(name: str):
+    """Логотип и иконки: для писем, страницы входа и закладок браузера."""
+    path = BRAND_DIR / name
+    if not re.fullmatch(r"[a-z0-9-]+\.(png|svg)", name) or not path.is_file():
+        raise HTTPException(404, "Нет такого файла")
+    return FileResponse(path, headers={"Cache-Control": "public, max-age=604800"})
 
 
 @app.get("/login", response_class=HTMLResponse)

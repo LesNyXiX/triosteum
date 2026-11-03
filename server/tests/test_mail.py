@@ -122,3 +122,13 @@ def test_forgot_without_mail(client, monkeypatch):
     monkeypatch.delenv("SMTP_HOST", raising=False)
     assert client.post("/api/auth/forgot", json={"email": "a@b.ru"}).status_code == 503
     assert client.get("/api/auth/options").json() == {"mail": False}
+
+
+def test_brand_files_and_mail_logo(client, monkeypatch):
+    r = client.get("/brand/mark-96.png")
+    assert r.status_code == 200 and r.headers["content-type"] == "image/png"
+    assert client.get("/brand/../main.py").status_code == 404
+    assert client.get("/brand/nope.png").status_code == 404
+    monkeypatch.setenv("PUBLIC_URL", "https://triosteum.example.ru")
+    from app import mail
+    assert 'src="https://triosteum.example.ru/brand/mark-96.png"' in mail._layout("Т", ["x"], "Открыть", "https://a", "f")

@@ -3,7 +3,7 @@
     background:radial-gradient(1100px 600px at 18% -10%,color-mix(in srgb,var(--red) 22%,transparent),transparent 70%),var(--bg)}
   .welcome .wc-card{width:100%;max-width:420px;background:var(--panel);border:1px solid var(--line2);border-radius:22px;padding:32px 28px;box-shadow:0 24px 60px rgba(0,0,0,.45)}
   .wc-brand{display:flex;align-items:center;gap:10px;margin-bottom:22px;font-weight:700;font-size:18px;color:var(--ink-strong)}
-  .wc-logo{width:28px;height:28px;border-radius:8px;background:var(--red)}
+  .wc-logo{flex:none;width:34px;height:30px;display:block}
   .welcome h1{margin:0 0 6px;font-size:22px;color:var(--ink-strong)}
   .welcome .wc-sub{margin:0 0 22px;color:var(--dim);font-size:14px;line-height:1.5}
   .welcome label{display:block;margin:0 0 6px;font-size:13px;color:var(--dim)}

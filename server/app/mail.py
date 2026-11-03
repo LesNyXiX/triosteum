@@ -50,14 +50,21 @@ def send(to: str, subject: str, text: str, html_body: str) -> None:
             s.send_message(msg)
 
 
+def _mark() -> str:
+    base = public_url('')
+    if base:
+        return f'<img src="{html.escape(base, quote=True)}/brand/mark-96.png" width="24" height="24" alt="" style="vertical-align:-5px;margin-right:8px;border:0">'
+    return '<span style="display:inline-block;width:18px;height:18px;border-radius:5px;background:#C21F38;vertical-align:-3px;margin-right:8px"></span>'
+
+
 def _layout(title: str, lines: list[str], button: str, link: str, foot: str) -> str:
     p = "".join(f'<p style="margin:0 0 14px;font-size:15px;line-height:1.55;color:#3b2a2e">{html.escape(t)}</p>' for t in lines)
     return f"""<!DOCTYPE html><html lang="ru"><body style="margin:0;padding:24px;background:#f5eff0;font-family:Arial,Helvetica,sans-serif">
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center">
 <table role="presentation" width="100%" style="max-width:520px;background:#ffffff;border-radius:16px;padding:32px" cellspacing="0" cellpadding="0"><tr><td>
-<div style="font-weight:700;font-size:18px;color:#12090b;margin-bottom:20px"><span style="display:inline-block;width:18px;height:18px;border-radius:5px;background:#dc2626;vertical-align:-3px;margin-right:8px"></span>Triosteum</div>
+<div style="font-weight:700;font-size:18px;color:#12090b;margin-bottom:20px">{_mark()}Triosteum</div>
 <h1 style="margin:0 0 14px;font-size:21px;color:#12090b">{html.escape(title)}</h1>{p}
-<p style="margin:22px 0"><a href="{html.escape(link, quote=True)}" style="display:inline-block;padding:12px 22px;border-radius:10px;background:#dc2626;color:#ffffff;font-weight:700;text-decoration:none">{html.escape(button)}</a></p>
+<p style="margin:22px 0"><a href="{html.escape(link, quote=True)}" style="display:inline-block;padding:12px 22px;border-radius:10px;background:#C21F38;color:#ffffff;font-weight:700;text-decoration:none">{html.escape(button)}</a></p>
 <p style="margin:0 0 6px;font-size:12px;color:#8a7177">Если кнопка не открывается, скопируйте ссылку в браузер:</p>
 <p style="margin:0 0 18px;font-size:12px;word-break:break-all"><a href="{html.escape(link, quote=True)}" style="color:#b91c1c">{html.escape(link)}</a></p>
 <p style="margin:0;font-size:12px;color:#8a7177">{html.escape(foot)}</p>

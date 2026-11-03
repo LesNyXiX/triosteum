@@ -68,6 +68,8 @@
     root.setProperty('--red', P.red); root.setProperty('--red-btn', P.btn); root.setProperty('--red-btn-h', P.btnH); root.setProperty('--red-soft', P.soft);
     root.setProperty('--wine', P.wine); root.setProperty('--wine2', P.wine2); root.setProperty('--on-wine', P.onWine); root.setProperty('--on-accent', P.onAcc);
     root.setProperty('--danger', th.light ? '#B91C1C' : '#FCA5A5');
+    // цвета знака Triosteum: на светлой теме — более тёмная версия
+    root.setProperty('--lg1', th.light ? '#B01C33' : '#D7263D'); root.setProperty('--lg2', th.light ? '#D7263D' : '#E8566A'); root.setProperty('--lg3', th.light ? '#E8566A' : '#F39AA8');
     root.setProperty('--okc', th.light ? '#15803D' : '#86EFAC'); root.setProperty('--warnc', th.light ? '#A16207' : '#FCD34D');
     document.body.classList.toggle('noanim', UI.anim === false); document.body.classList.toggle('noglow', UI.glow === false);
     root.setProperty('--edge-w', (UI.edgeW || 2.5) + 'px');

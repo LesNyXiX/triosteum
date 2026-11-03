@@ -17,7 +17,7 @@
       h('button', { 'class':'wc-go', type:'submit', text:editing ? 'Сохранить' : 'Начать работу' })
     ]);
     box.appendChild(h('main', { 'class':'wc-card' }, [
-      h('div', { 'class':'wc-brand' }, [ h('span', { 'class':'wc-logo', 'aria-hidden':'true' }), h('span', { text:'Triosteum' }) ]),
+      h('div', { 'class':'wc-brand' }, [ h('span', { 'class':'wc-logo', 'aria-hidden':'true', html:'<svg class="wc-logo" viewBox="0 0 176 164"><use href="#tMark"/></svg>' }), h('span', { text:'Triosteum' }) ]),
       h('h1', { id:'wcTitle', text:editing ? 'Профиль' : 'Добро пожаловать' }),
       h('p', { 'class':'wc-sub', text:editing ? 'Имя и организация видны в меню пространств.' : 'Платформа для предприятия: блоки кода, документы, таблицы и маршруты согласования в одном месте. Представьтесь, чтобы начать.' }),
       form,
