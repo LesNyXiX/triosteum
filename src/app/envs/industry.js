@@ -180,16 +180,6 @@
         if(gap) ctx.log('кассовый разрыв с ' + gap + ', минимум ' + money(minB) + ' руб.', 'warn');
         ctx.info = 'Остаток на конец: ' + money(bal) + ' руб.' + (gap ? ' · разрыв с ' + gap : ''); ctx.table(ctx.name, out); return out;
       }, function(p){ return 'остаток на начало ' + money(+p.open || 0) + ' руб.'; }),
-    opKind('planfact', 'План-факт', 'Отклонение факта от плана и статус статьи',
-      { plan:'План', fact:'Факт', limit:10, mode:'cost' },
-      [['plan', 'План (поле)', 'f'], ['fact', 'Факт (поле)', 'f'], ['limit', 'Допустимое отклонение, %', 'n'], ['mode', 'Что это', 's', [['cost', 'расходы — плохо, если больше плана'], ['income', 'доходы — плохо, если меньше плана']]]],
-      function(rows, p, ctx){
-        var k = 0, lim = +p.limit || 0, out = rows.map(function(r){
-          var o = cpRow(r), pl = nv(r, p.plan), f = nv(r, p.fact), d = f - pl, dp = pct(d, pl, 1), bad = p.mode === 'income' ? dp < -lim : dp > lim;
-          o['Отклонение'] = r2(d); o['Отклонение, %'] = dp; o['Статус'] = bad ? (p.mode === 'income' ? 'Недовыполнение' : 'Перерасход') : 'В пределах'; if(bad) k++; return o;
-        });
-        ctx.info = 'Вне допуска: ' + k + ' из ' + out.length; ctx.table(ctx.name, out); return out;
-      }, function(p){ return (p.mode === 'income' ? 'доходы' : 'расходы') + ', допуск ' + (p.limit || 0) + '%'; }),
     opKind('aging', 'Долги по срокам', 'Дни просрочки и группы: не просрочено, до 30, 31–60, 61–90, больше 90 дней',
       { due:'Срок оплаты', sum:'Сумма' },
       [['due', 'Срок оплаты (поле)', 'f'], ['sum', 'Сумма долга (поле)', 'f']],
@@ -385,17 +375,6 @@
 
   /* ---------- аналитика и дашборды ---------- */
   var BI_OPS = [
-    opKind('join', 'Объединение по ключу', 'Склеивает таблицы по общему полю (как ВПР)',
-      { key:'Артикул' },
-      [['key', 'Общее поле', 'f']],
-      function(rows, p, ctx){
-        if(ctx.ins.length < 2){ ctx.info = 'Один вход — данные без изменений'; return rows; }
-        var base = ctx.ins[0], idx = {}, miss = 0;
-        ctx.ins.slice(1).forEach(function(set){ set.forEach(function(r){ var k = sv(r, p.key); idx[k] = idx[k] || {}; for(var f in r){ if(f.indexOf('__') !== 0) idx[k][f] = r[f]; } }); });
-        var out = base.map(function(r){ var o = cpRow(r), x = idx[sv(r, p.key)]; if(!x){ miss++; return o; } for(var f in x){ if(o[f] === undefined) o[f] = x[f]; } return o; });
-        if(miss) ctx.log('без пары: ' + miss, 'dim');
-        ctx.info = 'Объединено: ' + (out.length - miss) + ' из ' + out.length; return out;
-      }, function(p){ return 'по «' + (p.key || '?') + '»'; }),
     opKind('pivot', 'Сводная таблица', 'Строки × столбцы с суммой, как сводная в Excel',
       { rows:'Подразделение', cols:'Месяц', val:'Сумма' },
       [['rows', 'Строки (поле)', 'f'], ['cols', 'Столбцы (поле)', 'f'], ['val', 'Значение (поле)', 'f']],
@@ -404,15 +383,7 @@
         var out = gr.keys.map(function(k){ var o = {}, t = 0; o[p.rows] = k; cols.forEach(function(c){ var s = r2(gr.map[k].filter(function(r){ return (sv(r, p.cols) || '(пусто)') === c; }).reduce(function(a, r){ return a + nv(r, p.val); }, 0)); o[c] = s; t += s; }); o['Итого'] = r2(t); return o; });
         var tot = {}; tot[p.rows] = 'Итого'; cols.concat(['Итого']).forEach(function(c){ tot[c] = r2(out.reduce(function(a, r){ return a + r[c]; }, 0)); }); out.push(tot);
         ctx.info = gr.keys.length + ' × ' + cols.length; ctx.table(ctx.name, out); return out;
-      }, function(p){ return (p.rows || '?') + ' × ' + (p.cols || '?') + ': ' + (p.val || '?'); }),
-    opKind('metric', 'Показатель', 'Одно число для дашборда: итог, среднее, цель и выполнение',
-      { title:'Выручка', field:'Сумма', fn:'sum', target:0 },
-      [['title', 'Название показателя', 't'], ['field', 'Поле', 'f'], ['fn', 'Как считать', 's', FNS], ['target', 'Цель (0 — без цели)', 'n']],
-      function(rows, p, ctx){
-        var v = agg(rows.map(function(r){ return nv(r, p.field); }), p.fn), o = { 'Показатель':p.title || p.field, 'Значение':v };
-        if(+p.target){ o['Цель'] = +p.target; o['Выполнение, %'] = pct(v, +p.target, 1); }
-        ctx.info = (p.title || p.field) + ': ' + fmtCell(v) + (+p.target ? ' (' + o['Выполнение, %'] + '% цели)' : ''); return [o];
-      }, function(p){ return (p.title || '?') + (+p.target ? ', цель ' + fmtCell(+p.target) : ''); })
+      }, function(p){ return (p.rows || '?') + ' × ' + (p.cols || '?') + ': ' + (p.val || '?'); })
   ];
   var BI_LIB = [
     P('bi-sales', 'sheet', 'Продажи по месяцам', 'Выручка по подразделениям и месяцам.', tbl([
@@ -443,64 +414,64 @@
     var colors = {}, k; for(k in BASE_COLORS) colors[k] = BASE_COLORS[k]; for(k in GEN_COLORS) colors[k] = GEN_COLORS[k]; for(k in o.colors) colors[k] = o.colors[k];
     var langs = BASE_KINDS.slice(0, 2).concat(o.ops, GEN_OPS, o.step ? [K_STEP] : [], BASE_KINDS.slice(2));
     var py = DOC_PLUGINS.filter(function(p){ return p.lang === 'python'; }).slice(0, 2);
-    ENVS[id] = { id:id, name:o.name, short:o.short, color:o.color, ic:o.ic, route:true, defLang:o.ops[0].id, langs:langs, colors:colors, plugins:o.lib.concat(py),
-      desc:o.desc, hint:o.hint, examples:o.examples, demo:o.demo, theme:o.theme, newName:o.newName,
+    ENVS[id] = { id:id, name:o.name, short:o.short, color:o.color, ic:o.ic, route:true, ops:true, defLang:o.ops[0].id, langs:langs, colors:colors, plugins:o.lib.concat(py),
+      desc:o.desc, hint:o.hint, examples:o.examples, demo:o.demo, demos:[o.demo].concat(o.more || []), theme:o.theme, newName:o.newName,
       word:{ lang:'Тип', plugin:'шаблон', plugins:'шаблонов', lib:'Библиотека: ' + o.short.toLowerCase(), create:'Создать шаблон', newTitle:'Новый шаблон', kindLabel:'Тип блока', run:'Запустить схему', runSub:'Провести данные через все блоки по связям', scheme:'Регламент процесса', schemeSub:'Описание процесса: собранное из схемы и написанное ИИ', open:'Открыть', libOpen:'Просмотр' } };
   }
   industryEnv('wh', { name:'Склад и логистика', short:'Склад', color:'#F59E0B', theme:'graphite', newName:'Склад',
     ic:'<path d="M3 9l9-5 9 5v11H3z"/><path d="M8 20v-6h8v6"/>', ops:WH_OPS,
     colors:{ reorder:['#F59E0B', '#FDE68A'], pick:['#EA580C', '#FDBA74'], trips:['#0D9488', '#5EEAD4'] },
-    desc:'Остатки и точка заказа, резерв под заказы клиентов, рейсы доставки, заявки поставщикам.',
+    desc:'Точка заказа и оптимальная партия, резерв под заказы, рейсы, оборотная ведомость, инвентаризация, ABC/XYZ.',
     hint:'Соберите схему: остатки → точка заказа → заявки поставщикам; заказы + остатки → резерв → рейсы. Нажмите «Запустить».',
     examples:['Каждое утро проверять остатки и формировать заявки поставщикам на всё, что ниже точки заказа', 'Резервировать товар под заказы клиентов и разложить отгрузки по рейсам на Газелях'],
-    lib:WH_LIB, demo:{ name:'Склад — пример', spec:['wh-stock', 'wh-reorder', 'wh-need', 'wh-po', 'wh-xlsx', 'wh-orders', 'wh-pick', 'wh-trips', 'wh-chart'], links:[[0, 1], [1, 2], [2, 3], [2, 4], [0, 6], [5, 6], [6, 7], [7, 8]],
+    lib:WH_LIB, demo:{ name:'Склад — пример', menu:'закупки, резерв, рейсы', spec:['wh-stock', 'wh-reorder', 'wh-need', 'wh-po', 'wh-xlsx', 'wh-orders', 'wh-pick', 'wh-trips', 'wh-chart'], links:[[0, 1], [1, 2], [2, 3], [2, 4], [0, 6], [5, 6], [6, 7], [7, 8]],
       note:'Верхняя цепочка: остатки → что пора заказать → заявки поставщикам и план закупок. Нижняя: заказы клиентов резервируются по остаткам и раскладываются по рейсам. Нажмите «Запустить».' } });
   industryEnv('mes', { name:'Производство (MES)', short:'Производство', color:'#EF4444', theme:'graphite', newName:'Производство',
     ic:'<path d="M3 20V9l6 4V9l6 4V5h6v15z"/>', ops:MES_OPS,
     colors:{ oee:['#EF4444', '#FCA5A5'], shifts:['#F97316', '#FDBA74'], pareto:['#B91C1C', '#F87171'], defects:['#9333EA', '#D8B4FE'] },
-    desc:'OEE оборудования, сменные задания, анализ простоев по Парето, контроль брака.',
+    desc:'OEE, сменные задания, загрузка мощностей, потребность в материалах, простои, брак, надёжность оборудования.',
     hint:'Соберите схему: итоги смен → OEE → низкий OEE → диаграмма; журнал простоев → Парето; план → сменные задания. Нажмите «Запустить».',
     examples:['Считать OEE по итогам смен и показывать оборудование ниже 60%', 'Найти причины, которые дают 80% простоев, и составить акт о браке при превышении 2%'],
-    lib:MES_LIB, demo:{ name:'Производство — пример', spec:['mes-shift', 'mes-oee', 'mes-chart', 'mes-defects', 'mes-bad', 'mes-act', 'mes-down', 'mes-pareto', 'mes-pchart', 'mes-plan', 'mes-shifts', 'mes-task'], links:[[0, 1], [1, 2], [0, 3], [3, 4], [4, 5], [6, 7], [7, 8], [9, 10], [10, 11]],
+    lib:MES_LIB, demo:{ name:'Производство — пример', menu:'OEE, брак, простои, смены', spec:['mes-shift', 'mes-oee', 'mes-chart', 'mes-defects', 'mes-bad', 'mes-act', 'mes-down', 'mes-pareto', 'mes-pchart', 'mes-plan', 'mes-shifts', 'mes-task'], links:[[0, 1], [1, 2], [0, 3], [3, 4], [4, 5], [6, 7], [7, 8], [9, 10], [10, 11]],
       note:'Три цепочки: OEE по итогам смен, брак выше допуска → акты, Парето простоев, производственный план → сменные задания. Нажмите «Запустить».' } });
   industryEnv('fin', { name:'Финансы и бюджет', short:'Финансы', color:'#0EA5E9', theme:'midnight', step:true, newName:'Финансы',
     ic:'<circle cx="12" cy="12" r="8"/><path d="M9 9h4a2 2 0 010 4H9v-4zM9 13v4"/>', ops:FIN_OPS,
     colors:{ paycal:['#0EA5E9', '#7DD3FC'], planfact:['#2563EB', '#93C5FD'], aging:['#DC2626', '#FCA5A5'], alloc:['#0891B2', '#67E8F9'] },
-    desc:'Платёжный календарь и кассовые разрывы, план-факт бюджета, долги по срокам, распределение затрат.',
+    desc:'Платёжный календарь, план-факт бюджета, долги, кредиты, окупаемость проектов, акт сверки, безубыточность.',
     hint:'Соберите схему: платежи → платёжный календарь → дни с разрывом; бюджет → план-факт → перерасход → записка. Нажмите «Запустить».',
     examples:['Платёжный календарь на месяц: показать даты кассовых разрывов и согласовать перенос платежей', 'Найти просроченную дебиторку и подготовить претензии должникам'],
-    lib:FIN_LIB, demo:{ name:'Финансы — пример', spec:['fin-pay', 'fin-cal', 'fin-bal', 'fin-gap', 'fin-budget', 'fin-pf', 'fin-over', 'fin-memo', 'fin-head', 'fin-ar', 'fin-aging', 'fin-late', 'fin-claim'], links:[[0, 1], [1, 2], [1, 3], [4, 5], [5, 6], [6, 7], [7, 8], [9, 10], [10, 11], [11, 12]],
+    lib:FIN_LIB, demo:{ name:'Финансы — пример', menu:'платёжный календарь, бюджет, долги', spec:['fin-pay', 'fin-cal', 'fin-bal', 'fin-gap', 'fin-budget', 'fin-pf', 'fin-over', 'fin-memo', 'fin-head', 'fin-ar', 'fin-aging', 'fin-late', 'fin-claim'], links:[[0, 1], [1, 2], [1, 3], [4, 5], [5, 6], [6, 7], [7, 8], [9, 10], [10, 11], [11, 12]],
       note:'Платёжный календарь с остатком по дням, план-факт бюджета с записками о перерасходе и претензии по просроченным долгам. Нажмите «Запустить».' } });
   industryEnv('hr', { name:'Персонал и табель', short:'Персонал', color:'#8B5CF6', theme:'midnight', step:true, newName:'Персонал',
     ic:'<circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0112 0M17 11a3 3 0 100-6M21 20a6 6 0 00-4-5.6"/>', ops:HR_OPS,
     colors:{ timesheet:['#8B5CF6', '#C4B5FD'], payroll:['#7C3AED', '#A78BFA'], kpi:['#DB2777', '#F9A8D4'], leave:['#0D9488', '#5EEAD4'] },
-    desc:'Табель и переработки, расчёт зарплаты и расчётные листки, премии по KPI, остатки отпусков.',
+    desc:'Табель и зарплата, страховые взносы, KPI, штатное расписание и вакансии, текучесть, график отпусков.',
     hint:'Соберите схему: табель → расчёт зарплаты → листки; KPI → премия → приказ. Нажмите «Запустить».',
     examples:['Рассчитать зарплату по табелю и сформировать расчётные листки', 'Начислить премии по KPI за квартал и подготовить приказы на утверждение'],
-    lib:HR_LIB, demo:{ name:'Персонал — пример', spec:['hr-staff', 'hr-ts', 'hr-pay', 'hr-slip', 'hr-dept', 'hr-chart', 'hr-kpi', 'hr-kpi-calc', 'hr-order', 'hr-head'], links:[[0, 1], [1, 2], [2, 3], [2, 4], [4, 5], [6, 7], [7, 8], [8, 9]],
+    lib:HR_LIB, demo:{ name:'Персонал — пример', menu:'зарплата и KPI', spec:['hr-staff', 'hr-ts', 'hr-pay', 'hr-slip', 'hr-dept', 'hr-chart', 'hr-kpi', 'hr-kpi-calc', 'hr-order', 'hr-head'], links:[[0, 1], [1, 2], [2, 3], [2, 4], [4, 5], [6, 7], [7, 8], [8, 9]],
       note:'Табель → зарплата → расчётные листки и фонд по подразделениям; KPI за квартал → премии → приказы на утверждение. Нажмите «Запустить».' } });
   industryEnv('crm', { name:'Продажи и CRM', short:'Продажи', color:'#EC4899', theme:'burgundy', step:true, newName:'Продажи',
     ic:'<path d="M3 5h18l-7 8v6l-4-2v-4z"/>', ops:CRM_OPS,
     colors:{ funnel:['#EC4899', '#F9A8D4'], margin:['#16A34A', '#86EFAC'], stale:['#F59E0B', '#FDE68A'], forecast:['#6366F1', '#A5B4FC'] },
-    desc:'Воронка и конверсия, маржинальность сделок, зависшие сделки, прогноз выручки.',
+    desc:'Воронка и прогноз, зависшие сделки, RFM-сегменты клиентов, прайс-лист с наценкой, план менеджеров.',
     hint:'Соберите схему: сделки → воронка → диаграмма; сделки → прогноз → по менеджерам; сделки → зависшие → задачи. Нажмите «Запустить».',
     examples:['Показать воронку продаж и прогноз выручки по менеджерам', 'Найти сделки без контакта больше двух недель и разослать задачи менеджерам'],
-    lib:CRM_LIB, demo:{ name:'Продажи — пример', spec:['crm-deals', 'crm-funnel', 'crm-fchart', 'crm-fc', 'crm-by-mgr', 'crm-stale', 'crm-task', 'crm-margin', 'crm-low'], links:[[0, 1], [1, 2], [0, 3], [3, 4], [0, 5], [5, 6], [0, 7], [7, 8]],
+    lib:CRM_LIB, demo:{ name:'Продажи — пример', menu:'воронка, прогноз, зависшие сделки', spec:['crm-deals', 'crm-funnel', 'crm-fchart', 'crm-fc', 'crm-by-mgr', 'crm-stale', 'crm-task', 'crm-margin', 'crm-low'], links:[[0, 1], [1, 2], [0, 3], [3, 4], [0, 5], [5, 6], [0, 7], [7, 8]],
       note:'Из одной таблицы сделок: воронка с диаграммой, прогноз выручки по менеджерам, зависшие сделки с задачами, сделки с низкой маржой. Нажмите «Запустить».' } });
   industryEnv('bi', { name:'Аналитика и дашборды', short:'Аналитика', color:'#14B8A6', theme:'midnight', newName:'Аналитика',
     ic:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>', ops:BI_OPS,
     colors:{ join:['#14B8A6', '#5EEAD4'], pivot:['#0EA5E9', '#7DD3FC'], metric:['#F59E0B', '#FDE68A'] },
-    desc:'Сводные таблицы, объединение данных, показатели и диаграммы — сквозные отчёты по любым таблицам.',
+    desc:'Сводные, сравнение периодов, прогноз по тренду, выбросы, показатели и дашборды по любым таблицам.',
     hint:'Соберите схему: таблицы → объединение / сводная → показатели и диаграммы. Нажмите «Запустить» — графики откроются в окне результатов.',
     examples:['Сводная выручки по подразделениям и месяцам с графиком динамики', 'Сравнить факт продаж с планом квартала и показать выполнение по подразделениям'],
-    lib:BI_LIB, demo:{ name:'Аналитика — пример', spec:['bi-sales', 'bi-pivot', 'bi-month', 'bi-trend', 'bi-rev', 'bi-dept', 'bi-plan', 'bi-join', 'bi-done', 'bi-bars', 'bi-report'], links:[[0, 1], [0, 2], [2, 3], [0, 4], [0, 5], [5, 7], [6, 7], [7, 8], [8, 9], [8, 10]],
+    lib:BI_LIB, demo:{ name:'Аналитика — пример', menu:'сводная, план-факт, графики', spec:['bi-sales', 'bi-pivot', 'bi-month', 'bi-trend', 'bi-rev', 'bi-dept', 'bi-plan', 'bi-join', 'bi-done', 'bi-bars', 'bi-report'], links:[[0, 1], [0, 2], [2, 3], [0, 4], [0, 5], [5, 7], [6, 7], [7, 8], [8, 9], [8, 10]],
       note:'Продажи → сводная, динамика по месяцам, итог выручки; факт по подразделениям + план → выполнение плана → диаграмма и справки. Нажмите «Запустить».' } });
   FUTURE_ENVS.length = 0;
   ALLP = null;
 
   // пример для любой отраслевой среды
-  function makeEnvDemo(id){
-    var e = ENVS[id], d = e && e.demo; if(!d) return;
+  function makeEnvDemo(id, k){
+    var e = ENVS[id], d = e && e.demos && e.demos[k || 0]; if(!d) return;
     newProj(d.name, null, id);
     var ids = d.spec.map(function(pid){
       var p = pluginById(pid), n = { id:newId('n'), name:p.name, lang:p.lang, x:0, y:0, codes:{}, pluginId:p.id, family:null, desc:p.desc, colors:null };

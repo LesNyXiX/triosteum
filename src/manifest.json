@@ -63,6 +63,7 @@
     "app/docs/reglament.js",
     "app/envs/ops.js",
     "app/envs/industry.js",
+    "app/envs/industry-deep.js",
     "app/envs/switch.js",
     "app/envs/ecosystem-screen.js",
     "app/office/shell.js",

@@ -86,7 +86,11 @@
     closeAddMenu(); closeTextMenu(); closeCtx();
     ctxPoint = toWorld(cx, cy);
     var hasSel = !!(S.sel || (S.multi && S.multi.length));
-    var addItems = [{ head:isDocs() ? 'Блок маршрута' : 'Блок с кодом' }].concat(LANGS.map(function(l){ return { label:'Блок · ' + (isDocs() ? l.name : shortName(l)), swatch:grad(COLORS[l.id]), act:function(){ placeAt('block', l.id); } }; }))
+    function kindItem(l){ return { label:'Блок · ' + (isDocs() ? l.name : shortName(l)), swatch:grad(COLORS[l.id]), act:function(){ placeAt('block', l.id); } }; }
+    var addItems = (ENV.ops ? [{ head:'Расчёты среды «' + ENV.short + '»' }].concat(LANGS.filter(function(l){ return l.op && GEN_OPS.indexOf(l) < 0; }).map(kindItem),
+        [{ head:'Общие расчёты' }], LANGS.filter(function(l){ return GEN_OPS.indexOf(l) >= 0; }).map(kindItem),
+        [{ head:'Данные, документы, выгрузки' }], LANGS.filter(function(l){ return !l.op; }).map(kindItem))
+      : [{ head:isDocs() ? 'Блок маршрута' : 'Блок с кодом' }].concat(LANGS.map(kindItem)))
       .concat([{ sep:true }, { label:'Связующая точка', icon:'hub', act:function(){ placeAt('hub'); } },
         { label:'Текстовая заметка', icon:'text', act:function(){ placeAt('text'); } },
         { label:isDocs() ? 'Шаблон из библиотеки…' : 'Плагин из библиотеки…', icon:'lib', act:function(){ S.placeAt = ctxPoint; S.lib = true; render(); el.search.focus(); } }]);

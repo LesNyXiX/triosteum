@@ -76,10 +76,16 @@
               setRun(n, 'ok', 'Выгружено записей: ' + rows.length);
             } else if(langById(n.lang) && langById(n.lang).apply){
               p = params(n);
-              var ctx = { name:n.name, info:'', ins:ins.map(toRows),
+              var nid = n.id, ctx = { name:n.name, info:'', ins:ins.map(toRows),
                 log:function(t, c){ rlog('   ' + t, c || 'dim'); },
-                table:function(title, rs){ RES.items.push({ type:'table', title:title, rows:rs.map(plainRow) }); },
-                chart:function(o){ o.type = 'chart'; RES.items.push(o); } };
+                table:function(title, rs){ RES.items.push({ type:'table', title:title, rows:rs.map(plainRow), node:nid }); },
+                chart:function(o){ o.type = 'chart'; o.node = nid; RES.items.push(o); },
+                item:function(o){ o.node = nid; RES.items.push(o); },
+                upItems:function(){
+                  var anc = {}, q = (plan.preds[nid] || []).slice();
+                  while(q.length){ var x = q.shift(); if(anc[x]) continue; anc[x] = 1; q = q.concat(plan.preds[x] || []); }
+                  return RES.items.filter(function(it){ return it.node && anc[it.node]; });
+                } };
               out = langById(n.lang).apply(rows, p, ctx) || [];
               rlog('▶ ' + n.name + ' — ' + (ctx.info || 'записей: ' + out.length), 'ok'); setRun(n, 'ok', ctx.info || 'Записей: ' + out.length);
             } else if(n.lang === 'python'){
@@ -136,6 +142,8 @@
   }
   function itemBody(it){
     if(it.type === 'doc') return '<div class="page">' + it.html + (it.status.length ? '<p style="margin-top:24px;font:12px Arial;color:#555;border-top:1px solid #ccc;padding-top:8px">Отметки маршрута: ' + escHtml(it.status.join(' → ')) + '</p>' : '') + '</div>';
+    if(it.type === 'dash') return '<div class="page" style="max-width:1100px">' + dashHtml(it) + '</div>';
+    if(it.type === 'metric') return '<div class="page">' + dashHtml({ title:it.title, tiles:[it], charts:[], tables:[] }) + '</div>';
     if(it.type === 'chart') return '<div class="page" style="max-width:none"><h1>' + escHtml(it.title) + '</h1>' + routeChartSvg(it) + '</div>';
     if(it.type === 'pack') return it.docs.map(function(d, i){ return '<div class="page' + (i < it.docs.length - 1 ? ' doc-sep' : '') + '">' + d.html + '</div>'; }).join('') || '<div class="page"><p>В пакете нет документов.</p></div>';
     return '<div class="page" style="max-width:none">' + '<h1>' + escHtml(it.title) + '</h1>' + tableHtml(it.rows).replace('class="rt"', 'style="width:100%;font:13px Arial"') + '</div>';
@@ -145,7 +153,7 @@
     if(!RES.items.length){ b.appendChild(h('div', { 'class':'bld-stat', text:'Запустите схему — здесь появятся документы, таблицы и диаграммы.' })); return; }
     var list = h('div', { 'class':'res-list', role:'listbox', 'aria-label':'Результаты' });
     RES.items.forEach(function(it, i){
-      var kind = it.type === 'doc' ? 'Документ' : it.type === 'chart' ? 'Диаграмма · ' + it.values.length : (it.type === 'pack' ? 'Пакет · ' + it.docs.length + ' док.' : 'Таблица · ' + it.rows.length + ' стр.');
+      var kind = it.type === 'doc' ? 'Документ' : it.type === 'dash' ? 'Дашборд · ' + (it.tiles.length + it.charts.length) + ' эл.' : it.type === 'metric' ? 'Показатель · ' + fmtCell(it.value) : it.type === 'chart' ? 'Диаграмма · ' + it.values.length : (it.type === 'pack' ? 'Пакет · ' + it.docs.length + ' док.' : 'Таблица · ' + it.rows.length + ' стр.');
       list.appendChild(h('button', { type:'button', role:'option', 'aria-selected':i === RES.cur ? 'true' : 'false', 'class':'res-i' + (i === RES.cur ? ' on' : ''),
         on:{ click:function(){ RES.cur = i; renderRes(); } } }, [ h('b', { text:it.title }), h('span', { text:kind + (it.status && it.status.length ? ' · ' + it.status[it.status.length - 1] : '') }) ]));
     });
@@ -157,7 +165,7 @@
       it.type === 'table' ? h('button', { type:'button', 'class':'btn primary', text:'Скачать Excel', on:{ click:function(){ saveXlsx(name, rowsToAoa(it.rows), it.title); } } }) : null,
       it.type === 'table' ? h('button', { type:'button', 'class':'btn', text:'CSV', on:{ click:function(){ download(name + '.csv', csvOf(rowsToAoa(it.rows)), 'text/csv', 'Файл CSV сохранён'); } } }) : null,
       it.type !== 'table' ? h('button', { type:'button', 'class':'btn primary', text:'Скачать .html', on:{ click:function(){ download(name + '.html', paperDoc(it.title, itemBody(it)), 'text/html', 'Документ сохранён (.html — откроется в Word)'); } } }) : null,
-      h('button', { type:'button', 'class':'btn', text:'Сохранить в «Файлы»', on:{ click:function(){ var d = saveResultsToFiles(); if(d){ $('resW').hidden = true; OF.dir = d.id; ofSetTab('desk'); } } } }),
+      !isOffice() ? null : h('button', { type:'button', 'class':'btn', text:'Сохранить в «Файлы»', on:{ click:function(){ var d = saveResultsToFiles(); if(d){ $('resW').hidden = true; OF.dir = d.id; ofSetTab('desk'); } } } }),
       h('button', { type:'button', 'class':'btn', text:'Все документы одним файлом', on:{ click:function(){
         var docs = RES.items.filter(function(x){ return x.type === 'doc'; });
         if(!docs.length){ toast('Документов нет'); return; }
