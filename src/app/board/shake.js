@@ -1,16 +1,21 @@
   /* ---------- встряхивание: зажать блок и потрясти ----------
      Блок: все его связи переходят на новую связующую точку на его месте —
      ничего не теряется, блок свободен. Точка: все её связи отцепляются. */
-  var SHAKE = { flips:4, minRun:16, window:900 };
-  // распознавание встряхивания: несколько резких смен направления за короткое время
+  var SHAKE = { flips:4, minRun:14, window:1000 };
+  // распознавание встряхивания: несколько резких разворотов движения за короткое время —
+  // в любом направлении (влево-вправо, вверх-вниз, по диагонали)
   function shakeDetect(sh, e){
-    if(sh.x === undefined){ sh.x = e.clientX; sh.y = e.clientY; sh.dir = 0; sh.run = 0; sh.flips = []; return false; }
-    var dx = e.clientX - sh.x, dy = e.clientY - sh.y; sh.x = e.clientX; sh.y = e.clientY;
-    var ax = Math.abs(dx) >= Math.abs(dy), d = ax ? dx : dy; if(Math.abs(d) < 2) return false;
-    var dir = (ax ? 1 : 2) * Math.sign(d), now = performance.now();
-    if(sh.dir && dir === -sh.dir && sh.run >= SHAKE.minRun){ sh.flips.push(now); sh.run = 0; }
-    else if(dir !== sh.dir) sh.run = 0;
-    sh.dir = dir; sh.run += Math.abs(d);
+    var now = performance.now();
+    if(sh.x === undefined){ sh.x = e.clientX; sh.y = e.clientY; sh.dx = 0; sh.dy = 0; sh.pdx = 0; sh.pdy = 0; sh.plen = 0; sh.flips = []; return false; }
+    var mx = e.clientX - sh.x, my = e.clientY - sh.y; sh.x = e.clientX; sh.y = e.clientY;
+    if(Math.abs(mx) + Math.abs(my) < 1.5) return false;
+    var len = Math.hypot(sh.dx, sh.dy);
+    // текущий отрезок продолжается, пока направление не развернулось больше чем на ~110°
+    if(len > 0 && (mx * sh.dx + my * sh.dy) / (Math.hypot(mx, my) * len) < -0.35){
+      if(len >= SHAKE.minRun && sh.plen >= SHAKE.minRun * 0.6 && (sh.dx * sh.pdx + sh.dy * sh.pdy) / (len * sh.plen) < -0.2) sh.flips.push(now);
+      else if(len >= SHAKE.minRun && !sh.plen) sh.flips.push(now);
+      sh.pdx = sh.dx; sh.pdy = sh.dy; sh.plen = len; sh.dx = mx; sh.dy = my;
+    } else { sh.dx += mx; sh.dy += my; }
     sh.flips = sh.flips.filter(function(t){ return now - t < SHAKE.window; });
     return sh.flips.length >= SHAKE.flips;
   }

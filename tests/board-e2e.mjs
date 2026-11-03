@@ -59,6 +59,24 @@ check(/skew|scale/.test(tf), 'при перетаскивании блок тя�
 await page.mouse.up(); await page.waitForTimeout(60);
 check(await page.locator('#nodes .node.jelly-end').count() === 1, 'после отпускания — пружинящая волна');
 
+console.log('Встряхивание по диагонали и повторный захват');
+const hubs0 = await page.$$eval('#nodes .node.hub', (x) => x.length);
+const pb = await page.locator('#nodes .node', { hasText: 'Python верх' }).boundingBox();
+let px = pb.x + 90, py = pb.y + 30;
+await page.mouse.move(px, py); await page.mouse.down();
+for (let i = 0; i < 9; i++) await page.mouse.move(px + (i % 2 ? -22 : 22), py + (i % 2 ? -16 : 16), { steps: 2 });
+await page.mouse.up(); await page.waitForTimeout(300);
+check(await page.$$eval('#nodes .node.hub', (x) => x.length) === hubs0 + 1, 'встряхивание по диагонали распознано — связи перешли на узел');
+// два быстрых захвата с перетаскиванием подряд не открывают редактор
+const qb = await page.locator('#nodes .node', { hasText: 'HTML' }).boundingBox();
+await page.mouse.move(qb.x + 90, qb.y + 30); await page.mouse.down(); await page.waitForTimeout(400); await page.mouse.up();
+await page.mouse.down(); await page.mouse.move(qb.x + 140, qb.y + 60, { steps: 4 }); await page.mouse.up(); await page.waitForTimeout(300);
+check(!(await page.isVisible('#editor')), 'долгое нажатие и следом захват — редактор не открывается');
+await page.locator('#nodes .node', { hasText: 'HTML' }).dblclick(); await page.waitForTimeout(400);
+check(await page.isVisible('#editor'), 'настоящий двойной клик по-прежнему открывает блок');
+await page.evaluate(() => { const b = document.getElementById('backBtn') || document.getElementById('toBoard'); if (b && !b.hidden) b.click(); }); await page.waitForTimeout(300);
+if (await page.isVisible('#editor')) { await page.keyboard.press('Escape'); await page.waitForTimeout(200); }
+
 console.log('Меню «Добавление элементов»');
 await page.click('#bAdd'); await page.waitForTimeout(200);
 await page.locator('#addMenu .am-item[data-add="block"]').hover(); await page.waitForTimeout(250);

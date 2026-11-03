@@ -105,7 +105,8 @@
     if(ne){
       var n = nodeById(ne.dataset.id);
       if(e.shiftKey){ toggleMulti('node', n.id); drag = null; return; }
-      var stN = isDouble('n:' + n.id); lastTap = { key:null, t:0 };
+      // двойной клик — только два коротких нажатия почти в одной точке, а не повторный захват при перетаскивании
+      var stN = isDouble('n:' + n.id) && lastTap.quick && Math.abs(e.clientX - lastTap.x) + Math.abs(e.clientY - lastTap.y) < 10; lastTap = { key:null, t:0 };
       if(stN){                                   // двойное нажатие по блоку — открыть его в родной среде (удаление — крестик, ПКМ или Delete)
         e.preventDefault(); drag = null; hidePop();
         S.multi = []; S.sel = { type:'node', id:n.id }; updateSel();
@@ -116,7 +117,7 @@
       if(!grp){ S.multi = []; S.sel = { type:'node', id:n.id }; }
       updateSel(); hidePop();
       ne.classList.add('dragging');
-      drag = { mode:'move', type:'node', item:n, el:ne, ox:n.x, oy:n.y, dx:w.x - n.x, dy:w.y - n.y, sx:e.clientX, sy:e.clientY, moved:false, sticky:false, group:grp };
+      drag = { mode:'move', type:'node', item:n, el:ne, ox:n.x, oy:n.y, dx:w.x - n.x, dy:w.y - n.y, sx:e.clientX, sy:e.clientY, moved:false, sticky:false, group:grp, t0:Date.now() };
       if(e.pointerType !== 'mouse'){        // на телефоне: удержание открывает код
         var dn = drag;
         dn.lp = setTimeout(function(){ if(drag === dn && !dn.moved){ drag = null; dn.el.classList.remove('dragging'); showPop(); } }, 600);
@@ -349,7 +350,7 @@
         if(dd.tx != null && (Math.abs(dd.vx - dd.tx) > 0.4 || Math.abs(dd.vy - dd.ty) > 0.4) && !document.body.classList.contains('noanim')){ dd.finishing = true; smoothMove(dd); }
         else { if(dd.tx != null) placeDragged(dd, dd.tx, dd.ty); saveGraph(); }
       }
-      else { lastTap = { key:(dd.type === 'node' ? 'n:' : 't:') + dd.item.id, t:Date.now() }; }
+      else { lastTap = { key:(dd.type === 'node' ? 'n:' : 't:') + dd.item.id, t:Date.now(), quick:!dd.t0 || Date.now() - dd.t0 < 350, x:dd.sx, y:dd.sy }; }
     } else if(dd.mode === 'link'){
       if(dd.dot) dd.dot.classList.remove('grab');
       el.tempLayer.innerHTML = '';

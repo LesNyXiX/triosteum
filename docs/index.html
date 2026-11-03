@@ -3546,7 +3546,8 @@ public class MovingAverage : IBlock
     if(ne){
       var n = nodeById(ne.dataset.id);
       if(e.shiftKey){ toggleMulti('node', n.id); drag = null; return; }
-      var stN = isDouble('n:' + n.id); lastTap = { key:null, t:0 };
+      // двойной клик — только два коротких нажатия почти в одной точке, а не повторный захват при перетаскивании
+      var stN = isDouble('n:' + n.id) && lastTap.quick && Math.abs(e.clientX - lastTap.x) + Math.abs(e.clientY - lastTap.y) < 10; lastTap = { key:null, t:0 };
       if(stN){                                   // двойное нажатие по блоку — открыть его в родной среде (удаление — крестик, ПКМ или Delete)
         e.preventDefault(); drag = null; hidePop();
         S.multi = []; S.sel = { type:'node', id:n.id }; updateSel();
@@ -3557,7 +3558,7 @@ public class MovingAverage : IBlock
       if(!grp){ S.multi = []; S.sel = { type:'node', id:n.id }; }
       updateSel(); hidePop();
       ne.classList.add('dragging');
-      drag = { mode:'move', type:'node', item:n, el:ne, ox:n.x, oy:n.y, dx:w.x - n.x, dy:w.y - n.y, sx:e.clientX, sy:e.clientY, moved:false, sticky:false, group:grp };
+      drag = { mode:'move', type:'node', item:n, el:ne, ox:n.x, oy:n.y, dx:w.x - n.x, dy:w.y - n.y, sx:e.clientX, sy:e.clientY, moved:false, sticky:false, group:grp, t0:Date.now() };
       if(e.pointerType !== 'mouse'){        // на телефоне: удержание открывает код
         var dn = drag;
         dn.lp = setTimeout(function(){ if(drag === dn && !dn.moved){ drag = null; dn.el.classList.remove('dragging'); showPop(); } }, 600);
@@ -3790,7 +3791,7 @@ public class MovingAverage : IBlock
         if(dd.tx != null && (Math.abs(dd.vx - dd.tx) > 0.4 || Math.abs(dd.vy - dd.ty) > 0.4) && !document.body.classList.contains('noanim')){ dd.finishing = true; smoothMove(dd); }
         else { if(dd.tx != null) placeDragged(dd, dd.tx, dd.ty); saveGraph(); }
       }
-      else { lastTap = { key:(dd.type === 'node' ? 'n:' : 't:') + dd.item.id, t:Date.now() }; }
+      else { lastTap = { key:(dd.type === 'node' ? 'n:' : 't:') + dd.item.id, t:Date.now(), quick:!dd.t0 || Date.now() - dd.t0 < 350, x:dd.sx, y:dd.sy }; }
     } else if(dd.mode === 'link'){
       if(dd.dot) dd.dot.classList.remove('grab');
       el.tempLayer.innerHTML = '';
@@ -3901,16 +3902,21 @@ public class MovingAverage : IBlock
   /* ---------- встряхивание: зажать блок и потрясти ----------
      Блок: все его связи переходят на новую связующую точку на его месте —
      ничего не теряется, блок свободен. Точка: все её связи отцепляются. */
-  var SHAKE = { flips:4, minRun:16, window:900 };
-  // распознавание встряхивания: несколько резких смен направления за короткое время
+  var SHAKE = { flips:4, minRun:14, window:1000 };
+  // распознавание встряхивания: несколько резких разворотов движения за короткое время —
+  // в любом направлении (влево-вправо, вверх-вниз, по диагонали)
   function shakeDetect(sh, e){
-    if(sh.x === undefined){ sh.x = e.clientX; sh.y = e.clientY; sh.dir = 0; sh.run = 0; sh.flips = []; return false; }
-    var dx = e.clientX - sh.x, dy = e.clientY - sh.y; sh.x = e.clientX; sh.y = e.clientY;
-    var ax = Math.abs(dx) >= Math.abs(dy), d = ax ? dx : dy; if(Math.abs(d) < 2) return false;
-    var dir = (ax ? 1 : 2) * Math.sign(d), now = performance.now();
-    if(sh.dir && dir === -sh.dir && sh.run >= SHAKE.minRun){ sh.flips.push(now); sh.run = 0; }
-    else if(dir !== sh.dir) sh.run = 0;
-    sh.dir = dir; sh.run += Math.abs(d);
+    var now = performance.now();
+    if(sh.x === undefined){ sh.x = e.clientX; sh.y = e.clientY; sh.dx = 0; sh.dy = 0; sh.pdx = 0; sh.pdy = 0; sh.plen = 0; sh.flips = []; return false; }
+    var mx = e.clientX - sh.x, my = e.clientY - sh.y; sh.x = e.clientX; sh.y = e.clientY;
+    if(Math.abs(mx) + Math.abs(my) < 1.5) return false;
+    var len = Math.hypot(sh.dx, sh.dy);
+    // текущий отрезок продолжается, пока направление не развернулось больше чем на ~110°
+    if(len > 0 && (mx * sh.dx + my * sh.dy) / (Math.hypot(mx, my) * len) < -0.35){
+      if(len >= SHAKE.minRun && sh.plen >= SHAKE.minRun * 0.6 && (sh.dx * sh.pdx + sh.dy * sh.pdy) / (len * sh.plen) < -0.2) sh.flips.push(now);
+      else if(len >= SHAKE.minRun && !sh.plen) sh.flips.push(now);
+      sh.pdx = sh.dx; sh.pdy = sh.dy; sh.plen = len; sh.dx = mx; sh.dy = my;
+    } else { sh.dx += mx; sh.dy += my; }
     sh.flips = sh.flips.filter(function(t){ return now - t < SHAKE.window; });
     return sh.flips.length >= SHAKE.flips;
   }
