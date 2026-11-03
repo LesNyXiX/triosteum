@@ -9,6 +9,8 @@
     sheet:{ name:'Таблица', many:'Таблицы', color:'#16A34A', ic:'<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 10h16M4 15h16M10 4v16"/>' },
     slides:{ name:'Презентация', many:'Презентации', color:'#EA580C', ic:'<rect x="3" y="5" width="18" height="12" rx="2"/><path d="M12 17v3M8 21h8M8 13l3-3 2 2 3-3"/>' },
     form:{ name:'Форма', many:'Формы', color:'#9333EA', ic:'<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h3"/>' },
+    image:{ name:'Изображение', many:'Изображения', color:'#0891B2', ic:'<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 17l-5-5-9 8"/>' },
+    vector:{ name:'Векторный рисунок', many:'Векторные рисунки', color:'#DB2777', ic:'<path d="M12 3l8 5v8l-8 5-8-5V8z"/><circle cx="12" cy="3" r="1.6"/><circle cx="20" cy="16" r="1.6"/><circle cx="4" cy="16" r="1.6"/>' },
     folder:{ name:'Папка', many:'Папки', color:'#CA8A04', ic:'<path d="M3 7a1 1 0 011-1h5l2 2h8a1 1 0 011 1v9a1 1 0 01-1 1H4a1 1 0 01-1-1z"/>' }
   };
   var OF = { tab:'desk', dir:null, sel:[], side:window.innerWidth > 900, ai:false, view:'icons', q:'', trash:null, drag:null };
@@ -16,7 +18,8 @@
   function ofItems(){ return ofs().items; }
   function ofFile(id){ return ofItems().filter(function(f){ return f.id === id; })[0]; }
   function ofByName(name, type){ var n = String(name).trim().toLowerCase(); return ofItems().filter(function(f){ return (!type || f.type === type) && f.name.toLowerCase() === n; })[0]; }
-  function officeOn(){ return typeof ENV !== 'undefined' && ENV && ENV.id === 'docs' && OF.tab !== 'auto'; }
+  function officeOn(){ return typeof ENV !== 'undefined' && ENV && !!ENV.office && OF.tab !== 'auto'; }
+  function ofTypes(){ return (ENV && ENV.office && ENV.office.types) || ['doc', 'sheet', 'slides', 'form']; }
   var ofSaveT = null;
   function ofSave(){ var f = ofFile(OF.tab); if(f) f.t = Date.now(); saveGraph(); }
   function ofId(){ return 'f' + Date.now().toString(36) + Math.floor(Math.random() * 1e5).toString(36); }
@@ -33,6 +36,8 @@
     if(type === 'doc') return { html:'<h1>Новый документ</h1><p>Начните печатать здесь. Вставляйте живые данные из таблиц кнопкой «Данные из таблицы».</p>' };
     if(type === 'sheet') return { sheets:[blankSheet('Лист1')] };
     if(type === 'slides') return { theme:'light', slides:[{ layout:'title', title:'Название презентации', body:'Подзаголовок · ' + new Date().toLocaleDateString('ru-RU') }] };
+    if(type === 'image') return ieDefault(1200, 800, '#ffffff');
+    if(type === 'vector') return { w:1200, h:800, bg:'#ffffff', items:[] };
     if(type === 'form') return { title:'Новая форма', desc:'Заполните поля и нажмите «Отправить».', fields:[{ id:'q1', label:'ФИО', type:'text', required:true }, { id:'q2', label:'Подразделение', type:'select', options:['Производство', 'Снабжение', 'Финансы'] }], target:null };
     return {};
   }
@@ -45,6 +50,8 @@
     if(type === 'sheet' && !name) f.name = ofUnique('Новая таблица', parent);
     if(type === 'slides' && !name) f.name = ofUnique('Новая презентация', parent);
     if(type === 'form' && !name) f.name = ofUnique('Новая форма', parent);
+    if(type === 'image' && !name) f.name = ofUnique('Новое изображение', parent);
+    if(type === 'vector' && !name) f.name = ofUnique('Новый рисунок', parent);
     ofItems().push(f); ofSave();
     if(!(opts && opts.silent)){ if(type !== 'folder') ofOpen(f.id); else ofRender(); }
     return f;
@@ -65,7 +72,7 @@
   function ofCommit(){ if(OF.commit){ try{ OF.commit(); }catch(e){} } }
   function ofSetTab(t){
     ofCommit(); OF.commit = null;
-    if(t !== 'desk' && t !== 'auto' && !ofFile(t)) t = 'desk';
+    if(t !== 'desk' && t !== 'auto' && t !== 'map' && !ofFile(t)) t = 'desk';
     var wasAuto = OF.tab === 'auto';
     OF.tab = t; ofs().active = t; saveGraph();
     if(t === 'auto' || wasAuto){ S.view = 'canvas'; render(); if(t === 'auto') renderGraph(); }
@@ -127,6 +134,9 @@
   function ofApplyMode(){
     var on = isOffice();
     $('otabs').hidden = !on;
+    var tabs = (ENV.office && ENV.office.tabs) || ['desk', 'map', 'auto'];
+    Array.prototype.forEach.call(document.querySelectorAll('#otabs .otab.fixed'), function(b){ b.hidden = tabs.indexOf(b.dataset.tab) < 0; });
+    $('ofAiBtn').hidden = !!(ENV.office && ENV.office.noAi); $('ofrTpl').hidden = !!(ENV.office && ENV.office.noTpl);
     document.body.setAttribute('data-mode', on && OF.tab !== 'auto' ? 'office' : (on ? 'auto' : 'code'));
     $('office').hidden = !officeOn();
   }
@@ -142,13 +152,17 @@
     ofRenderTree();
     var m = $('ofMain'); m.innerHTML = ''; OF.commit = null;
     var f = ofFile(OF.tab);
-    if(!f) renderDesk(m);
+    if(OF.tab === 'map') renderFileMap(m);
+    else if(!f) renderDesk(m);
     else if(f.type === 'doc') renderDocEd(m, f);
     else if(f.type === 'sheet') renderSheetEd(m, f);
     else if(f.type === 'slides') renderSlidesEd(m, f);
     else if(f.type === 'form') renderFormEd(m, f);
+    else if(f.type === 'image') renderImageEd(m, f);
+    else if(f.type === 'vector') renderVectorEd(m, f);
     if(OF.ai) renderOfAi();
-    $('topRun').textContent = !f ? 'Запустить маршрут' : ({ doc:'Предпросмотр', sheet:'Пересчитать', slides:'▶ Показ', form:'Заполнить' })[f.type];
+    var hasAuto = !(ENV.office && ENV.office.tabs) || ENV.office.tabs.indexOf('auto') >= 0;
+    $('topRun').textContent = OF.tab === 'map' ? 'Скомпилировать' : !f ? (hasAuto ? 'Запустить маршрут' : '+ Создать') : ({ doc:'Предпросмотр', sheet:'Пересчитать', slides:'▶ Показ', form:'Заполнить', image:'Скачать PNG', vector:'Скачать SVG' })[f.type];
     $('topRun').classList.toggle('on', !!(f && f.type === 'doc' && DE.preview));
     status();
   }
@@ -210,7 +224,7 @@
   $('ofAiBtn').addEventListener('click', function(){ OF.ai = !OF.ai; ofRender(); if(OF.ai){ var t = $('ofAi').querySelector('textarea'); if(t) t.focus(); } });
   function newItems(dir){
     var d = dir === undefined ? OF.dir : dir;
-    return [{ head:'Создать' }].concat(['doc', 'sheet', 'slides', 'form', 'folder'].map(function(t){
+    return [{ head:'Создать' }].concat(ofTypes().concat(['folder']).map(function(t){
       return { label:FT[t].name, swatch:FT[t].color, act:function(){ var prev = OF.dir; OF.dir = d; newFile(t); OF.dir = t === 'folder' ? d : prev; if(t === 'folder') ofRender(); } };
     })).concat([{ sep:true }, { label:'Из шаблона…', icon:'lib', act:openTpl }, { label:'Открыть файл с компьютера…', icon:'upload', act:function(){ ofImportIn.click(); } }]);
   }

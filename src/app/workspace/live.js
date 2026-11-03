@@ -114,9 +114,9 @@
       if(S.pop && S.sel){ if(fa && el.pop.contains(fa)) placePop(); else renderPop(); }
       else if(S.pop && !S.sel) hidePop();
     }
-    if(typeof ofLoad === 'function' && ENV && ENV.id === 'docs'){
+    if(typeof ofLoad === 'function' && ENV && ENV.office){
       var fe = document.activeElement, editing = fe && fe.closest && fe.closest('#ofMain') && (fe.isContentEditable || /INPUT|TEXTAREA/.test(fe.tagName));
-      if(!editing){ var keep = OF.tab; ofLoad(); if(keep && keep !== OF.tab && (keep === 'auto' || keep === 'desk' || ofFile(keep))) ofSetTab(keep); }
+      if(!editing){ var keep = OF.tab; ofLoad(); if(keep && keep !== OF.tab && (keep === 'auto' || keep === 'desk' || keep === 'map' || ofFile(keep))) ofSetTab(keep); }
     }
     if(by) el.saved.textContent = 'обновлено: ' + by;
   }

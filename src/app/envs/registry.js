@@ -101,7 +101,7 @@
     code:{ id:'code', name:'Разработка', short:'Код', color:'#3B82F6', defLang:'python', langs:CODE_LANGS, colors:CODE_COLORS, plugins:CODE_PLUGINS,
       desc:'Блоки с кодом на HTML, Python, C++, C# и 1С, связанные в схему, и целостный бэкенд.',
       word:{ lang:'Язык', plugin:'плагин', plugins:'плагинов', lib:'Библиотека плагинов', create:'Создать плагин', newTitle:'Новый плагин', kindLabel:'Язык', run:'Запустить схему', runSub:'Выполнить все блоки по порядку связей', scheme:'Целостный код схемы', schemeSub:'Бэкенд всей схемы: собранный из блоков и написанный ИИ', open:'Открыть код', libOpen:'Код' } },
-    docs:{ id:'docs', name:'Офис', short:'Офис', color:'#16A34A', route:true, defLang:'doc', langs:DOC_KINDS, colors:DOC_COLORS, plugins:DOC_PLUGINS,
+    docs:{ id:'docs', name:'Офис', short:'Офис', color:'#16A34A', route:true, office:{ types:['doc', 'sheet', 'slides', 'form', 'image', 'vector'] }, defLang:'doc', langs:DOC_KINDS, colors:DOC_COLORS, plugins:DOC_PLUGINS,
       desc:'Документы как в Word, таблицы как в Excel, презентации и формы — связанные между собой. Плюс автоматизация маршрутов согласования.',
       word:{ lang:'Тип', plugin:'шаблон', plugins:'шаблонов', lib:'Библиотека шаблонов', create:'Создать шаблон', newTitle:'Новый шаблон', kindLabel:'Тип блока', run:'Запустить маршрут', runSub:'Провести записи по всем этапам схемы', scheme:'Регламент процесса', schemeSub:'Описание маршрута: собранное из схемы и написанное ИИ', open:'Открыть', libOpen:'Просмотр' } }
   };
@@ -119,6 +119,6 @@
   function myVis(){ return MY.filter(function(p){ return !!langById(p.lang); }); }
   // isDocs — среда с маршрутами данных (Офис и отраслевые), isOffice — только «Офис» с рабочим столом файлов
   function isDocs(){ return !!ENV.route; }
-  function isOffice(){ return ENV.id === 'docs'; }
+  function isOffice(){ return !!(ENV && ENV.office); }
   function kindOf(n){ return n ? (n.lang) : null; }
   function isParamKind(id){ var l = langById(id); return !!(l && l.param); }

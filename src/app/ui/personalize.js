@@ -37,7 +37,7 @@
   }
   function hexRgb(x){ x = x.replace('#', ''); return [parseInt(x.slice(0, 2), 16), parseInt(x.slice(2, 4), 16), parseInt(x.slice(4, 6), 16)]; }
   function mixHex(a, b, t){ var A = hexRgb(a), B = hexRgb(b); return '#' + A.map(function(v, i){ return Math.round(v * (1 - t) + B[i] * t).toString(16).padStart(2, '0'); }).join(''); }
-  var ENV_THEME_DEF = { code:'burgundy', docs:'emerald', wh:'graphite', mes:'graphite', fin:'midnight', hr:'midnight', crm:'burgundy', bi:'midnight' };
+  var ENV_THEME_DEF = { code:'burgundy', docs:'emerald', wh:'graphite', mes:'graphite', fin:'midnight', hr:'midnight', crm:'burgundy', bi:'midnight', photo:'graphite', vector:'midnight' };
   // акцент среды по умолчанию: на темах, чей собственный акцент спорит с цветом среды
   function envAccent(th, theme){
     if(typeof ENV === 'undefined' || !ENV || ENV.id === 'code') return th.accent;

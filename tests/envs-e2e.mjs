@@ -23,7 +23,7 @@ await page.goto(URL); await page.waitForTimeout(800);
 
 await page.click('#ecoBtn'); await page.waitForTimeout(200);
 const cards = await page.$$eval('#ecoGrid .eco-card.go h3', (x) => x.map((h) => h.textContent));
-check(cards.length === 8, 'в экосистеме 8 сред: ' + cards.join(', '));
+check(cards.length === 10, 'в экосистеме 10 сред: ' + cards.join(', '));
 check(await page.$$eval('#ecoGrid .eco-card.soon', (x) => x.length) === 0, 'карточек «скоро» не осталось');
 
 // [среда, пример (часть названия в меню, пусто — первый), ожидаемые строки журнала]

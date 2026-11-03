@@ -7,10 +7,12 @@
   "scripts": {
     "build": "node build.mjs",
     "dev": "node build.mjs --watch",
-    "test": "node tests/merge.test.cjs && node tests/smoke.mjs",
+    "test": "node tests/merge.test.cjs && node tests/formulas.test.cjs && node tests/smoke.mjs",
     "serve:mock": "node tests/mock-server.mjs",
     "test:server": "node tests/server-e2e.mjs",
-    "test:envs": "node tests/envs-e2e.mjs"
+    "test:envs": "node tests/envs-e2e.mjs",
+    "test:office": "node tests/office-map-e2e.mjs",
+    "test:graphics": "node tests/graphics-e2e.mjs"
   },
   "devDependencies": {
     "playwright": "^1.48.0"

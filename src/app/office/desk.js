@@ -3,10 +3,10 @@
     var path = OF.dir ? ofPath(ofFile(OF.dir)).concat([ofFile(OF.dir)]) : [];
     var crumbs = h('nav', { 'class':'crumbs', 'aria-label':'Путь' }, [ h('button', { type:'button', text:'Рабочий стол', on:{ click:function(){ OF.dir = null; ofRender(); } } }) ]);
     path.forEach(function(p){ crumbs.appendChild(h('span', { 'class':'sl', text:'/' })); crumbs.appendChild(h('button', { type:'button', text:p.name, on:{ click:function(){ OF.dir = p.id; ofRender(); } } })); });
-    var bar = h('div', { 'class':'desk-bar' }, [ crumbs, h('span', { 'class':'grow' }) ].concat(['doc', 'sheet', 'slides', 'form', 'folder'].map(function(t){
+    var bar = h('div', { 'class':'desk-bar' }, [ crumbs, h('span', { 'class':'grow' }) ].concat(ofTypes().concat(['folder']).map(function(t){
       return h('button', { type:'button', 'class':'btn sm nb', style:'--fc:' + FT[t].color, title:'Создать: ' + FT[t].name, on:{ click:function(){ newFile(t); if(t === 'folder') ofRender(); } } }, [ h('span', { 'class':'ic', html:ofIcon(t, 15) }), h('span', { text:FT[t].name }) ]);
     })).concat([
-      h('button', { type:'button', 'class':'btn sm', text:'Шаблоны', on:{ click:openTpl } }),
+      ENV.office && ENV.office.noTpl ? null : h('button', { type:'button', 'class':'btn sm', text:'Шаблоны', on:{ click:openTpl } }),
       h('button', { type:'button', 'class':'btn sm', text:OF.view === 'icons' ? 'Списком' : 'Значками', on:{ click:function(){ OF.view = OF.view === 'icons' ? 'list' : 'icons'; ofRender(); } } }),
       OF.view === 'icons' ? h('button', { type:'button', 'class':'btn sm', text:'Упорядочить', on:{ click:arrangeDesk } }) : null
     ].filter(Boolean)));
@@ -45,7 +45,7 @@
     var maxY = 0;
     items.forEach(function(f){
       var c = h('div', { 'class':'fcard' + (OF.sel.indexOf(f.id) >= 0 ? ' sel' : ''), 'data-fid':f.id, tabindex:'0', role:'button', 'aria-label':FT[f.type].name + ' «' + f.name + '»', style:'left:' + f.x + 'px;top:' + f.y + 'px;--fc:' + FT[f.type].color }, [
-        h('div', { 'class':'fc-top' }, [ h('span', { 'class':'fc-ic', html:ofIcon(f.type, 22) }), h('span', { 'class':'fc-prev', text:filePreview(f) }) ]),
+        h('div', { 'class':'fc-top' }, [ h('span', { 'class':'fc-ic', html:ofIcon(f.type, 22) }), fileThumb(f) || h('span', { 'class':'fc-prev', text:filePreview(f) }) ]),
         h('div', { 'class':'fc-name', text:f.name }),
         h('div', { 'class':'fc-meta', text:FT[f.type].name + (f.type === 'folder' ? ' · ' + ofChildren(f.id).length + ' объектов' : ' · ' + fmtAgo(f.t)) })
       ]);
@@ -54,7 +54,16 @@
     });
     var pad = h('div', { 'class':'desk-pad', style:'top:' + (maxY + 40) + 'px' }); area.appendChild(pad);
   }
+  function fileThumb(f){
+    try{
+      if(f.type === 'image' && f.data.thumb) return h('img', { 'class':'fc-thumb', src:f.data.thumb, alt:'' });
+      if(f.type === 'vector' && (f.data.items || []).length) return h('img', { 'class':'fc-thumb', src:'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(vecSvgString(f, false)), alt:'' });
+    }catch(e){}
+    return null;
+  }
   function filePreview(f){
+    if(f.type === 'image') return (f.data.w || 0) + '×' + (f.data.h || 0) + ' · слоёв ' + (f.data.layers || []).length;
+    if(f.type === 'vector') return (f.data.w || 0) + '×' + (f.data.h || 0) + ' · объектов ' + (f.data.items || []).length;
     try{
       if(f.type === 'doc'){ var d = document.createElement('div'); d.innerHTML = f.data.html || ''; return d.textContent.replace(/\s+/g, ' ').trim().slice(0, 90); }
       if(f.type === 'sheet'){ var s = f.data.sheets[0]; return f.data.sheets.length + ' ' + (f.data.sheets.length === 1 ? 'лист' : 'листа') + ' · ' + s.rows.filter(function(r){ return r.some(function(x){ return String(x).trim(); }); }).length + ' строк' + (s.rows[0] && s.rows[0][0] ? ' · ' + s.rows[0].filter(Boolean).slice(0, 3).join(', ') : ''); }
@@ -127,12 +136,14 @@
     main.addEventListener('dragover', function(e){ if(e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], 'Files') >= 0 && officeOn()){ e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } });
     main.addEventListener('drop', function(e){ var fl = e.dataTransfer && e.dataTransfer.files; if(!fl || !fl.length || !officeOn()) return; e.preventDefault(); Array.prototype.forEach.call(fl, importOfficeFile); });
   })();
-  var ofImportIn = document.createElement('input'); ofImportIn.type = 'file'; ofImportIn.multiple = true; ofImportIn.accept = '.xlsx,.xls,.csv,.docx,.html,.htm,.txt,.md,.json'; ofImportIn.hidden = true; document.body.appendChild(ofImportIn);
+  var ofImportIn = document.createElement('input'); ofImportIn.type = 'file'; ofImportIn.multiple = true; ofImportIn.accept = '.xlsx,.xls,.csv,.docx,.html,.htm,.txt,.md,.json,.png,.jpg,.jpeg,.webp,.gif,.bmp,.svg'; ofImportIn.hidden = true; document.body.appendChild(ofImportIn);
   ofImportIn.addEventListener('change', function(){ Array.prototype.forEach.call(ofImportIn.files, importOfficeFile); ofImportIn.value = ''; });
   function baseName(n){ return n.replace(/\.[^.]+$/, ''); }
   function importOfficeFile(file){
     var nm = baseName(file.name);
     if(/\.json$/i.test(file.name)){ importFile(file); return; }
+    if(/\.svg$/i.test(file.name)){ file.text().then(function(t){ var s = veSanitizeSvg(t); if(!s){ toast('Не удалось прочитать SVG «' + file.name + '»'); return; } var w = Math.round(Math.min(4000, s.w || 800)), hh = Math.round(Math.min(4000, s.h || 600)); newFile('vector', nm, { w:w, h:hh, bg:'transparent', items:[{ id:veId(), t:'svg', name:nm.slice(0, 30), vb:s.vb, markup:s.markup, x:0, y:0, w:w, h:hh, r:0, op:1 }] }); toast('SVG «' + nm + '» открыт как векторный рисунок'); }); return; }
+    if(/\.(png|jpe?g|webp|gif|bmp)$/i.test(file.name)){ var u = URL.createObjectURL(file), im = new Image(); im.onload = function(){ var k = Math.min(1, 4000 / Math.max(im.width, im.height)), w = Math.round(im.width * k), hh = Math.round(im.height * k), c = document.createElement('canvas'); c.width = w; c.height = hh; c.getContext('2d').drawImage(im, 0, 0, w, hh); URL.revokeObjectURL(u); newFile('image', nm, { w:w, h:hh, layers:[{ id:'l1', name:'Фон', vis:true, op:1, blend:'source-over', src:c.toDataURL('image/png') }] }); toast('Изображение «' + nm + '» открыто' + (k < 1 ? ' (уменьшено до 4000 px)' : '')); }; im.onerror = function(){ toast('Не удалось открыть «' + file.name + '»'); }; im.src = u; return; }
     if(/\.csv$/i.test(file.name)){ file.text().then(function(t){ t = t.replace(/^﻿/, ''); var l0 = t.split('\n')[0]; var sep = (l0.match(/;/g) || []).length >= (l0.match(/,/g) || []).length ? ';' : ','; var rows = parseCsv(t, sep).filter(function(r){ return r.some(function(x){ return String(x).trim(); }); }); newFile('sheet', nm, { sheets:[{ name:'Лист1', rows:rows.length ? rows : [['']], fmt:{}, widths:{}, charts:[] }] }); toast('Таблица «' + nm + '» импортирована'); }); return; }
     if(/\.xlsx?$/i.test(file.name)){
       Promise.all([loadXLSX(), file.arrayBuffer()]).then(function(a){

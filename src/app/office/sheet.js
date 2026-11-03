@@ -34,20 +34,25 @@
       B('Вставить строку', '<span class="rt">+ стр</span>', function(){ shInsRow(); }), B('Вставить столбец', '<span class="rt">+ стлб</span>', function(){ shInsCol(); }),
       B('Удалить строки', '<span class="rt">− стр</span>', function(){ shDelRows(); }), B('Удалить столбцы', '<span class="rt">− стлб</span>', function(){ shDelCols(); }),
       h('span', { 'class':'rsep' }),
+      B('Схема файлов: связи этой таблицы с другими файлами и компиляция', '<span class="rt">Схема файлов</span>', function(){ FM.sel = SG.f.id; ofSetTab('map'); }),
       B('Диаграмма из выделения', SVGI('<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>', 16), function(e){ chartMenu(e.currentTarget); }),
       h('span', { 'class':'grow' }),
       B('Импорт Excel / CSV в новый лист', '<span class="rt">Импорт</span>', function(){ shImportIn.click(); }),
       B('Скачать .xlsx', '<span class="rt">.xlsx</span>', function(){ exportFileAs(SG.f, 'xlsx'); }, 'pri')
     ]);
     m.appendChild(ribbon);
-    m.appendChild(h('div', { 'class':'fxbar' }, [ h('span', { 'class':'fx-ref', id:'sgRef' }), h('span', { 'class':'fx-f', text:'fx' }),
+    m.appendChild(h('div', { 'class':'fxbar' }, [ h('span', { 'class':'fx-ref', id:'sgRef' }), h('button', { type:'button', 'class':'fx-f fx-btn', id:'sgFxBtn', text:'fx', title:'Вставить функцию (126 функций)', 'aria-label':'Вставить функцию' }),
       h('input', { 'class':'fx-in', id:'sgFx', 'aria-label':'Значение или формула', spellcheck:'false', autocomplete:'off', placeholder:'Значение или формула: =SUM(B2:B9), =\'Другая таблица\'!C4, =Лист2!A1' }) ]));
+    m.appendChild(h('div', { 'class':'fx-hint', id:'sgFxHint', hidden:'' }));
     var wrap = h('div', { 'class':'sg-wrap', id:'sgWrap', tabindex:'0', 'aria-label':'Ячейки таблицы. Стрелки — перемещение, Enter или F2 — правка' });
     m.appendChild(wrap);
     var charts = h('div', { 'class':'sg-charts', id:'sgCharts' }); m.appendChild(charts);
     var tabs = h('div', { 'class':'sg-tabs', role:'tablist', 'aria-label':'Листы' }); m.appendChild(tabs);
     renderSheetTabs(); renderGrid(); renderCharts();
     var fx = $('sgFx');
+    $('sgFxBtn').addEventListener('mousedown', function(e){ e.preventDefault(); });
+    $('sgFxBtn').addEventListener('click', function(e){ if(fx.value === '' || fx.value.charAt(0) !== '='){ fx.dataset.orig = fx.value; } openFxWizard(e.currentTarget, fx); });
+    fxHintFor(fx, $('sgFxHint'));
     fx.addEventListener('focus', function(){ fx.dataset.orig = fx.value; });
     fx.addEventListener('keydown', function(e){
       if(e.key === 'Enter'){ e.preventDefault(); shPush(); shSet(SG.sel.r0, SG.sel.c0, fx.value); shChanged(); renderGrid(); shMove(1, 0); wrap.focus(); }

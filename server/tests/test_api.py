@@ -95,7 +95,7 @@ def test_space_rename_delete(client):
 
 def test_industry_envs(client):
     register(client)
-    for env in ("wh", "mes", "fin", "hr", "crm", "bi"):
+    for env in ("wh", "mes", "fin", "hr", "crm", "bi", "photo", "vector"):
         r = client.put(f"/api/spaces/e-{env}", json={"name": env, "env": env, "content": {}, "base_rev": 0})
         assert r.status_code == 201, r.text
         assert client.get(f"/api/spaces/e-{env}").json()["env"] == env

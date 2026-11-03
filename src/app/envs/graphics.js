@@ -1,0 +1,60 @@
+  /* =====================================================================
+     ГРАФИЧЕСКИЕ СРЕДЫ: фоторедактор (растр со слоями) и векторная графика.
+     Работают на рабочем столе файлов, как «Офис»; файлы можно связывать
+     в схеме файлов (картинка → векторный рисунок и обратно).
+     ===================================================================== */
+  function gfxEnv(id, o){
+    ENVS[id] = { id:id, name:o.name, short:o.short, color:o.color, ic:o.ic, theme:o.theme, desc:o.desc, newName:o.newName, seed:o.seed,
+      office:{ types:o.types, tabs:['desk', 'map'], noAi:true, noTpl:true },
+      defLang:'doc', langs:DOC_KINDS.slice(0, 2), colors:DOC_COLORS, plugins:[],
+      word:{ lang:'Тип', plugin:'файл', plugins:'файлов', lib:'Файлы', create:'Создать', newTitle:'Новый файл', kindLabel:'Тип', run:'Скачать', runSub:'Сохранить на компьютер', scheme:'Схема файлов', schemeSub:'Связи файлов', open:'Открыть', libOpen:'Открыть' } };
+  }
+  function gfxSeedPhoto(){
+    newProj('Фото — пример', null, 'photo');
+    var W = 1200, H = 800;
+    function layer(name, draw, extra){ var c = document.createElement('canvas'); c.width = W; c.height = H; draw(c.getContext('2d')); return Object.assign({ id:'l' + Math.random().toString(36).slice(2, 8), name:name, vis:true, op:1, blend:'source-over', src:c.toDataURL('image/png') }, extra || {}); }
+    var layers = [
+      layer('Небо', function(x){ var g = x.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#1E3A8A'); g.addColorStop(0.55, '#F97316'); g.addColorStop(1, '#FDE68A'); x.fillStyle = g; x.fillRect(0, 0, W, H); }),
+      layer('Солнце', function(x){ var g = x.createRadialGradient(820, 470, 10, 820, 470, 220); g.addColorStop(0, 'rgba(255,247,200,1)'); g.addColorStop(0.35, 'rgba(253,224,71,.95)'); g.addColorStop(1, 'rgba(253,186,116,0)'); x.fillStyle = g; x.fillRect(0, 0, W, H); }, { blend:'screen' }),
+      layer('Горы дальние', function(x){ x.fillStyle = '#7C2D12'; x.globalAlpha = 0.55; x.beginPath(); x.moveTo(0, 560); [[120, 430], [260, 520], [420, 380], [560, 500], [700, 410], [860, 520], [1000, 400], [1200, 500], [1200, 800], [0, 800]].forEach(function(p){ x.lineTo(p[0], p[1]); }); x.fill(); }),
+      layer('Горы ближние', function(x){ x.fillStyle = '#1C1917'; x.beginPath(); x.moveTo(0, 650); [[180, 520], [330, 610], [520, 470], [690, 640], [880, 540], [1050, 660], [1200, 580], [1200, 800], [0, 800]].forEach(function(p){ x.lineTo(p[0], p[1]); }); x.fill(); }),
+      layer('Заголовок', function(x){ x.fillStyle = '#FFFFFF'; x.font = '700 64px Inter, system-ui, sans-serif'; x.textBaseline = 'top'; x.shadowColor = 'rgba(0,0,0,.4)'; x.shadowBlur = 12; x.fillText('Triosteum', 70, 80); x.font = '400 28px Inter, system-ui, sans-serif'; x.fillText('Пример: слои, режимы наложения, градиенты', 72, 160); })
+    ];
+    var f = newFile('image', 'Закат — пример', { w:W, h:H, layers:layers }, null, { silent:true });
+    var v = newFile('vector', 'Логотип для фото', gfxLogo(), null, { silent:true });
+    ofOpen(f.id); toast('Открыт пример: попробуйте кисть (B), выделение (M) и меню «Коррекция»');
+  }
+  function gfxLogo(){
+    return { w:600, h:600, bg:'transparent', items:[
+      { id:'g1', t:'ellipse', name:'Круг', x:60, y:60, w:480, h:480, r:0, fill:'#0F172A', fill2:'#1E40AF', gang:45, stroke:'#FFFFFF', sw:10, op:1, shadow:{ dx:6, dy:10, b:14, c:'#000000', o:0.35 } },
+      { id:'g2', t:'star', name:'Звезда', x:170, y:150, w:260, h:250, r:0, n:5, ir:0.45, fill:'#FBBF24', fill2:'#F97316', gang:90, stroke:'#FFFFFF', sw:4, op:1 },
+      { id:'g3', t:'text', name:'Надпись', text:'ТРИОСТЕУМ', x:155, y:430, w:290, h:46, r:0, fill:'#FFFFFF', stroke:'#000000', sw:0, fs:40, ff:'Inter, system-ui, sans-serif', fw:true, op:1 }
+    ] };
+  }
+  function gfxSeedVector(){
+    newProj('Вектор — пример', null, 'vector');
+    var wave = { id:'w1', t:'path', name:'Волна', x:0, y:520, w:1200, h:280, r:0, closed:true, fill:'#0EA5E9', fill2:'#6366F1', gang:0, stroke:'#000000', sw:0, op:0.9,
+      pts:[{ x:0, y:0.3, c1:null, c2:[0.15, 0] }, { x:0.5, y:0.35, c1:[0.3, 0.7], c2:[0.68, 0.05] }, { x:1, y:0.2, c1:[0.85, 0.6], c2:null }, { x:1, y:1, c1:null, c2:null }, { x:0, y:1, c1:null, c2:null }] };
+    var items = [
+      { id:'b1', t:'rect', name:'Фон карточки', x:80, y:70, w:640, h:380, r:0, rx:28, fill:'#FFFFFF', stroke:'#E2E8F0', sw:2, op:1, shadow:{ dx:4, dy:10, b:18, c:'#0F172A', o:0.18 } },
+      { id:'b2', t:'text', name:'Заголовок', text:'Новая линия\nзапущена', x:120, y:110, w:460, h:120, r:0, fill:'#0F172A', stroke:'#000000', sw:0, fs:48, ff:'Inter, system-ui, sans-serif', fw:true, op:1 },
+      { id:'b3', t:'text', name:'Подпись', text:'+18% выпуска · 2026', x:122, y:260, w:360, h:36, r:0, fill:'#64748B', stroke:'#000000', sw:0, fs:28, ff:'Inter, system-ui, sans-serif', op:1 },
+      { id:'b4', t:'rect', name:'Кнопка', x:120, y:330, w:220, h:64, r:0, rx:32, fill:'#2563EB', fill2:'#7C3AED', gang:0, stroke:'#000000', sw:0, op:1 },
+      { id:'b5', t:'text', name:'Текст кнопки', text:'Подробнее', x:160, y:346, w:150, h:34, r:0, fill:'#FFFFFF', stroke:'#000000', sw:0, fs:28, ff:'Inter, system-ui, sans-serif', fw:true, op:1 },
+      { id:'b6', t:'star', name:'Звезда', x:840, y:90, w:240, h:230, r:12, n:7, ir:0.5, fill:'#FBBF24', stroke:'#B45309', sw:3, op:1 },
+      { id:'b7', t:'polygon', name:'Шестиугольник', x:880, y:360, w:150, h:150, r:0, n:6, fill:'none', stroke:'#DB2777', sw:6, dash:'8 6', op:1 },
+      { id:'b8', t:'line', name:'Стрелка', x:740, y:420, w:120, h:1, r:-20, fill:'none', stroke:'#0F172A', sw:4, arrow:true, op:1 },
+      wave
+    ];
+    items.forEach(function(o){ if(o.t === 'text') veTextBox(o); });
+    var f = newFile('vector', 'Баннер — пример', { w:1200, h:800, bg:'#F8FAFC', items:items }, null, { silent:true });
+    newFile('vector', 'Логотип', gfxLogo(), null, { silent:true });
+    ofOpen(f.id); toast('Открыт пример: двойной клик по тексту — правка, A — правка узлов волны, P — перо');
+  }
+  gfxEnv('photo', { name:'Фоторедактор', short:'Фото', color:'#0891B2', theme:'graphite', newName:'Фото', types:['image', 'vector'], seed:gfxSeedPhoto,
+    ic:'<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 17l-5-5-9 8"/>',
+    desc:'Растровые изображения со слоями: кисти, выделения, штамп, градиенты, коррекция цвета, фильтры, режимы наложения.' });
+  gfxEnv('vector', { name:'Векторная графика', short:'Вектор', color:'#DB2777', theme:'midnight', newName:'Вектор', types:['vector', 'image'], seed:gfxSeedVector,
+    ic:'<path d="M12 3l8 5v8l-8 5-8-5V8z"/><circle cx="12" cy="3" r="1.6"/><circle cx="20" cy="16" r="1.6"/><circle cx="4" cy="16" r="1.6"/>',
+    desc:'Логотипы, баннеры и схемы: фигуры, перо с кривыми, текст, градиенты, тени, группы, выравнивание, экспорт SVG и PNG.' });
+  ALLP = null;

@@ -29,7 +29,7 @@
     closeCtx();
     var w = $('tplW'); w.hidden = false; if(!tplWin) tplWin = makeWindow(w, '.pers-h', 'tpl', 'fixed'); tplWin.apply();
     var b = $('tplBody'); b.innerHTML = '';
-    ['doc', 'sheet', 'slides', 'form'].forEach(function(t){
+    ['doc', 'sheet', 'slides', 'form'].filter(function(t){ return ofTypes().indexOf(t) >= 0; }).forEach(function(t){
       var grid = h('div', { 'class':'tpl-grid' });
       tplList().filter(function(x){ return x.type === t; }).forEach(function(x){
         grid.appendChild(h('button', { type:'button', 'class':'tpl', style:'--fc:' + FT[t].color, on:{ click:function(){ w.hidden = true; newFile(t, x.name.indexOf('Пуст') === 0 ? undefined : x.name, x.make()); } } }, [

@@ -26,7 +26,7 @@
 
   function ofLoad(){
     var s = G.files, a = s && s.active;
-    OF.tab = a && (a === 'desk' || a === 'auto' || ofFile(a)) ? a : 'desk';
+    OF.tab = a && (a === 'desk' || a === 'auto' || a === 'map' || ofFile(a)) ? a : 'desk';
     OF.dir = null; OF.sel = []; OF.commit = null; SG.f = null; SE.f = null; FE.f = null; DE.f = null; OA.res = null; OA.err = null;
     if(isOffice() && OF.tab === 'auto'){ S.view = 'canvas'; render(); renderGraph(); }
     ofRender();

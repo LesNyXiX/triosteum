@@ -1,12 +1,14 @@
   /* ---------- экспорт файлов ---------- */
   function exportItems(f){
-    var L = { doc:[['docx', 'Word (.docx)'], ['html', 'Веб-страница (.html)'], ['md', 'Текст (.md)']], sheet:[['xlsx', 'Excel (.xlsx)'], ['csv', 'CSV текущего листа']], slides:[['pptx', 'PowerPoint (.pptx)'], ['html', 'Показ в браузере (.html)']], form:[['html', 'Форма (.html)'], ['xlsx', 'Ответы в Excel']] }[f.type] || [];
+    var L = { doc:[['docx', 'Word (.docx)'], ['html', 'Веб-страница (.html)'], ['md', 'Текст (.md)']], sheet:[['xlsx', 'Excel (.xlsx)'], ['csv', 'CSV текущего листа']], slides:[['pptx', 'PowerPoint (.pptx)'], ['html', 'Показ в браузере (.html)']], form:[['html', 'Форма (.html)'], ['xlsx', 'Ответы в Excel']], image:[['png', 'PNG'], ['jpg', 'JPEG'], ['webp', 'WebP']], vector:[['svg', 'SVG (вектор)'], ['png', 'PNG'], ['jpg', 'JPEG']] }[f.type] || [];
     return L.map(function(x){ return { label:x[1], icon:'download', act:function(){ exportFileAs(f, x[0]); } }; });
   }
   function docExportHtml(f){ var d = document.createElement('div'); d.innerHTML = deWrap(f.data.html); d.querySelectorAll('.lnk-tag').forEach(function(x){ x.remove(); }); d.querySelectorAll('[contenteditable]').forEach(function(x){ x.removeAttribute('contenteditable'); }); d.querySelectorAll('.fld').forEach(function(x){ x.replaceWith(document.createTextNode(x.textContent)); }); d.querySelectorAll('hr.pb').forEach(function(x){ var b = document.createElement('div'); b.style.pageBreakAfter = 'always'; x.replaceWith(b); }); return d.innerHTML; }
   function exportFileAs(f, fmt){
     if(f.id === OF.tab) ofCommit();
     var name = fileBase(f.name, f.type);
+    if(f.type === 'image'){ if(IE.f === f && IE.layers) ieExport(fmt); else ieLoad(f, function(ls){ var c = document.createElement('canvas'); c.width = f.data.w; c.height = f.data.h; var x = c.getContext('2d'); if(fmt === 'jpg'){ x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); } ls.forEach(function(L){ if(!L.vis) return; x.save(); x.globalAlpha = L.op; x.globalCompositeOperation = L.blend; x.drawImage(L.c, 0, 0); x.restore(); }); var type = fmt === 'jpg' ? 'image/jpeg' : (fmt === 'webp' ? 'image/webp' : 'image/png'); c.toBlob(function(b){ download(name + '.' + fmt, b, type, 'Изображение сохранено (.' + fmt + ')'); }, type, 0.92); }); return; }
+    if(f.type === 'vector'){ var keep = VE.f; VE.f = f; veExport(fmt, 1); VE.f = keep; return; }
     if(f.type === 'doc'){
       var body = docExportHtml(f);
       if(fmt === 'md'){ var t = document.createElement('div'); t.innerHTML = body; download(name + '.md', t.innerText, 'text/markdown', 'Текст сохранён'); return; }

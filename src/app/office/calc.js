@@ -32,13 +32,14 @@
       refs.push('X(' + JSON.stringify(q || w) + ',"' + c1 + '",' + r1 + (c2 ? ',"' + c2 + '",' + r2 : '') + ')');
       return '\u0002' + (refs.length - 1) + '\u0002';
     });
+    if(s.indexOf(';') >= 0 || !/[A-Za-z][A-Za-z0-9.]*\s*\(/.test(s)) s = s.replace(/(\d),(\d)/g, '$1.$2');
     s = s.replace(/;/g, ',');
-    s = s.replace(/([A-Za-zА-Яа-яЁё]+)\s*\(/g, function(m, name){ var f = FN[name.toUpperCase()]; if(!f) throw new Error('fn'); return 'F.' + f + '('; });
-    s = s.replace(/\$?\b([A-Z]{1,3})\$?(\d+)\s*:\s*\$?([A-Z]{1,3})\$?(\d+)\b/g, function(m, a, b, c, d){ return 'R("' + a + '",' + b + ',"' + c + '",' + d + ')'; });
-    s = s.replace(/\$?\b([A-Z]{1,3})\$?(\d+)\b/g, function(m, a, b){ return 'V("' + a + '",' + b + ')'; });
+    s = fnPrep(s);
+    s = s.replace(/(?<![.A-Za-z0-9_$])\$?([A-Z]{1,3})\$?(\d+)\s*:\s*\$?([A-Z]{1,3})\$?(\d+)\b/g, function(m, a, b, c, d){ return 'R("' + a + '",' + b + ',"' + c + '",' + d + ')'; });
+    s = s.replace(/(?<![.A-Za-z0-9_$])\$?([A-Z]{1,3})\$?(\d+)\b/g, function(m, a, b){ return 'V("' + a + '",' + b + ')'; });
     s = s.replace(/(\d+(?:\.\d+)?)\s*%/g, '($1/100)').replace(/<>/g, '!=').replace(/([^<>!=])=(?!=)/g, '$1==').replace(/\^/g, '**').replace(/&/g, '+');
     var check = s.replace(/"[^"]*"/g, '').replace(/\u0001\d+\u0001/g, '').replace(/\u0002\d+\u0002/g, '');
-    (check.match(/[A-Za-z_][A-Za-z_0-9.]*/g) || []).forEach(function(id){ if(id !== 'V' && id !== 'R' && !/^F\.[A-Z]+$/.test(id)) throw new Error('id'); });
+    (check.match(/[A-Za-z_][A-Za-z_0-9.]*/g) || []).forEach(function(id){ if(id !== 'V' && id !== 'R' && id !== 'true' && id !== 'false' && !/^F\.[A-Z0-9_]+$/.test(id)) throw new Error('id'); });
     if(/[^\s\d.+\-*/(),<>=!?:A-Za-z_"%]/.test(check)) throw new Error('chars');
     return s.replace(/\u0002(\d+)\u0002/g, function(m, i){ return refs[+i]; }).replace(/\u0001(\d+)\u0001/g, function(m, i){ return strs[+i]; });
   }
@@ -46,19 +47,19 @@
     if(src.indexOf('#ССЫЛКА') >= 0) return '#ССЫЛКА';
     try{
       var V = function(col, row){ return cellVal(ctx.file, ctx.idx, colIdx(col), row - 1); };
-      var range = function(file, idx, c1, r1, c2, r2){ var out = [], a = colIdx(c1), b = colIdx(c2); for(var r = Math.min(r1, r2); r <= Math.max(r1, r2); r++) for(var c = Math.min(a, b); c <= Math.max(a, b); c++) out.push(cellVal(file, idx, c, r - 1)); return out; };
+      var range = function(file, idx, c1, r1, c2, r2){ var out = [], a = colIdx(c1), b = colIdx(c2); for(var r = Math.min(r1, r2); r <= Math.max(r1, r2); r++) for(var c = Math.min(a, b); c <= Math.max(a, b); c++) out.push(cellVal(file, idx, c, r - 1)); out.w = Math.abs(b - a) + 1; return out; };
       var R = function(c1, r1, c2, r2){ return range(ctx.file, ctx.idx, c1, r1, c2, r2); };
       var X = function(name, c1, r1, c2, r2){
         var t = sheetRef(ctx, name); if(!t) throw new Error('ref');
         return c2 ? range(t.file, t.idx, c1, r1, c2, r2) : cellVal(t.file, t.idx, colIdx(c1), r1 - 1);
       };
       var fn = new Function('V', 'R', 'X', 'F', '"use strict";return (' + translateF2(src) + ');');
-      var v = fn(V, R, X, FF);
+      var v = fn(V, R, X, ffSafe());
       if(typeof v === 'number' && !isFinite(v)) return '#ДЕЛ/0';
       if(typeof v === 'boolean') return v ? 'ИСТИНА' : 'ЛОЖЬ';
       if(Array.isArray(v)) return v[0];
       return v;
-    }catch(e){ return e && e.message === 'ref' ? '#ССЫЛКА' : '#ОШИБКА'; }
+    }catch(e){ return fErrCode(e); }
   }
   function sheetValues(file, idx){
     var sh = file.data.sheets[idx || 0]; if(!sh) return [];
