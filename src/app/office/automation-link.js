@@ -18,6 +18,7 @@
     var n = 0;
     RES.items.forEach(function(it){
       if(it.type === 'doc'){ newFile('doc', it.title, { html:it.html + (it.status.length ? '<p style="color:#666;font-size:12px">Отметки маршрута: ' + escHtml(it.status.join(' → ')) + '</p>' : '') }, dir.id, { silent:true }); n++; }
+      else if(it.type === 'html'){ newFile('doc', it.title, { html:sanitizeHtml(it.html) || '<p></p>' }, dir.id, { silent:true }); n++; }
       else if(it.type === 'table'){ var aoa = rowsToAoa(it.rows); newFile('sheet', it.title, { sheets:[{ name:'Лист1', rows:aoa.map(function(r){ return r.map(function(v){ return String(v); }); }), fmt:{}, widths:{}, charts:[] }] }, dir.id, { silent:true }); n++; }
     });
     saveGraph(); toast('Сохранено в «Файлы»: ' + n + ' (папка «' + dir.name + '»)');

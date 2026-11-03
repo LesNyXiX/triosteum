@@ -136,3 +136,10 @@
 
   .status{flex:none;display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;min-height:28px;padding:4px 16px;background:var(--panel);border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
   .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  /* картинка-заметка на доске */
+  .note.imgnote{padding:6px;min-width:0}
+  .note.imgnote img{display:block;max-width:420px;width:260px;border-radius:6px;pointer-events:none;user-select:none}
+  .note.imgnote img + *{margin-top:4px}
+  /* блок другой среды: метка родной среды */
+  .node .env-tag{position:absolute;left:10px;bottom:-9px;padding:1px 7px;border-radius:8px;font:600 9.5px/14px var(--ui,system-ui);letter-spacing:.02em;background:var(--tipbg);color:var(--c1);border:1px solid color-mix(in srgb,var(--c1) 60%,var(--line2));pointer-events:none;white-space:nowrap}
+  .node.bridged{box-shadow:0 0 0 2px var(--c1),0 10px 26px rgba(0,0,0,.35)}

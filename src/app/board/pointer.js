@@ -106,23 +106,17 @@
       var n = nodeById(ne.dataset.id);
       if(e.shiftKey){ toggleMulti('node', n.id); drag = null; return; }
       var stN = isDouble('n:' + n.id); lastTap = { key:null, t:0 };
-      if(stN){                                   // двойное нажатие по блоку — удалить (Ctrl+Z или «Вернуть» отменяет)
+      if(stN){                                   // двойное нажатие по блоку — открыть его в родной среде (удаление — крестик, ПКМ или Delete)
         e.preventDefault(); drag = null; hidePop();
-        S.multi = []; S.sel = { type:'node', id:n.id };
-        ne.classList.add('removing');
-        var nm = n.name;
-        setTimeout(function(){
-          if(!nodeById(n.id)) return;
-          S.multi = []; S.sel = { type:'node', id:n.id }; deleteSel(); flushSave();
-          toastAct('Блок «' + nm + '» удалён', 'Вернуть', undo);
-        }, document.body.classList.contains('noanim') ? 0 : 170);
+        S.multi = []; S.sel = { type:'node', id:n.id }; updateSel();
+        openBlock(n);
         return;
       }
       var w = toWorld(e.clientX, e.clientY), grp = groupFor('node', n);
       if(!grp){ S.multi = []; S.sel = { type:'node', id:n.id }; }
       updateSel(); hidePop();
       ne.classList.add('dragging');
-      drag = { mode:'move', type:'node', item:n, el:ne, dx:w.x - n.x, dy:w.y - n.y, sx:e.clientX, sy:e.clientY, moved:false, sticky:false, group:grp };
+      drag = { mode:'move', type:'node', item:n, el:ne, ox:n.x, oy:n.y, dx:w.x - n.x, dy:w.y - n.y, sx:e.clientX, sy:e.clientY, moved:false, sticky:false, group:grp };
       if(e.pointerType !== 'mouse'){        // на телефоне: удержание открывает код
         var dn = drag;
         dn.lp = setTimeout(function(){ if(drag === dn && !dn.moved){ drag = null; dn.el.classList.remove('dragging'); showPop(); } }, 600);
@@ -263,6 +257,7 @@
       drag.tx = Math.round(w.x - drag.dx); drag.ty = Math.round(w.y - drag.dy); drag.moved = true;
       if(UI.snap && !e.altKey){ drag.tx = Math.round(drag.tx / GRID) * GRID; drag.ty = Math.round(drag.ty / GRID) * GRID; }
       smoothMove(drag);
+      if(drag.type === 'node') shakeTrack(drag, e);
     } else if(drag.mode === 'edgegrab'){
       if(Math.abs(e.clientX - drag.sx) + Math.abs(e.clientY - drag.sy) < 5) return;
       var ge = drag.edge, r0 = nearestOnEdge(ge, drag.w0), useTo = !r0 || r0.t >= 0.5;
@@ -438,8 +433,8 @@
       if(code === 'KeyA'){ e.preventDefault(); selectAll(); }
       else if(code === 'KeyZ' && !e.shiftKey){ e.preventDefault(); undo(); }
       else if(code === 'KeyY' || (code === 'KeyZ' && e.shiftKey)){ e.preventDefault(); redo(); }
-      else if(code === 'KeyC'){ e.preventDefault(); copySel(); }
-      else if(code === 'KeyV'){ e.preventDefault(); pasteClip(); }
+      else if(code === 'KeyC'){ copySel(); }
+      else if(code === 'KeyV'){ boardPasteSoon(); }
       else if(code === 'KeyD'){ e.preventDefault(); dupSel(); }
       return;
     }

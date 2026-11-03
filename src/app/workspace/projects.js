@@ -146,7 +146,8 @@
   }
   function shareItems(){
     return [
-      { label:'Сохранить в файл (.json)', icon:'download', kb:MOD + 'S', act:exportFile },
+      { label:'Сохранить пространство (.tsm)', icon:'download', kb:MOD + 'S', act:exportFile },
+      { label:'Сохранить выделенные блоки (.tsm)', icon:'download', act:exportTsmBlocks },
       { label:'Открыть файл…', icon:'upload', kb:MOD + 'O', act:function(){ fileIn.click(); } },
       { label:'Скопировать схему (JSON)', icon:'copy', act:copyScheme },
       { label:'Экспорт картинки (SVG)', icon:'map', disabled:!G.nodes.length && !G.notes.length, act:exportSvg }

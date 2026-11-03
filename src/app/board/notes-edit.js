@@ -20,7 +20,7 @@
       d.contentEditable = 'false'; d.classList.remove('editing');
       t.text = d.innerText.replace(/\n$/, '');
       editingNote = null;
-      if(!t.text.trim() && !t.attach){ G.notes = G.notes.filter(function(x){ return x.id !== id; }); if(S.sel && S.sel.id === id) S.sel = null; }
+      if(!t.text.trim() && !t.attach && !t.img){ G.notes = G.notes.filter(function(x){ return x.id !== id; }); if(S.sel && S.sel.id === id) S.sel = null; }
       renderGraph(); updateSel();
       saveGraph(); status();
     });

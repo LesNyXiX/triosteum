@@ -11,7 +11,7 @@
     for(var k in COLORS) delete COLORS[k];
     for(var k2 in ENV.colors) COLORS[k2] = ENV.colors[k2];
     PLUGINS.length = 0; ENV.plugins.forEach(function(p){ PLUGINS.push(p); });
-    var sl = load('triosteum.lang.' + ENV.id, ENV.defLang); S.lang = langById(sl) ? sl : ENV.defLang;
+    var sl = load('triosteum.lang.' + ENV.id, ENV.defLang); S.lang = nativeLang(sl) ? sl : ENV.defLang;
     S.filter = 'all';
     document.body.setAttribute('data-env', ENV.id);
     var w = ENV.word;

@@ -180,7 +180,7 @@
   function veDelete(){ var s = VE.sel.slice(); if(!s.length) return; vePush('Удаление'); VE.f.data.items = veItems().filter(function(o){ return s.indexOf(o.id) < 0; }); VE.sel = []; veChanged(); }
   function veClone(o, dx){ var c = JSON.parse(JSON.stringify(o)); (function re(x){ x.id = veId(); (x.children || []).forEach(re); })(c); c.x += dx || 0; c.y += dx || 0; return c; }
   function veDuplicate(){ var s = veSelItems(); if(!s.length) return; vePush('Дублирование'); var ids = s.map(function(o){ var c = veClone(o, 16); veItems().push(c); return c.id; }); VE.sel = ids; veChanged(); }
-  function veCopy(cut){ var s = veSelItems(); if(!s.length) return; VE.clip = JSON.stringify(s); if(cut) veDelete(); toast(cut ? 'Вырезано' : 'Скопировано: ' + s.length); }
+  function veCopy(cut){ var s = veSelItems(); if(!s.length) return; VE.clip = JSON.stringify(s); VE.clipT = Date.now(); if(cut) veDelete(); toast(cut ? 'Вырезано' : 'Скопировано: ' + s.length); }
   function vePaste(){ if(!VE.clip) return; vePush('Вставка'); var ids = JSON.parse(VE.clip).map(function(o){ var c = veClone(o, 20); veItems().push(c); return c.id; }); VE.sel = ids; veChanged(); }
   function veOrder(where){
     var s = VE.sel; if(!s.length) return; vePush('Порядок'); var it = veItems(), picked = it.filter(function(o){ return s.indexOf(o.id) >= 0; }), rest = it.filter(function(o){ return s.indexOf(o.id) < 0; });
@@ -497,9 +497,9 @@
       else if(mod && (c === 'KeyY' || (e.shiftKey && c === 'KeyZ'))) veRedo();
       else if(mod && c === 'KeyA'){ VE.sel = veItems().filter(function(o){ return !o.hidden && !o.locked; }).map(function(o){ return o.id; }); veChanged(); }
       else if(mod && c === 'KeyD') veDuplicate();
-      else if(mod && c === 'KeyC') veCopy(false);
-      else if(mod && c === 'KeyX') veCopy(true);
-      else if(mod && c === 'KeyV') vePaste();
+      else if(mod && c === 'KeyC'){ veCopy(false); handled = false; }
+      else if(mod && c === 'KeyX'){ veCopy(true); handled = false; }
+      else if(mod && c === 'KeyV'){ clearTimeout(OF.pasteWait); OF.pasteWait = setTimeout(function(){ OF.pasteWait = null; vePaste(); }, 150); handled = false; }
       else if(mod && e.shiftKey && c === 'KeyG') veUngroup();
       else if(mod && c === 'KeyG') veGroup();
       else if(mod && c === 'BracketRight') veOrder(e.shiftKey ? 'front' : 'up');

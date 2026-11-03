@@ -51,13 +51,29 @@
   var toolBtns = Array.prototype.slice.call(document.querySelectorAll('[data-tool]'));
 
   function newBlockName(lang){ var l = langById(lang); return (isDocs() && l ? l.name : 'Новый блок') + ' ' + (G.nodes.length + 1); }
-  function langById(id){ return LANGS.filter(function(l){ return l.id === id; })[0]; }
+  function langById(id){ return LANGS.filter(function(l){ return l.id === id; })[0] || foreignLang(id); }
+  // блок из другой среды: язык и цвета берутся из его родной среды
+  function foreignLang(id){
+    if(typeof ENVS === 'undefined') return undefined;
+    var keys = Object.keys(ENVS);
+    for(var i = 0; i < keys.length; i++){ var l = (ENVS[keys[i]].langs || []).filter(function(x){ return x.id === id; })[0]; if(l) return l; }
+    return undefined;
+  }
+  function langHomeEnv(id){
+    if(typeof ENVS === 'undefined') return null;
+    if(ENVS.code && ENVS.code.langs.some(function(l){ return l.id === id; })) return 'code';
+    var keys = Object.keys(ENVS);
+    for(var i = 0; i < keys.length; i++) if((ENVS[keys[i]].langs || []).some(function(l){ return l.id === id; })) return keys[i];
+    return null;
+  }
+  function nativeLang(id){ return LANGS.some(function(l){ return l.id === id; }); }
   function pluginById(id){ return (CODE_PLUGINS ? allPlugins() : PLUGINS).filter(function(p){ return p.id === id; })[0] || MY.filter(function(p){ return p.id === id; })[0]; }
   function nodeById(id){ return G.nodes.filter(function(n){ return n.id === id; })[0]; }
   function noteById(id){ return G.notes.filter(function(n){ return n.id === id; })[0]; }
   function edgeById(id){ return G.edges.filter(function(e){ return e.id === id; })[0]; }
   function shortName(l){ return l.id === 'csharp' ? 'C#' : l.name; }
-  function colorsOf(n){ return n.colors || COLORS[n.lang] || ['#8A8A8A', '#555555']; }
+  function colorsOf(n){ return n.colors || COLORS[n.lang] || foreignColors(n.lang) || ['#8A8A8A', '#555555']; }
+  function foreignColors(id){ if(typeof ENVS === 'undefined') return null; var h = langHomeEnv(id); return h && ENVS[h].colors ? ENVS[h].colors[id] : null; }
   function grad(c){ return 'linear-gradient(135deg,' + c[0] + ',' + c[1] + ')'; }
 
   var toastTimer = null;

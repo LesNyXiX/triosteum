@@ -105,3 +105,6 @@
     .status > div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
     #stRight{display:none}
   }
+  /* встряхивание блока: связи переходят на узел */
+  @keyframes tShake{0%,100%{transform:translateX(0)}20%{transform:translateX(-5px) rotate(-2deg)}40%{transform:translateX(5px) rotate(2deg)}60%{transform:translateX(-4px) rotate(-1deg)}80%{transform:translateX(3px)}}
+  body:not(.noanim) .node.shaken,body:not(.noanim) .fm-node.shaken{animation:tShake .45s ease}

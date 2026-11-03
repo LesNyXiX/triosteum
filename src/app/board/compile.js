@@ -39,7 +39,8 @@
     '    _out_json = json.dumps(_res, ensure_ascii=False, default=str)'
   ].join('\n');
   function runBoard(){
-    if(isDocs()) return runRoute();
+    // единый компилятор: если на доске есть блоки других сред (таблицы, документы, расчёты), вся схема идёт одним маршрутом
+    if(isDocs() || G.nodes.some(function(n){ return n.kind !== 'hub' && !CODE_LANGS.some(function(l){ return l.id === n.lang; }); })) return runRoute();
     if(running) return;
     if(S.view !== 'canvas'){ S.view = 'canvas'; render(); renderGraph(); }
     runEl.box.hidden = false; runEl.out.textContent = ''; runEl.sum.textContent = '';

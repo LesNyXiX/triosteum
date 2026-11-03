@@ -170,7 +170,7 @@
     d.querySelector('.ln').textContent = shortName(l);
     d.querySelector('.nt').textContent = n.name;
     d.querySelector('.nt').title = n.name;
-    var nd = d.querySelector('.nd'), ndt = (isDocs() && isParamKind(n.lang) ? autoDesc(n) : '') || n.desc || autoDesc(n) || 'ПКМ — настройки · 2× — удалить';
+    var nd = d.querySelector('.nd'), ndt = (isDocs() && isParamKind(n.lang) ? autoDesc(n) : '') || n.desc || autoDesc(n) || 'ПКМ — настройки · 2× — открыть · потрясти — отцепить связи';
     nd.textContent = ndt; nd.title = ndt;
     sizeNodeEl(d, n);
     if(n.fs) d.querySelector('.nt').style.fontSize = n.fs + 'px';

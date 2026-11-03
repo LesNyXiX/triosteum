@@ -31,7 +31,18 @@
     if(mod && !e.altKey && code === 'KeyR'){ e.preventDefault(); officeRun(); return true; }
     if(mod && e.altKey && code === 'KeyN'){ e.preventDefault(); var r = $('ofrNew').getBoundingClientRect(); openMenuAt(newItems(), r.right + 8, r.top); return true; }
     if(mod && !e.shiftKey && code === 'KeyW' && ofFile(OF.tab)){ e.preventDefault(); ofClose(OF.tab); return true; }
-    if(!typing && OF.tab === 'desk' && mod && code === 'KeyZ'){ e.preventDefault(); ofRestore(); return true; }
+    // горячие клавиши редакторов работают, даже если фокус ушёл на ленту или вкладки
+    var fv = ofFile(OF.tab), view = fv && (fv.type === 'image' ? $('ieView') : (fv.type === 'vector' ? $('veView') : null));
+    if(view && !typing && !view.contains(t) && !$('howW') && (mod || /^(Delete|Backspace|Escape|Enter|Arrow|\[|\]| )/.test(e.key) || (!e.altKey && e.key.length === 1))){
+      view.focus({ preventScroll:true });
+      var ke = new KeyboardEvent('keydown', { key:e.key, code:e.code, ctrlKey:e.ctrlKey, metaKey:e.metaKey, shiftKey:e.shiftKey, altKey:e.altKey, bubbles:true, cancelable:true });
+      view.dispatchEvent(ke); if(ke.defaultPrevented){ e.preventDefault(); return true; }
+      return false;
+    }
+    if(!typing && (OF.tab === 'desk' || OF.tab === 'map') && mod && !e.shiftKey && code === 'KeyZ'){ e.preventDefault(); ofUndo(); return true; }
+    if(!typing && (OF.tab === 'desk' || OF.tab === 'map') && mod && (code === 'KeyY' || (e.shiftKey && code === 'KeyZ'))){ e.preventDefault(); ofRedo(); return true; }
+    if(!typing && OF.tab === 'desk' && mod && code === 'KeyD' && OF.sel.length){ e.preventDefault(); ofSnapPush(); OF.sel.slice().forEach(function(id){ ofDuplicate(id); }); return true; }
+    if(!typing && OF.tab === 'map' && !t.closest('#fmWrap') && $('fmWrap') && (mod || e.key === 'Delete' || e.key === 'Backspace' || e.key === 'Escape' || /^Arrow/.test(e.key))){ fmKey(e); if(e.defaultPrevented) return true; }
     if(!typing && OF.tab === 'desk' && mod && code === 'KeyA'){ e.preventDefault(); OF.sel = ofChildren(OF.dir).map(function(x){ return x.id; }); Array.prototype.forEach.call(document.querySelectorAll('.fcard'), function(x){ x.classList.add('sel'); }); return true; }
     return false;
   }

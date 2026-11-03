@@ -28,6 +28,7 @@
     "app/board/popup.js",
     "app/board/block-ai.js",
     "app/board/pointer.js",
+    "app/board/shake.js",
     "app/board/clipboard.js",
     "app/board/compile.js",
     "app/ui/text-style.js",
@@ -84,6 +85,7 @@
     "app/office/file-map.js",
     "app/office/image.js",
     "app/office/vector.js",
+    "app/office/insert.js",
     "app/office/ai.js",
     "app/office/sample.js",
     "app/office/automation-link.js",
@@ -93,6 +95,7 @@
     "app/workspace/welcome.js",
     "app/workspace/team.js",
     "app/workspace/live.js",
+    "app/workspace/universal.js",
     "app/main.js"
   ]
 }

@@ -26,30 +26,63 @@
   function exportFile(){
     flushSave();
     var used = {}; G.nodes.forEach(function(n){ if(n.pluginId) used[n.pluginId] = 1; });
-    var data = { app:'Triosteum', format:1, env:ENV.id, name:curProj().name, exported:new Date().toISOString(), graph:G,
+    if(typeof ofCommit === 'function' && ENV.office) ofCommit();
+    var data = { app:'Triosteum', format:2, kind:'space', env:ENV.id, name:curProj().name, exported:new Date().toISOString(), graph:G,
       plugins:MY.filter(function(p){ return used[p.id]; }) };
-    download(fileBase(curProj().name, 'prostranstvo') + '.triosteum.json', JSON.stringify(data, null, 2), 'application/json', 'Файл пространства сохранён');
+    download(fileBase(curProj().name, 'prostranstvo') + '.tsm', JSON.stringify(data), TSM_MIME, 'Файл пространства сохранён (.tsm) — откройте его в любом Triosteum');
+  }
+  var TSM_MIME = 'application/x-triosteum';
+  // .tsm — собственный формат Triosteum: пространство целиком, набор файлов или блоки доски
+  function exportTsmFiles(files, name){
+    files = files.filter(function(f){ return f && f.type !== 'folder'; }); if(!files.length){ toast('Нечего сохранять'); return; }
+    if(typeof ofCommit === 'function') ofCommit();
+    var notes = typeof fmNotes === 'function' ? fmNotes().filter(function(t){ return files.some(function(f){ return f.id === t.attach; }); }) : [];
+    var data = { app:'Triosteum', format:2, kind:'files', env:ENV.id, name:name || files[0].name, exported:new Date().toISOString(), files:JSON.parse(JSON.stringify(files)), notes:notes };
+    download(fileBase(name || files[0].name, 'fayly') + '.tsm', JSON.stringify(data), TSM_MIME, (files.length === 1 ? 'Файл «' + files[0].name + '»' : 'Файлов: ' + files.length) + ' сохранено в .tsm');
+  }
+  function exportTsmBlocks(){
+    var items = S.multi && S.multi.length ? S.multi : (S.sel ? [S.sel] : []);
+    if(!items.length){ toast('Выделите блоки, чтобы сохранить их в .tsm'); return; }
+    copySel(); if(!clip) return;
+    var data = { app:'Triosteum', format:2, kind:'blocks', env:ENV.id, envName:ENV.name, name:curProj().name, t:Date.now(), proj:'file', projName:curProj().name, nodes:clip.portable.nodes, notes:clip.portable.notes, edges:clip.portable.edges, portable:clip.portable };
+    download(fileBase(curProj().name, 'bloki') + '-bloki.tsm', JSON.stringify(data), TSM_MIME, 'Блоки сохранены в .tsm — откройте файл в любом пространстве');
+  }
+  function importTsmFiles(o){
+    var files = o.files || []; if(!files.length){ toast('В файле .tsm нет файлов'); return; }
+    if(!(typeof ENV !== 'undefined' && ENV.office)){
+      var env = ENVS[o.env] && ENVS[o.env].office ? o.env : 'docs';
+      newProj(o.name || 'Файлы', { nodes:[], edges:[], notes:[], seq:1, cam:{ x:0, y:0, k:1 }, files:{ items:[], open:[], active:'desk' } }, env);
+    }
+    var map = {};
+    files.forEach(function(x){ var c = JSON.parse(JSON.stringify(x)); map[x.id] = c.id = ofId(); c.parent = OF.dir || null; c.name = ofUnique(c.name, c.parent); var sp = ofFreeSpot(c.parent); c.x = sp.x; c.y = sp.y; delete c.map; ofItems().push(c); });
+    // связи внутри набора сохраняются: ссылки на старые id переводим на новые
+    ofItems().forEach(function(f){ if(!map[Object.keys(map).filter(function(k){ return map[k] === f.id; })[0]]) return; var s = JSON.stringify(f.data); Object.keys(map).forEach(function(k){ s = s.split(k).join(map[k]); }); f.data = JSON.parse(s); });
+    (o.notes || []).forEach(function(t){ if(map[t.attach]){ var c = JSON.parse(JSON.stringify(t)); c.id = 'mn' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); c.attach = map[t.attach]; fmNotes().push(c); } });
+    saveGraph(); ofRender(); toast('Открыто из .tsm: файлов ' + files.length);
   }
   var fileIn = document.createElement('input');
-  fileIn.type = 'file'; fileIn.accept = '.json,application/json'; fileIn.hidden = true; document.body.appendChild(fileIn);
+  fileIn.type = 'file'; fileIn.accept = '.tsm,.json,application/json'; fileIn.hidden = true; document.body.appendChild(fileIn);
   fileIn.addEventListener('change', function(){ var f = fileIn.files[0]; if(f) importFile(f); fileIn.value = ''; });
   function importFile(f){
     f.text().then(function(txt){
-      var o = JSON.parse(txt), g = o.graph || (o.nodes ? o : null);
+      var o = JSON.parse(txt);
+      if(o && o.kind === 'files'){ importTsmFiles(o); return; }
+      if(o && o.kind === 'blocks'){ o.t = Date.now(); clip = o; if(typeof officeOn === 'function' && officeOn()) officePasteBlocks(o); else pasteClip(); return; }
+      var g = o.graph || (o.nodes ? o : null);
       if(!g || !Array.isArray(g.nodes)) throw new Error('format');
       (o.plugins || []).forEach(function(p){ if(p && p.id && !pluginById(p.id)){ p.my = true; if(!p.codes) p.codes = {}; MY.push(p); } });
       saveMy(); renderChips(); renderList();
-      var name = o.name || f.name.replace(/\.triosteum\.json$|\.json$/i, '');
+      var name = o.name || f.name.replace(/\.triosteum\.json$|\.json$|\.tsm$/i, '');
       newProj(name, g, ENVS[o.env] ? o.env : (g.nodes.some(function(n){ return ['doc', 'sheet', 'step', 'cond', 'send'].indexOf(n.lang) >= 0; }) ? 'docs' : 'code'));
       setTimeout(fitView, 30);
       toast('Открыто пространство «' + curProj().name + '»');
-    }).catch(function(){ toast('Не удалось открыть: нужен файл пространства Triosteum (.json)'); });
+    }).catch(function(){ toast('Не удалось открыть: нужен файл Triosteum (.tsm или .json)'); });
   }
   el.canvas.addEventListener('dragover', function(e){ if(e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], 'Files') >= 0){ e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } });
   el.canvas.addEventListener('drop', function(e){
     var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
     if(!f) return; e.preventDefault();
-    if(/\.json$/i.test(f.name)) importFile(f); else toast('Перетащите файл пространства .json');
+    if(/\.(json|tsm)$/i.test(f.name)) importFile(f); else if(/^image\//.test(f.type)) boardPasteImage(f, 0); else toast('Перетащите файл Triosteum (.tsm) или картинку');
   });
   function exportSvg(){
     var xs = [], ys = [];

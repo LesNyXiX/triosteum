@@ -1,7 +1,10 @@
   /* ---------- экспорт файлов ---------- */
   function exportItems(f){
     var L = { doc:[['docx', 'Word (.docx)'], ['html', 'Веб-страница (.html)'], ['md', 'Текст (.md)']], sheet:[['xlsx', 'Excel (.xlsx)'], ['csv', 'CSV текущего листа']], slides:[['pptx', 'PowerPoint (.pptx)'], ['html', 'Показ в браузере (.html)']], form:[['html', 'Форма (.html)'], ['xlsx', 'Ответы в Excel']], image:[['png', 'PNG'], ['jpg', 'JPEG'], ['webp', 'WebP']], vector:[['svg', 'SVG (вектор)'], ['png', 'PNG'], ['jpg', 'JPEG']] }[f.type] || [];
-    return L.map(function(x){ return { label:x[1], icon:'download', act:function(){ exportFileAs(f, x[0]); } }; });
+    var sel = (OF.tab === 'desk' && OF.sel.length > 1 && OF.sel.indexOf(f.id) >= 0) ? OF.sel.map(ofFile) : ((OF.tab === 'map' && FM.multi && FM.multi.length > 1 && FM.multi.indexOf(f.id) >= 0) ? FM.multi.map(ofFile).filter(Boolean) : null);
+    return L.map(function(x){ return { label:x[1], icon:'download', act:function(){ exportFileAs(f, x[0]); } }; })
+      .concat([{ sep:true }, { label:'Triosteum (.tsm) — со всеми данными', icon:'download', act:function(){ exportTsmFiles([f]); } }],
+        sel ? [{ label:'Выделенные файлы (' + sel.length + ') одним .tsm', icon:'download', act:function(){ exportTsmFiles(sel, curProj().name); } }] : []);
   }
   function docExportHtml(f){ var d = document.createElement('div'); d.innerHTML = deWrap(f.data.html); d.querySelectorAll('.lnk-tag').forEach(function(x){ x.remove(); }); d.querySelectorAll('[contenteditable]').forEach(function(x){ x.removeAttribute('contenteditable'); }); d.querySelectorAll('.fld').forEach(function(x){ x.replaceWith(document.createTextNode(x.textContent)); }); d.querySelectorAll('hr.pb').forEach(function(x){ var b = document.createElement('div'); b.style.pageBreakAfter = 'always'; x.replaceWith(b); }); return d.innerHTML; }
   function exportFileAs(f, fmt){

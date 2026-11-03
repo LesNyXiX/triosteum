@@ -75,7 +75,7 @@
 
     var desc = h('textarea', { 'class':'input', id:'popDesc', maxlength:'140', placeholder:'Коротко: что делает блок' }); desc.value = n.desc || '';
     desc.addEventListener('input', function(){
-      n.desc = desc.value; if(d){ d.querySelector('.nd').textContent = n.desc || 'ПКМ — настройки · 2× — удалить'; } saveGraph();
+      n.desc = desc.value; if(d){ d.querySelector('.nd').textContent = n.desc || 'ПКМ — настройки · 2× — открыть · потрясти — отцепить связи'; } saveGraph();
     });
     p.appendChild(section('Описание', desc, 'popDesc'));
     if(isDocs() && isParamKind(n.lang) && n.kind !== 'hub') p.appendChild(section('Параметры', paramSection(n)));

@@ -300,6 +300,20 @@
     c.toBlob(function(b){ download(fileBase(IE.f.name, 'image') + '.' + fmt, b, type, 'Изображение сохранено (.' + fmt + ')'); }, type, 0.92);
   }
   function ieImportLayer(){ var inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*'; inp.addEventListener('change', function(){ var f = inp.files[0]; if(!f) return; var u = URL.createObjectURL(f), im = new Image(); im.onload = function(){ iePush('Картинка слоем'); var c = ieCanvas(IE.w, IE.h), k = Math.min(1, IE.w / im.width, IE.h / im.height); c.getContext('2d').drawImage(im, (IE.w - im.width * k) / 2, (IE.h - im.height * k) / 2, im.width * k, im.height * k); ieNewLayer(baseName(f.name).slice(0, 30), c); ieAfterStruct(); URL.revokeObjectURL(u); }; im.src = u; }); inp.click(); }
+  // копировать / вырезать выделение (или весь слой) и вставить новым слоем на то же место
+  function ieClipCopy(cut){
+    var L = ieCur(); if(!L){ toast('Нет активного слоя'); return; }
+    var c = ieCanvas(IE.w, IE.h), cx = c.getContext('2d'); cx.save(); if(IE.sel) ieClip(cx); cx.drawImage(L.c, 0, 0); cx.restore();
+    IE.clip = { src:c.toDataURL('image/png'), t:Date.now(), name:L.name };
+    if(cut){ if(IE.sel) ieSelOps('clear'); else { iePush('Вырезать'); L.c.getContext('2d').clearRect(0, 0, IE.w, IE.h); ieRender(); ieThumbs(); ieSave(); } }
+    toast((cut ? 'Вырезано' : 'Скопировано') + (IE.sel ? ' выделение' : ' — слой «' + L.name + '»') + ' · ' + MOD + 'V — вставить новым слоем');
+    try{ if(navigator.clipboard && window.ClipboardItem) c.toBlob(function(b){ navigator.clipboard.write([new ClipboardItem({ 'image/png':b })]).then(null, function(){}); }); }catch(e){}
+  }
+  function iePasteClip(){
+    if(!IE.clip){ toast('Буфер пуст'); return; }
+    var im = new Image(); im.onload = function(){ iePush('Вставка'); var c = ieCanvas(IE.w, IE.h); c.getContext('2d').drawImage(im, 0, 0); ieNewLayer((IE.clip.name || 'Вставка') + ' (копия)', c); ieAfterStruct(); toast('Вставлено новым слоем'); };
+    im.src = IE.clip.src;
+  }
   // векторный рисунок → новый слой изображения (для схемы файлов)
   function vecToImageLayer(vf, imf, cb){
     var svg = vecSvgString(vf, false), im = new Image(), u = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
@@ -388,6 +402,8 @@
       if(k === ' '){ space = true; view.classList.add('panning'); }
       else if(mod && !e.shiftKey && (e.code === 'KeyZ')) ieUndo();
       else if(mod && (e.code === 'KeyY' || (e.shiftKey && e.code === 'KeyZ'))) ieRedo();
+      else if(mod && (e.code === 'KeyC' || e.code === 'KeyX')){ ieClipCopy(e.code === 'KeyX'); handled = false; }
+      else if(mod && e.code === 'KeyV'){ clearTimeout(OF.pasteWait); OF.pasteWait = setTimeout(function(){ OF.pasteWait = null; iePasteClip(); }, 150); handled = false; }
       else if(mod && e.code === 'KeyA') ieSelOps('all');
       else if(mod && e.code === 'KeyD') ieSelOps('none');
       else if(mod && e.shiftKey && e.code === 'KeyI') ieSelOps('inv');

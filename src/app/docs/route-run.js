@@ -18,7 +18,8 @@
     var needPy = plan.order.some(function(n){ return n.lang === 'python'; });
     var results = {}, stat = { ok:0, err:0, skip:0 }, days = {}, regN = 0, docN = 0;
     running = true;
-    (needPy ? loadPyFor(rlog).then(null, function(e){ rlog('Python недоступен: ' + e.message + ' — расчётные блоки будут пропущены', 'warn'); return null; }) : Promise.resolve(null)).then(function(py){
+    if(needPy && RUN_SERVER) rlog('Python выполняется на сервере', 'dim');
+    (needPy && !RUN_SERVER ? loadPyFor(rlog).then(null, function(e){ rlog('Python недоступен: ' + e.message + ' — расчётные блоки будут пропущены', 'warn'); return null; }) : Promise.resolve(null)).then(function(py){
       var i = 0;
       function next(){
         if(i >= plan.order.length){ finish(); return; }
@@ -27,6 +28,18 @@
         days[n.id] = plan.preds[n.id].reduce(function(m, p){ return Math.max(m, days[p] || 0); }, 0);
         if(d) d.classList.add('running');
         setTimeout(function(){
+          // код из «Разработки» на сервере: результат идёт дальше по маршруту вместе с остальными блоками
+          if(n.lang === 'python' && RUN_SERVER && !py){
+            rlog('▶ ' + n.name + ' — Python на сервере');
+            serverRun(nodeCode(n), hasIn ? rows.map(plainRow) : null, 'block').then(function(r){
+              printLines(r.stdout, function(t){ rlog('   ' + t); }); printLines(r.stderr, function(t){ rlog('   ' + t, 'err'); });
+              if(r.ok){ var back = toRows(r.output); back.forEach(function(x, k){ if(rows[k] && rows[k].__doc) x.__doc = rows[k].__doc; }); results[n.id] = back; stat.ok++; setRun(n, 'ok', 'Записей на выходе: ' + back.length); rlog('  ✓ записей на выходе: ' + back.length, 'ok'); }
+              else { rlog('  ✗ ошибка: ' + r.error, 'err'); stat.err++; results[n.id] = null; setRun(n, 'err', 'Ошибка: ' + r.error); }
+              if(d) d.classList.remove('running');
+              next();
+            });
+            return;
+          }
           try{
             var out = rows, p;
             if(n.kind === 'hub'){
@@ -88,6 +101,13 @@
                 } };
               out = langById(n.lang).apply(rows, p, ctx) || [];
               rlog('▶ ' + n.name + ' — ' + (ctx.info || 'записей: ' + out.length), 'ok'); setRun(n, 'ok', ctx.info || 'Записей: ' + out.length);
+            } else if(n.lang === 'html'){
+              RES.items.push({ type:'html', title:n.name, html:nodeCode(n), node:n.id });
+              rlog('▶ ' + n.name + ' — HTML-виджет добавлен в результаты, записи идут дальше: ' + rows.length, 'ok'); setRun(n, 'ok', 'HTML-виджет в результатах');
+            } else if(n.lang !== 'python' && !(langById(n.lang) && langById(n.lang).real)){
+              var fl = langById(n.lang);
+              rlog('▶ ' + n.name + ' — пропущен: для ' + (fl ? shortName(fl) : n.lang) + ' нужен серверный компилятор, записи переданы дальше без изменений', 'warn');
+              stat.skip++; setRun(n, 'skip', 'Пропущен: нужен серверный компилятор');
             } else if(n.lang === 'python'){
               if(!py){ rlog('▶ ' + n.name + ' — пропущен: Python не загрузился', 'warn'); stat.skip++; setRun(n, 'skip', 'Python не загрузился'); out = rows; }
               else {
@@ -145,6 +165,7 @@
     if(it.type === 'dash') return '<div class="page" style="max-width:1100px">' + dashHtml(it) + '</div>';
     if(it.type === 'metric') return '<div class="page">' + dashHtml({ title:it.title, tiles:[it], charts:[], tables:[] }) + '</div>';
     if(it.type === 'chart') return '<div class="page" style="max-width:none"><h1>' + escHtml(it.title) + '</h1>' + routeChartSvg(it) + '</div>';
+    if(it.type === 'html') return '<div class="page" style="max-width:none"><h1>' + escHtml(it.title) + '</h1><iframe sandbox="" style="width:100%;height:520px;border:1px solid #ddd;border-radius:8px;background:#fff" srcdoc="' + escHtml(it.html) + '"></iframe></div>';
     if(it.type === 'pack') return it.docs.map(function(d, i){ return '<div class="page' + (i < it.docs.length - 1 ? ' doc-sep' : '') + '">' + d.html + '</div>'; }).join('') || '<div class="page"><p>В пакете нет документов.</p></div>';
     return '<div class="page" style="max-width:none">' + '<h1>' + escHtml(it.title) + '</h1>' + tableHtml(it.rows).replace('class="rt"', 'style="width:100%;font:13px Arial"') + '</div>';
   }
@@ -153,7 +174,7 @@
     if(!RES.items.length){ b.appendChild(h('div', { 'class':'bld-stat', text:'Запустите схему — здесь появятся документы, таблицы и диаграммы.' })); return; }
     var list = h('div', { 'class':'res-list', role:'listbox', 'aria-label':'Результаты' });
     RES.items.forEach(function(it, i){
-      var kind = it.type === 'doc' ? 'Документ' : it.type === 'dash' ? 'Дашборд · ' + (it.tiles.length + it.charts.length) + ' эл.' : it.type === 'metric' ? 'Показатель · ' + fmtCell(it.value) : it.type === 'chart' ? 'Диаграмма · ' + it.values.length : (it.type === 'pack' ? 'Пакет · ' + it.docs.length + ' док.' : 'Таблица · ' + it.rows.length + ' стр.');
+      var kind = it.type === 'doc' ? 'Документ' : it.type === 'dash' ? 'Дашборд · ' + (it.tiles.length + it.charts.length) + ' эл.' : it.type === 'metric' ? 'Показатель · ' + fmtCell(it.value) : it.type === 'chart' ? 'Диаграмма · ' + it.values.length : (it.type === 'pack' ? 'Пакет · ' + it.docs.length + ' док.' : (it.type === 'html' ? 'HTML-виджет' : 'Таблица · ' + (it.rows || []).length + ' стр.'));
       list.appendChild(h('button', { type:'button', role:'option', 'aria-selected':i === RES.cur ? 'true' : 'false', 'class':'res-i' + (i === RES.cur ? ' on' : ''),
         on:{ click:function(){ RES.cur = i; renderRes(); } } }, [ h('b', { text:it.title }), h('span', { text:kind + (it.status && it.status.length ? ' · ' + it.status[it.status.length - 1] : '') }) ]));
     });

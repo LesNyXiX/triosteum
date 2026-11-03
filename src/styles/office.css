@@ -251,3 +251,56 @@
   .ve-side{overflow:hidden}
   .ve-side .ve-props{flex:1;min-height:0;overflow-y:auto;padding-right:2px}
   .ve-side #veLayers{flex:none;max-height:36%;min-height:80px;overflow-y:auto;border-top:1px solid var(--line);padding-top:4px}
+
+  /* ---------- окно «Как вставить?» ---------- */
+  .how-w{position:fixed;inset:0;z-index:120;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.42);backdrop-filter:blur(2px);animation:howIn .14s ease-out}
+  @keyframes howIn{from{opacity:0}to{opacity:1}}
+  .how-card{width:min(480px,94vw);max-height:84vh;overflow:auto;background:var(--panel);border:1px solid var(--line2);border-radius:16px;box-shadow:0 24px 60px rgba(0,0,0,.5);padding:16px}
+  .how-h{display:flex;align-items:flex-start;gap:10px;margin-bottom:12px}.how-h>div{flex:1;min-width:0}
+  .how-h h2{margin:0;font:600 16px var(--ui,system-ui);color:var(--ink-strong)}
+  .how-h p{margin:4px 0 0;font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .how-list{display:flex;flex-direction:column;gap:6px}
+  .how-i{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:10px 12px;border-radius:11px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer;font:inherit}
+  .how-i:hover,.how-i:focus-visible{border-color:var(--red);outline:none;background:color-mix(in srgb,var(--red) 8%,var(--bg))}
+  .how-i.pri{border-color:color-mix(in srgb,var(--red) 55%,var(--line))}
+  .how-ic{flex:none;width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--red) 14%,transparent);color:var(--red)}
+  .how-t{display:flex;flex-direction:column;gap:2px;min-width:0}.how-t b{font-weight:600;color:var(--ink-strong);font-size:13.5px}.how-t span{font-size:12px;color:var(--muted)}
+  /* ---------- шестерёнка настроек ---------- */
+  .gear-btn{padding:0 9px;display:inline-flex;align-items:center;justify-content:center}
+  .gear-btn svg{transition:transform .35s ease}.gear-btn:hover svg{transform:rotate(60deg)}
+  /* ---------- мост между средами ---------- */
+  .bridge-bar{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:90;display:flex;align-items:center;gap:10px;padding:8px 10px 8px 14px;border-radius:12px;background:var(--tipbg);border:1px solid var(--line2);box-shadow:0 12px 30px rgba(0,0,0,.45);max-width:94vw}
+  .bridge-bar .bb-t{font-size:12.5px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* ---------- схема файлов: удаление, комментарии, заметки, связи ---------- */
+  .fm-x,.fm-c{position:absolute;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--tipbg);border:1px solid var(--line2);color:var(--muted);cursor:pointer;opacity:0;transition:opacity .12s;padding:0}
+  .fm-node .fm-x{right:-9px;top:-9px}.fm-node .fm-c{left:-9px;top:-9px}
+  .fm-node:hover .fm-x,.fm-node.sel .fm-x,.fm-node:hover .fm-c,.fm-node.sel .fm-c,.fm-node .fm-c.has,.fm-note:hover .fm-x,.fm-note.sel .fm-x{opacity:1}
+  .fm-x:hover{color:#fff;background:var(--red);border-color:var(--red)}
+  .fm-c.has{color:var(--fc);border-color:var(--fc)}.fm-c i{position:absolute;right:-6px;top:-6px;min-width:13px;height:13px;border-radius:7px;background:var(--fc);color:#fff;font:700 8.5px/13px system-ui;font-style:normal;text-align:center;padding:0 2px}
+  .fm-note{position:absolute;min-width:120px;max-width:300px;padding:8px 10px;border-radius:10px;background:color-mix(in srgb,var(--panel) 88%,#FACC15);border:1px solid color-mix(in srgb,var(--line2) 60%,#CA8A04);color:var(--ink);font-size:13px;box-shadow:0 6px 16px rgba(0,0,0,.25);cursor:grab;white-space:pre-wrap;word-break:break-word}
+  .fm-note.cm{background:var(--tipbg);border-color:var(--line2);font-size:12.5px}
+  .fm-note.sel{outline:2px solid var(--red);outline-offset:2px}
+  .fm-note .fm-x{right:-9px;top:-9px}
+  .fm-note img{display:block;max-width:100%;width:220px;border-radius:6px;margin-bottom:4px;pointer-events:none}
+  .fm-note .fm-nt:empty::before{content:attr(data-ph);color:var(--muted)}
+  .fm-note.editing{cursor:text}.fm-note.editing .fm-nt{outline:none;min-height:1.2em}
+  .fm-note:has(.fm-nt:empty):not(.editing):not(:has(img))::before{content:attr(data-ph);color:var(--muted)}
+  .fm-edges .fm-eg{pointer-events:auto}
+  .fm-ehit{fill:none;stroke:transparent;stroke-width:16;pointer-events:stroke;cursor:pointer}
+  .fm-eg:hover .fm-edge,.fm-eg.on .fm-edge{stroke-width:3.6;opacity:1}
+  .fm-ex{opacity:0;cursor:pointer;transition:opacity .12s;pointer-events:all}
+  .fm-ex circle{fill:var(--tipbg);stroke:var(--line2)}.fm-ex path{stroke:var(--ink);stroke-width:1.8;stroke-linecap:round;fill:none}
+  .fm-eg:hover .fm-ex,.fm-eg.on .fm-ex{opacity:1}
+  .fm-ex:hover circle{fill:var(--red);stroke:var(--red)}.fm-ex:hover path{stroke:#fff}
+  .fm-rubber{position:absolute;border:1.5px dashed var(--red);background:color-mix(in srgb,var(--red) 10%,transparent);pointer-events:none;z-index:5}
+  /* ---------- картинки поверх ячеек таблицы ---------- */
+  .sg-objs{position:absolute;left:0;top:0;width:0;height:0;z-index:4}
+  .sg-obj{position:absolute;cursor:move;border:1.5px solid transparent;border-radius:2px;box-sizing:border-box;outline:none}
+  .sg-obj img{width:100%;height:100%;object-fit:fill;display:block;pointer-events:none;user-select:none}
+  .sg-obj:hover{border-color:color-mix(in srgb,var(--red) 50%,transparent)}
+  .sg-obj.sel{border-color:var(--red);box-shadow:0 0 0 1px var(--red)}
+  .sg-ox{position:absolute;right:-9px;top:-9px;width:20px;height:20px;border-radius:50%;display:none;align-items:center;justify-content:center;background:var(--tipbg);border:1px solid var(--line2);color:var(--ink);cursor:pointer;padding:0}
+  .sg-ox:hover{background:var(--red);color:#fff}
+  .sg-obj.sel .sg-ox,.sg-obj:hover .sg-ox{display:flex}
+  .sg-orz{position:absolute;right:-5px;bottom:-5px;width:11px;height:11px;border-radius:2px;background:var(--red);border:1.5px solid #fff;cursor:nwse-resize;display:none}
+  .sg-obj.sel .sg-orz{display:block}

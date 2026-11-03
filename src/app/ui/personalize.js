@@ -149,3 +149,7 @@
   $('bFit').addEventListener('click', function(){ if(S.view !== 'canvas'){ S.view = 'canvas'; render(); renderGraph(); } fitView(); });
   $('bGrid').addEventListener('click', function(){ UI.grid = UI.grid === 'lines' ? 'none' : (UI.grid === 'none' ? 'dots' : 'lines'); applyTheme(); toast('Сетка: ' + ({ dots:'точки', lines:'линии', none:'без сетки' })[UI.grid]); });
   $('bPers').addEventListener('click', function(){ $('pers').hidden ? openPers() : ($('pers').hidden = true); });
+  // закреплённая шестерёнка в шапке — те же настройки в любой среде и на любой вкладке
+  var setWasOpen = false;
+  $('setBtn').addEventListener('pointerdown', function(){ setWasOpen = !$('pers').hidden; });
+  $('setBtn').addEventListener('click', function(e){ var open = e.detail ? setWasOpen : !$('pers').hidden; if(open) $('pers').hidden = true; else openPers(); $('setBtn').setAttribute('aria-expanded', $('pers').hidden ? 'false' : 'true'); });
