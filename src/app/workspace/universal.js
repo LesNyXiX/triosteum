@@ -173,23 +173,35 @@
     if(home === ENV.id){ openNode(n.id); return; }
     bridgeOpen(n, home);
   }
-  // мост: копия блока открывается в родной среде, правки возвращаются в исходное пространство
+  // мост: то же пространство открывается в родной среде блока — без копий и лишних пространств;
+  // правки сохраняются сразу, «Вернуться» возвращает прежнюю среду
   function bridgeOpen(n, home){
-    var back = { proj:PROJ.cur, node:n.id, env:ENV.id, envName:ENV.name, projName:curProj().name, office:!!ENV.office };
-    var copy = JSON.parse(JSON.stringify(n)); copy.bridge = back;
-    if(copy.kind !== 'hub'){ copy.codes = copy.codes || {}; copy.codes[copy.lang] = nodeCode(n); }
+    if(S.visit && S.visit.proj === PROJ.cur && home === S.visit.env){ var id = n.id; visitReturn(); var back = nodeById(id); if(back) openBlock(back); return; }
     if(ENV.office && typeof ofCommit === 'function') ofCommit();
-    var bp = PROJ.list.filter(function(p){ return p.env === home && p.bridge; })[0];
-    if(bp) switchProj(bp.id);
-    else { newProj('Правки блоков из других пространств', null, home); curProj().bridge = true; saveProj(); }
-    G.nodes = G.nodes.filter(function(x){ return !(x.bridge && x.bridge.proj === back.proj && x.bridge.node === back.node); });
-    var c = viewCenter(); copy.id = newId('n'); copy.x = Math.round(c.x - NW / 2); copy.y = Math.round(c.y - NH / 2);
-    G.nodes.push(copy); S.sel = { type:'node', id:copy.id }; S.multi = [];
-    saveGraph(); renderGraph();
-    toast('Блок «' + n.name + '» открыт в среде «' + ENVS[home].name + '» — после правок нажмите «Вернуть в ' + back.projName + '»');
-    openNode(copy.id);
+    flushSave();
+    var back = { env:ENV.id, envName:ENV.name, node:n.id, tab:ENV.office ? OF.tab : null, proj:PROJ.cur };
+    setEnv(home);
+    S.visit = back;
+    if(typeof ofRender === 'function') ofRender();
+    S.view = 'canvas'; hidePop(); render(); renderGraph();
+    S.sel = { type:'node', id:n.id }; S.multi = []; updateSel();
+    openNode(n.id);
     bridgeBar();
+    toast('«' + n.name + '» открыт в среде «' + ENVS[home].name + '» — правки сохраняются сразу');
   }
+  function visitReturn(){
+    var v = S.visit; if(!v) return;
+    flushSave(); S.visit = null;
+    if(PROJ.cur !== v.proj){ bridgeBar(); return; }
+    setEnv(v.env);
+    S.view = 'canvas'; render();
+    if(ENV.office && typeof ofSetTab === 'function') ofSetTab(v.tab === 'auto' || !v.tab ? 'auto' : v.tab); else renderGraph();
+    var n = nodeById(v.node); if(n){ S.sel = { type:'node', id:n.id }; updateSel(); }
+    bridgeBar();
+    toast('Вы снова в среде «' + v.envName + '»' + (n ? ' — блок «' + n.name + '» обновлён' : ''));
+  }
+  var _switchProjU = switchProj;
+  switchProj = function(id){ if(S.visit && id !== S.visit.proj) S.visit = null; return _switchProjU.apply(this, arguments); };
   function bridgeReturn(copy){
     if(!copy || !copy.bridge) return;
     flushSave();
@@ -209,6 +221,14 @@
   }
   function bridgeBar(){
     var bar = $('bridgeBar'), list = G.nodes.filter(function(n){ return n.bridge; });
+    if(S.visit && S.visit.proj === PROJ.cur){
+      var vn = nodeById(S.visit.node);
+      if(!bar){ bar = h('div', { 'class':'bridge-bar', id:'bridgeBar', role:'status' }); document.body.appendChild(bar); }
+      bar.innerHTML = '';
+      bar.appendChild(h('span', { 'class':'bb-t', text:(vn ? 'Блок «' + vn.name + '»' : 'Пространство') + ' открыт в среде «' + ENV.name + '» · правки сохраняются сразу' }));
+      bar.appendChild(h('button', { type:'button', 'class':'btn sm primary', text:'Вернуться в «' + S.visit.envName + '»', on:{ click:visitReturn } }));
+      return;
+    }
     if(!list.length){ if(bar) bar.remove(); return; }
     var dn = typeof docNode === 'function' ? docNode() : null, cur = (dn && dn.bridge) ? dn : list[list.length - 1];
     if(!bar){ bar = h('div', { 'class':'bridge-bar', id:'bridgeBar', role:'status' }); document.body.appendChild(bar); }
@@ -227,7 +247,8 @@
     if(!n) return;
     var acts = p.querySelector('.acts'); if(!acts) return;
     var home = blockHome(n);
-    if(home !== ENV.id && ENVS[home]) acts.insertBefore(h('button', { type:'button', 'class':'btn sm primary', text:'Открыть в среде «' + ENVS[home].name + '»', title:'Исходник блока откроется в его родной среде; правки вернутся сюда', on:{ click:function(){ hidePop(); bridgeOpen(n, home); } } }), acts.firstChild);
+    if(home !== ENV.id && ENVS[home]) acts.insertBefore(h('button', { type:'button', 'class':'btn sm primary', text:'Открыть в среде «' + ENVS[home].name + '»', title:'Исходник блока откроется в его родной среде, в этом же пространстве', on:{ click:function(){ hidePop(); bridgeOpen(n, home); } } }), acts.firstChild);
+    if(S.visit && S.visit.proj === PROJ.cur) acts.insertBefore(h('button', { type:'button', 'class':'btn sm primary', text:'Вернуться в «' + S.visit.envName + '»', on:{ click:function(){ hidePop(); visitReturn(); } } }), acts.firstChild);
     if(n.bridge) acts.insertBefore(h('button', { type:'button', 'class':'btn sm primary', text:'Вернуть в «' + n.bridge.projName + '»', on:{ click:function(){ hidePop(); bridgeReturn(n); } } }), acts.firstChild);
     acts.appendChild(h('button', { type:'button', 'class':'btn sm', text:'Копировать (в любое пространство)', on:{ click:function(){ S.multi = []; S.sel = { type:'node', id:n.id }; copySel(); } } }));
   };

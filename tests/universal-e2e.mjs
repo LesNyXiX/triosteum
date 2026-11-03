@@ -81,13 +81,38 @@ await page.click('#resClose').catch(() => {}); await page.click('#runClose').cat
 if (SHOTS) await page.screenshot({ path: SHOTS + '/u-foreign.png' });
 
 console.log('Открыть блок в родной среде и вернуть правки');
-const officeEnv = await page.textContent('#envName');
+const officeEnv = await page.textContent('#envName'), projBefore = await page.textContent('#projName'), projCount = await page.evaluate(() => JSON.parse(localStorage.getItem('triosteum.projects')).list.length);
 await page.locator('#nodes .node.foreign').first().dblclick(); await page.waitForTimeout(900);
 check((await page.textContent('#envName')) === 'Разработка', 'двойной клик перенёс в «Разработку»');
+check((await page.textContent('#projName')) === projBefore && await page.evaluate(() => JSON.parse(localStorage.getItem('triosteum.projects')).list.length) === projCount, 'то же пространство — без отдельного пространства для правок');
 check(await page.isVisible('#bridgeBar'), 'плашка «Вернуть в …»');
 await page.click('#bridgeBar .btn.primary'); await page.waitForTimeout(900);
 check((await page.textContent('#envName')) === officeEnv, 'правки вернулись в «' + officeEnv + '»');
 check(!(await page.isVisible('#bridgeBar')), 'плашка исчезла');
+
+console.log('C++, C# и 1С в общей компиляции');
+const pasteBlocks = (nodes, edges) => page.evaluate(([nodes, edges]) => { const c = { t:Date.now() + 1e6, env:'code', envName:'Разработка', proj:'other', projName:'Тест', nodes, notes:[], edges, portable:{ nodes, notes:[], edges } }; localStorage.setItem('triosteum.clip', JSON.stringify(c)); return navigator.clipboard.writeText('TRIOSTEUM-CLIP:' + JSON.stringify(c)).catch(() => {}); }, [nodes, edges]);
+const mk = (id, name, lang, x, code) => ({ id, name, lang, x, y:620, codes:{ [lang]:code }, pluginId:null, family:null, desc:'', colors:null });
+await pasteBlocks([
+  mk('c1', 'Сумма C++', 'cpp', 100, '#include <vector>\nstruct R { double Сумма; };\ndouble run(const std::vector<R>& rows){ double s = 0; for (const auto& r : rows) s += r.Сумма; return s; }'),
+  mk('c2', 'Склады 1С', '1c', 420, 'Функция Выполнить(Вх) Экспорт\n З = Новый Запрос("ВЫБРАТЬ Т.Склад КАК Склад, СУММА(Т.ВНаличииОстаток) КАК Всего ИЗ РегистрНакопления.ТоварыНаСкладах.Остатки КАК Т СГРУППИРОВАТЬ ПО Т.Склад");\n Возврат З.Выполнить().Выгрузить();\nКонецФункции'),
+  mk('c3', 'Итог C#', 'csharp', 740, 'public class B { public object Run(List<Dictionary<string, object>> rows) => rows.Select(r => new { Склад = r["Склад"], Тонн = Math.Round(Convert.ToDouble(r["Всего"]), 1) }).ToList(); }')
+], [{ id:'ce1', from:'c2', to:'c3' }]);
+await page.evaluate(() => document.activeElement && document.activeElement.blur && document.activeElement.blur());
+await page.keyboard.press('Control+v'); await page.waitForTimeout(600);
+check(await page.locator('#nodes .node', { hasText: 'Склады 1С' }).count() === 1, 'блоки C++, C# и 1С вставлены в «Офис»');
+await page.click('#topRun'); await page.waitForTimeout(1800);
+const log2 = await page.textContent('#runOut');
+if (process.env.DBG) console.log(log2);
+check(/Склады 1С.* — 1С/.test(log2) && /Итог C#.* — C#/.test(log2) && /Сумма C\+\+.* — C\+\+/.test(log2) && !/пропущен: для/.test(log2), 'C++, C# и 1С выполнены в общем маршруте, без пропусков');
+check(/Основной/.test(await page.textContent('#resW')) || /Итог C#/.test(await page.textContent('#resW')), 'результат 1С → C# в общих результатах');
+await page.click('#resClose').catch(() => {}); await page.click('#runClose').catch(() => {});
+await page.locator('#nodes .node', { hasText: 'Сумма C++' }).first().dblclick(); await page.waitForTimeout(900);
+check((await page.textContent('#envName')) === 'Разработка' && await page.isVisible('#editor'), 'блок C++ открыт в «Разработке»');
+await page.click('#runBtn'); await page.waitForTimeout(400);
+check(/Результат: \d/.test(await page.textContent('#out')) && /Выполнено без ошибок/.test(await page.textContent('#out')), 'C++ выполняется в редакторе: ' + (await page.textContent('#out')).split('\n').slice(-3).join(' | '));
+await page.click('#bridgeBar .btn.primary'); await page.waitForTimeout(800);
+check((await page.textContent('#envName')) === officeEnv, 'вернулись в «' + officeEnv + '»');
 
 console.log('Схема файлов');
 await page.click('#otabs .otab.fixed[data-tab="map"]'); await page.waitForTimeout(500);
@@ -177,6 +202,18 @@ const L0 = await page.$$eval('.ie-layer', (x) => x.length);
 await page.locator('.ribbon .rb', { hasText: 'Коррекция' }).focus();
 await page.keyboard.press('Control+c'); await page.waitForTimeout(200); await page.keyboard.press('Control+v'); await page.waitForTimeout(900);
 check(await page.$$eval('.ie-layer', (x) => x.length) === L0 + 1, 'Ctrl+C / Ctrl+V — слой скопирован (даже когда фокус на ленте)');
+
+console.log('Автоматизация в графике');
+check(await page.isVisible('#otabs .otab.fixed[data-tab="auto"]'), 'в «Фоторедакторе» есть доска «Автоматизация»');
+await page.click('#otabs .otab.fixed[data-tab="auto"]'); await page.waitForTimeout(400);
+await pasteBlocks([mk('g1', 'Продажи', 'sheet', 100, JSON.stringify({ rows:[['Категория', 'Сумма'], ['Металл', '120'], ['Работа', '80'], ['Энергия', '40']] })), Object.assign(mk('g2', 'График', 'gfxpic', 420, JSON.stringify({ label:'Категория', value:'Сумма', type:'bar', name:'Диаграмма продаж' })), {})], [{ id:'ge1', from:'g1', to:'g2' }]);
+await page.evaluate(() => document.activeElement && document.activeElement.blur && document.activeElement.blur());
+await page.keyboard.press('Control+v'); await page.waitForTimeout(500);
+await page.click('#topRun'); await page.waitForTimeout(1500);
+check(/Файл «Диаграмма продаж/.test(await page.textContent('#runOut')), 'блок «Картинка из данных» выполнен');
+await page.click('#resClose').catch(() => {}); await page.click('#runClose').catch(() => {});
+await page.click('#otabs .otab.fixed[data-tab="desk"]'); await page.waitForTimeout(400);
+check(await page.locator('.fcard', { hasText: 'Диаграмма продаж' }).count() === 1, 'диаграмма появилась файлом-изображением на рабочем столе');
 
 console.log('Ошибки');
 check(errors.length === 0, 'ошибок в консоли нет' + (errors.length ? ': ' + errors.slice(0, 3).join(' | ') : ''));

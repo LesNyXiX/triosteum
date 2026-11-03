@@ -87,8 +87,17 @@
       }, function(err){ print('> ' + err.message + '. Проверьте подключение к интернету.', 'err'); });
       return;
     }
+    if(FOREIGN_LANGS[l.id]){
+      print('> ' + foreignLabel(l.id) + ': встроенный исполнитель Triosteum, запуск на демо-данных…', 'dim');
+      var r = runForeign(l.id, el.code.value, null);
+      r.stdout.forEach(function(t){ print(t); });
+      r.notes.forEach(function(t){ print('  ℹ ' + t, 'dim'); });
+      if(r.ok){ print('◀ Результат: ' + fmtOut(r.output)); print('> Выполнено без ошибок.', 'ok'); }
+      else { print('> Ошибка:', 'err'); print(r.error, 'err'); }
+      return;
+    }
     print('> ' + l.tool);
-    print('> Код сохранён (' + el.code.value.split('\n').length + ' строк). Запуск ' + l.name + ' появится, когда подключим серверный компилятор.');
+    print('> Код сохранён (' + el.code.value.split('\n').length + ' строк).');
   }
   $('runBtn').addEventListener('click', runCode);
   $('topRun').addEventListener('click', function(){

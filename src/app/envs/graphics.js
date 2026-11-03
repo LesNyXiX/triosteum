@@ -3,11 +3,32 @@
      Работают на рабочем столе файлов, как «Офис»; файлы можно связывать
      в схеме файлов (картинка → векторный рисунок и обратно).
      ===================================================================== */
+  // «Картинка из данных»: записи схемы → диаграмма → готовый файл на рабочем столе
+  var OP_GFX = opKind('gfxpic', 'Картинка из данных', 'Рисует диаграмму по записям и кладёт её файлом на рабочий стол',
+    { label:'Категория', value:'Сумма', type:'bar', name:'Диаграмма из схемы' },
+    [['label', 'Подписи (поле)', 'f'], ['value', 'Значения (поле)', 'f'], ['type', 'Вид', 's', [['bar', 'столбцы'], ['line', 'линия'], ['pie', 'круговая']]], ['name', 'Имя файла', 't']],
+    function(rows, p, ctx){
+      var list = rows.slice(0, 30), aoa = [[p.label || 'Категория', p.value || 'Значение']].concat(list.map(function(r){ return [sv(r, p.label), nv(r, p.value)]; }));
+      var W = 760, H = 420, svg = chartSvg(aoa, p.type || 'bar', p.name || ctx.name, W, H, false);
+      if(svg.indexOf('xmlns=') < 0) svg = svg.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
+      var nm = (p.name || ctx.name) + ' ' + new Date().toLocaleTimeString('ru-RU', { hour:'2-digit', minute:'2-digit' });
+      if(ENV.id === 'photo' || (ENV.office && ENV.office.types[0] === 'image')){
+        svgToPng(svg.replace(/(<svg[^>]*>)/, '$1<rect width="100%" height="100%" fill="#fff"/>'), W, H, function(u){ if(!u) return; var c = document.createElement('canvas'); c.width = W; c.height = H; var im = new Image(); im.onload = function(){ c.getContext('2d').drawImage(im, 0, 0, W, H); newFile('image', nm, { w:W, h:H, layers:[{ id:'l' + Date.now().toString(36), name:'Диаграмма', vis:true, op:1, blend:'source-over', src:c.toDataURL('image/png') }] }, null, { silent:true }); saveGraph(); }; im.src = u; });
+      } else {
+        var san = veSanitizeSvg(svg) || { vb:'0 0 ' + W + ' ' + H, markup:'' };
+        newFile('vector', nm, { w:W, h:H, bg:'#ffffff', items:[{ id:'v' + Date.now().toString(36), t:'svg', name:'Диаграмма', vb:san.vb, markup:san.markup, x:0, y:0, w:W, h:H, r:0, op:1 }] }, null, { silent:true });
+      }
+      ctx.chart({ title:p.name || ctx.name, kind:p.type === 'line' ? 'line' : 'bar', labels:list.map(function(r){ return sv(r, p.label); }), values:list.map(function(r){ return nv(r, p.value); }), unit:p.value });
+      ctx.info = 'Файл «' + nm + '» на рабочем столе'; return rows;
+    }, function(p){ return 'диаграмма «' + (p.value || '?') + '» по «' + (p.label || '?') + '» → файл'; });
   function gfxEnv(id, o){
-    ENVS[id] = { id:id, name:o.name, short:o.short, color:o.color, ic:o.ic, theme:o.theme, desc:o.desc, newName:o.newName, seed:o.seed,
-      office:{ types:o.types, tabs:['desk', 'map'], noAi:true, noTpl:true },
-      defLang:'doc', langs:DOC_KINDS.slice(0, 2), colors:DOC_COLORS, plugins:[],
-      word:{ lang:'Тип', plugin:'файл', plugins:'файлов', lib:'Файлы', create:'Создать', newTitle:'Новый файл', kindLabel:'Тип', run:'Скачать', runSub:'Сохранить на компьютер', scheme:'Схема файлов', schemeSub:'Связи файлов', open:'Открыть', libOpen:'Открыть' } };
+    var colors = {}, k; for(k in DOC_COLORS) colors[k] = DOC_COLORS[k]; for(k in CODE_COLORS) colors[k] = CODE_COLORS[k]; for(k in GEN_COLORS) colors[k] = GEN_COLORS[k]; colors.gfxpic = [o.color, '#F472B6'];
+    var code = CODE_LANGS.filter(function(l){ return l.id !== 'python'; });
+    ENVS[id] = { id:id, name:o.name, short:o.short, color:o.color, ic:o.ic, theme:o.theme, desc:o.desc, newName:o.newName, seed:o.seed, route:true,
+      hint:'Соберите обработку на доске: таблица → расчёты → «Картинка из данных» — готовый рисунок появится на рабочем столе. Блоки Python, C++, C# и 1С выполняются вместе со схемой.',
+      office:{ types:o.types, tabs:['desk', 'map', 'auto'], noAi:true, noTpl:true },
+      defLang:'sheet', langs:[OP_GFX].concat(DOC_KINDS, code, GEN_OPS), colors:colors, plugins:CODE_PLUGINS.filter(function(p){ return p.lang !== 'python' || p.family; }).concat(DOC_PLUGINS.filter(function(p){ return p.lang === 'sheet'; })),
+      word:{ lang:'Тип', plugin:'блок', plugins:'блоков', lib:'Библиотека', create:'Создать', newTitle:'Новый блок', kindLabel:'Тип', run:'Запустить схему', runSub:'Выполнить блоки на доске «Автоматизация»', scheme:'Схема файлов', schemeSub:'Связи файлов', open:'Открыть', libOpen:'На доску' } };
   }
   function gfxSeedPhoto(){
     newProj('Фото — пример', null, 'photo');

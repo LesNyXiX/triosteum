@@ -94,8 +94,15 @@
               setRun(n, 'ok', 'Выполнен. Результат: ' + (oj ? (oj.length > 200 ? oj.slice(0, 200) + '…' : oj) : 'нет'));
             } else if(n.lang === 'html'){
               rlog('▶ ' + n.name + ' — HTML-виджет, отображается в предпросмотре', 'dim'); stat.ok++; setRun(n, 'ok', 'HTML-виджет — смотрите предпросмотр в редакторе');
+            } else if(FOREIGN_LANGS[n.lang]){
+              rlog('▶ ' + n.name + (input === null ? '  (входных данных нет — демо-данные блока)' : ''));
+              var fr = runForeign(n.lang, nodeCode(n), input, { resultName:n.name });
+              fr.stdout.forEach(function(t){ rlog('   ' + t); }); fr.notes.forEach(function(t){ rlog('   ℹ ' + t, 'dim'); });
+              if(!fr.ok) throw new Error(fr.error);
+              results[n.id] = fr.output; var oj2 = JSON.stringify(fr.output);
+              rlog('  ✓ результат: ' + (oj2 && oj2.length > 160 ? oj2.slice(0, 160) + '…' : oj2), 'ok'); stat.ok++; setRun(n, 'ok', 'Выполнен. Результат: ' + (oj2 && oj2.length > 200 ? oj2.slice(0, 200) + '…' : oj2));
             } else {
-              rlog('▶ ' + n.name + ' — пропущен: для ' + shortName(l) + ' нужен серверный компилятор', 'warn'); stat.skip++; setRun(n, 'skip', 'Пропущен: для ' + shortName(l) + ' нужен серверный компилятор');
+              rlog('▶ ' + n.name + ' — пропущен: для ' + shortName(l) + ' нет исполнителя', 'warn'); stat.skip++; setRun(n, 'skip', 'Пропущен: нет исполнителя');
             }
           }catch(err){
             var msg = String(err && err.message || err).split('\n').filter(function(x){ return x.trim(); });

@@ -104,10 +104,18 @@
             } else if(n.lang === 'html'){
               RES.items.push({ type:'html', title:n.name, html:nodeCode(n), node:n.id });
               rlog('▶ ' + n.name + ' — HTML-виджет добавлен в результаты, записи идут дальше: ' + rows.length, 'ok'); setRun(n, 'ok', 'HTML-виджет в результатах');
+            } else if(FOREIGN_LANGS[n.lang]){
+              var fr = runForeign(n.lang, nodeCode(n), hasIn ? rows.map(plainRow) : null, { resultName:n.name });
+              rlog('▶ ' + n.name + ' — ' + foreignLabel(n.lang) + (fr.demo ? ' (входа нет — демо-данные блока)' : ''));
+              fr.stdout.forEach(function(t){ rlog('   ' + t); }); fr.notes.forEach(function(t){ rlog('   ℹ ' + t, 'dim'); });
+              if(!fr.ok) throw new Error(fr.error);
+              out = toRows(fr.output); out.forEach(function(x, k){ if(rows[k] && rows[k].__doc) x.__doc = rows[k].__doc; });
+              if(out.length && Object.keys(out[0]).length > 1) RES.items.push({ type:'table', title:n.name, rows:out.map(plainRow), node:n.id });
+              rlog('  ✓ записей на выходе: ' + out.length, 'ok'); setRun(n, 'ok', 'Записей на выходе: ' + out.length);
             } else if(n.lang !== 'python' && !(langById(n.lang) && langById(n.lang).real)){
               var fl = langById(n.lang);
-              rlog('▶ ' + n.name + ' — пропущен: для ' + (fl ? shortName(fl) : n.lang) + ' нужен серверный компилятор, записи переданы дальше без изменений', 'warn');
-              stat.skip++; setRun(n, 'skip', 'Пропущен: нужен серверный компилятор');
+              rlog('▶ ' + n.name + ' — пропущен: для ' + (fl ? shortName(fl) : n.lang) + ' нет исполнителя, записи переданы дальше без изменений', 'warn');
+              stat.skip++; setRun(n, 'skip', 'Пропущен: нет исполнителя');
             } else if(n.lang === 'python'){
               if(!py){ rlog('▶ ' + n.name + ' — пропущен: Python не загрузился', 'warn'); stat.skip++; setRun(n, 'skip', 'Python не загрузился'); out = rows; }
               else {

@@ -33,7 +33,7 @@ await openDemo('Фоторедактор');
 check(await page.isVisible('#ieCanvas'), 'редактор изображения открыт');
 check((await page.textContent('#envName')) === 'Фоторедактор', 'среда «Фоторедактор»');
 check(await page.$$eval('.ie-layer', (x) => x.length) === 5, 'в примере 5 слоёв');
-check(!(await page.isVisible('#otabs .otab.fixed[data-tab="auto"]')), 'вкладки «Автоматизация» нет');
+check(await page.isVisible('#otabs .otab.fixed[data-tab="auto"]'), 'есть вкладка «Автоматизация»');
 if (SHOTS) await page.screenshot({ path: SHOTS + '/photo.png' });
 // кисть
 await page.locator('#ieView').focus(); await page.keyboard.press('KeyB');
@@ -84,7 +84,7 @@ const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#topR
 const png = readFileSync(await dl.path());
 check(dl.suggestedFilename().endsWith('.png') && png.slice(1, 4).toString() === 'PNG', 'скачан PNG: ' + dl.suggestedFilename() + ', ' + png.length + ' байт');
 // сохранение после перезагрузки
-await page.waitForTimeout(900);
+await page.waitForTimeout(1800);
 await page.reload(); await page.waitForTimeout(1500);
 check(await page.isVisible('#ieCanvas') && await page.$eval('#ieCanvas', (c) => c.width) === 600, 'после перезагрузки изображение 600 px и открыто');
 check(await page.$$eval('.ie-layer', (x) => x.length) === n0 + 2, 'слои сохранились: ' + await page.$$eval('.ie-layer', (x) => x.length));

@@ -1338,11 +1338,11 @@
       tpl:'<!-- Плагин Triosteum: новый виджет -->\n<div style="font-family:sans-serif;padding:24px">\n  <h3 style="margin:0;color:#7F1D1D">Маржа</h3>\n  <p style="font-size:40px;margin:8px 0">21,4%</p>\n</div>\n' },
     { id:'python', name:'Python', tool:'Python в браузере (Pyodide)', ext:'py', real:true,
       tpl:'# Плагин Triosteum: новый блок\nfrom triosteum import block\n\n\n@block(name="Мой блок")\ndef run(data):\n    # data — входные данные из схемы\n    total = sum(data["values"])\n    print("Сумма:", total)\n    return {"total": total}\n' },
-    { id:'cpp', name:'C++', tool:'Компилятор GCC / Clang (будет на сервере)', ext:'cpp', real:false,
+    { id:'cpp', name:'C++', tool:'Встроенный исполнитель C++ — работает в браузере', ext:'cpp', real:true,
       tpl:'// Плагин Triosteum: новый блок\n#include "triosteum/block.h"\n\nTRIOSTEUM_BLOCK("Мой блок")\nData run(const Data& input) {\n    // input — входные данные из схемы\n    return input;\n}\n' },
-    { id:'csharp', name:'C# (C Sharp)', tool:'Компилятор .NET Roslyn (будет на сервере)', ext:'cs', real:false,
+    { id:'csharp', name:'C# (C Sharp)', tool:'Встроенный исполнитель C# (с LINQ) — работает в браузере', ext:'cs', real:true,
       tpl:'// Плагин Triosteum: новый блок\nusing Triosteum;\n\n[Block("Мой блок")]\npublic class MyBlock : IBlock\n{\n    public Data Run(Data input)\n    {\n        // input — входные данные из схемы\n        return input;\n    }\n}\n' },
-    { id:'1c', name:'1С', tool:'Платформа 1С:Предприятие 8.3 (будет на сервере)', ext:'bsl', real:false,
+    { id:'1c', name:'1С', tool:'Встроенный исполнитель 1С и языка запросов — работает в браузере', ext:'bsl', real:true,
       tpl:'// Плагин Triosteum: новый блок\nФункция Выполнить(ВходныеДанные) Экспорт\n    // ВходныеДанные — данные из схемы\n    Возврат ВходныеДанные;\nКонецФункции\n' }
   ];
 
@@ -4062,8 +4062,15 @@ public class MovingAverage : IBlock
               setRun(n, 'ok', 'Выполнен. Результат: ' + (oj ? (oj.length > 200 ? oj.slice(0, 200) + '…' : oj) : 'нет'));
             } else if(n.lang === 'html'){
               rlog('▶ ' + n.name + ' — HTML-виджет, отображается в предпросмотре', 'dim'); stat.ok++; setRun(n, 'ok', 'HTML-виджет — смотрите предпросмотр в редакторе');
+            } else if(FOREIGN_LANGS[n.lang]){
+              rlog('▶ ' + n.name + (input === null ? '  (входных данных нет — демо-данные блока)' : ''));
+              var fr = runForeign(n.lang, nodeCode(n), input, { resultName:n.name });
+              fr.stdout.forEach(function(t){ rlog('   ' + t); }); fr.notes.forEach(function(t){ rlog('   ℹ ' + t, 'dim'); });
+              if(!fr.ok) throw new Error(fr.error);
+              results[n.id] = fr.output; var oj2 = JSON.stringify(fr.output);
+              rlog('  ✓ результат: ' + (oj2 && oj2.length > 160 ? oj2.slice(0, 160) + '…' : oj2), 'ok'); stat.ok++; setRun(n, 'ok', 'Выполнен. Результат: ' + (oj2 && oj2.length > 200 ? oj2.slice(0, 200) + '…' : oj2));
             } else {
-              rlog('▶ ' + n.name + ' — пропущен: для ' + shortName(l) + ' нужен серверный компилятор', 'warn'); stat.skip++; setRun(n, 'skip', 'Пропущен: для ' + shortName(l) + ' нужен серверный компилятор');
+              rlog('▶ ' + n.name + ' — пропущен: для ' + shortName(l) + ' нет исполнителя', 'warn'); stat.skip++; setRun(n, 'skip', 'Пропущен: нет исполнителя');
             }
           }catch(err){
             var msg = String(err && err.message || err).split('\n').filter(function(x){ return x.trim(); });
@@ -4990,8 +4997,17 @@ public class MovingAverage : IBlock
       }, function(err){ print('> ' + err.message + '. Проверьте подключение к интернету.', 'err'); });
       return;
     }
+    if(FOREIGN_LANGS[l.id]){
+      print('> ' + foreignLabel(l.id) + ': встроенный исполнитель Triosteum, запуск на демо-данных…', 'dim');
+      var r = runForeign(l.id, el.code.value, null);
+      r.stdout.forEach(function(t){ print(t); });
+      r.notes.forEach(function(t){ print('  ℹ ' + t, 'dim'); });
+      if(r.ok){ print('◀ Результат: ' + fmtOut(r.output)); print('> Выполнено без ошибок.', 'ok'); }
+      else { print('> Ошибка:', 'err'); print(r.error, 'err'); }
+      return;
+    }
     print('> ' + l.tool);
-    print('> Код сохранён (' + el.code.value.split('\n').length + ' строк). Запуск ' + l.name + ' появится, когда подключим серверный компилятор.');
+    print('> Код сохранён (' + el.code.value.split('\n').length + ' строк).');
   }
   $('runBtn').addEventListener('click', runCode);
   $('topRun').addEventListener('click', function(){
@@ -4999,6 +5015,1945 @@ public class MovingAverage : IBlock
     if(S.view === 'editor'){ runCode(); return; }
     runBoard();
   });
+
+  /* =====================================================================
+     ВСТРОЕННЫЙ ИСПОЛНИТЕЛЬ C++ И C#: разбор кода блока и выполнение
+     прямо в браузере, без сервера. Поддерживается то, что нужно блокам:
+     структуры и записи, классы, функции, лямбды, std::vector / std::map,
+     List / Dictionary, LINQ, строки, математика, вывод в консоль.
+     ===================================================================== */
+  var CF_KW = { 'if':1, 'else':1, 'for':1, 'foreach':1, 'while':1, 'do':1, 'return':1, 'break':1, 'continue':1, 'new':1, 'switch':1, 'case':1, 'default':1, 'try':1, 'catch':1, 'finally':1, 'throw':1, 'using':1, 'in':1, 'is':1, 'as':1, 'await':1, 'true':1, 'false':1, 'null':1, 'nullptr':1, 'this':1, 'class':1, 'struct':1, 'record':1, 'namespace':1, 'typeof':1, 'sizeof':1, 'operator':1, 'template':1, 'typename':1 };
+  var CF_MODS = { 'public':1, 'private':1, 'protected':1, 'internal':1, 'static':1, 'readonly':1, 'virtual':1, 'override':1, 'async':1, 'sealed':1, 'abstract':1, 'partial':1, 'extern':1, 'inline':1, 'constexpr':1, 'volatile':1, 'mutable':1, 'explicit':1, 'friend':1, 'unsafe':1, 'required':1, 'noexcept':1 };
+  var CF_INT = { 'int':1, 'long':1, 'short':1, 'unsigned':1, 'signed':1, 'size_t':1, 'uint':1, 'ulong':1, 'byte':1, 'sbyte':1, 'ushort':1, 'char':1, 'int32_t':1, 'int64_t':1, 'uint32_t':1, 'uint64_t':1, 'ptrdiff_t':1 };
+  var CF_BASE = { 'int':1, 'double':1, 'float':1, 'bool':1, 'char':1, 'void':1, 'long':1, 'short':1, 'unsigned':1, 'signed':1, 'auto':1, 'var':1, 'string':1, 'decimal':1, 'object':1, 'byte':1, 'uint':1, 'ulong':1, 'size_t':1, 'dynamic':1, 'sbyte':1, 'ushort':1, 'int32_t':1, 'int64_t':1, 'uint32_t':1, 'uint64_t':1, 'ptrdiff_t':1 };
+  var CF_OPS = ['>>=', '<<=', '...', '::', '->', '++', '--', '<<', '>>', '<=', '>=', '==', '!=', '&&', '||', '+=', '-=', '*=', '/=', '%=', '&=', '|=', '^=', '=>', '??', '?.'];
+  function CfErr(msg, line){ var e = new Error(msg + (line ? ' (строка ' + line + ')' : '')); e.cf = true; return e; }
+
+  function cfTokens(src, cs){
+    var t = [], i = 0, n = src.length, line = 1;
+    function push(type, v, extra){ var o = { t:type, v:v, line:line }; if(extra) for(var k in extra) o[k] = extra[k]; t.push(o); }
+    while(i < n){
+      var c = src[i];
+      if(c === '\n'){ line++; i++; continue; }
+      if(/\s/.test(c)){ i++; continue; }
+      if(c === '/' && src[i + 1] === '/'){ while(i < n && src[i] !== '\n') i++; continue; }
+      if(c === '/' && src[i + 1] === '*'){ i += 2; while(i < n && !(src[i] === '*' && src[i + 1] === '/')){ if(src[i] === '\n') line++; i++; } i += 2; continue; }
+      if(c === '#'){ var e0 = src.indexOf('\n', i); if(e0 < 0) e0 = n; var dir = src.slice(i, e0); var dm = /^#\s*define\s+([A-Za-z_]\w*)\s+(.+)$/.exec(dir.trim()); if(dm) push('define', dm[1], { body:dm[2] }); i = e0; continue; }
+      if(cs && (c === '$' || c === '@') && (src[i + 1] === '"' || ((src[i + 1] === '$' || src[i + 1] === '@') && src[i + 2] === '"'))){
+        var interp = src.slice(i, i + 3).indexOf('$') >= 0, verb = src.slice(i, i + 3).indexOf('@') >= 0; i = src.indexOf('"', i) + 1;
+        var parts = [], buf = '';
+        while(i < n){
+          var ch = src[i];
+          if(ch === '"'){ if(verb && src[i + 1] === '"'){ buf += '"'; i += 2; continue; } i++; break; }
+          if(!verb && ch === '\\'){ buf += cfEsc(src[i + 1]); i += 2; continue; }
+          if(interp && ch === '{'){ if(src[i + 1] === '{'){ buf += '{'; i += 2; continue; } parts.push(buf); buf = ''; var depth = 1, j = i + 1, ex = ''; while(j < n && depth){ if(src[j] === '{') depth++; else if(src[j] === '}'){ depth--; if(!depth) break; } ex += src[j]; j++; } parts.push({ expr:ex }); i = j + 1; continue; }
+          if(interp && ch === '}' && src[i + 1] === '}'){ buf += '}'; i += 2; continue; }
+          if(ch === '\n') line++;
+          buf += ch; i++;
+        }
+        parts.push(buf);
+        push(interp ? 'interp' : 'str', interp ? parts : parts.join(''));
+        continue;
+      }
+      if(c === '"'){ var s = ''; i++; while(i < n && src[i] !== '"'){ if(src[i] === '\\'){ s += cfEsc(src[i + 1]); i += 2; } else s += src[i++]; } i++; push('str', s); continue; }
+      if(c === "'"){ var ch2 = src[i + 1] === '\\' ? cfEsc(src[i + 2]) : src[i + 1]; i = src.indexOf("'", i + 2) + 1; push('chr', ch2); continue; }
+      if(/[0-9]/.test(c) || (c === '.' && /[0-9]/.test(src[i + 1]))){
+        var m = /^(0[xX][0-9a-fA-F']+|[0-9][0-9']*(\.[0-9']*)?([eE][+-]?[0-9]+)?|\.[0-9]+([eE][+-]?[0-9]+)?)([fFdDmMuUlL]*)/.exec(src.slice(i));
+        var raw = m[1].replace(/'/g, ''), val = /^0[xX]/.test(raw) ? parseInt(raw, 16) : parseFloat(raw);
+        push('num', val, { isInt:!/[.eE]/.test(raw) && !/[fFdDmM]/.test(m[5]) && !/^0[xX]/.test(raw) ? true : /^0[xX]/.test(raw) });
+        i += m[0].length; continue;
+      }
+      if(/[A-Za-z_Ѐ-ӿ]/.test(c)){ var m2 = /^[A-Za-z_Ѐ-ӿ][\wЀ-ӿ]*/.exec(src.slice(i)); push('id', m2[0]); i += m2[0].length; continue; }
+      var op = null; for(var k = 0; k < CF_OPS.length; k++){ if(src.substr(i, CF_OPS[k].length) === CF_OPS[k]){ op = CF_OPS[k]; break; } }
+      if(!op) op = c;
+      push('op', op); i += op.length;
+    }
+    push('eof', null);
+    return t;
+  }
+  function cfEsc(c){ return ({ n:'\n', t:'\t', r:'\r', '0':'\0', '\\':'\\', '"':'"', "'":"'" })[c] !== undefined ? ({ n:'\n', t:'\t', r:'\r', '0':'\0', '\\':'\\', '"':'"', "'":"'" })[c] : c; }
+
+  /* ---------- разбор ---------- */
+  function CfParser(src, lang){
+    this.cs = lang === 'csharp'; this.tk = cfTokens(src, this.cs); this.p = 0; this.types = {}; this.defines = {};
+    var self = this; this.tk = this.tk.filter(function(x){ if(x.t === 'define'){ self.defines[x.v] = x.body; return false; } return true; });
+  }
+  var CP = CfParser.prototype;
+  CP.peek = function(o){ return this.tk[this.p + (o || 0)]; };
+  CP.next = function(){ return this.tk[this.p++]; };
+  CP.is = function(v, o){ var x = this.peek(o); return x && (x.t === 'op' || x.t === 'id') && x.v === v; };
+  CP.eat = function(v){ if(this.is(v)){ this.p++; return true; } return false; };
+  CP.want = function(v){ if(!this.eat(v)){ var x = this.peek(); throw CfErr('Ожидалось «' + v + '», а встретилось «' + (x.v === null ? 'конец кода' : (x.t === 'str' ? '"' + x.v + '"' : x.v)) + '»', x.line); } };
+  CP.ident = function(){ var x = this.next(); if(x.t !== 'id') throw CfErr('Ожидалось имя, а встретилось «' + x.v + '»', x.line); return x.v; };
+  CP.skipMods = function(){ while(this.peek().t === 'id' && CF_MODS[this.peek().v]) this.p++; };
+  CP.skipAttrs = function(){ while(this.cs && this.is('[') ){ var d = 0; do { var x = this.next(); if(x.v === '[') d++; else if(x.v === ']') d--; } while(d > 0 && this.peek().t !== 'eof'); } };
+  // splits '>>' when closing nested generics
+  CP.closeAngle = function(){ var x = this.peek(); if(x.v === '>'){ this.p++; return true; } if(x.v === '>>'){ x.v = '>'; return true; } if(x.v === '>='){ x.v = '='; return true; } if(x.v === '>>='){ x.v = '>='; return true; } return false; };
+  CP.tryType = function(){
+    var save = this.p, t = this.typeInner();
+    if(!t) this.p = save;
+    return t;
+  };
+  CP.typeInner = function(){
+    while(this.is('const') || this.is('volatile') || this.is('typename') || this.is('struct') && this.peek(1).t === 'id' && this.peek(2).v !== '{') this.p++;
+    var x = this.peek(); if(x.t !== 'id' || (CF_KW[x.v] && x.v !== 'string')) return null;
+    var name = x.v; this.p++;
+    if(CF_BASE[name]){ while(this.peek().t === 'id' && (this.peek().v === 'long' || this.peek().v === 'int' || this.peek().v === 'short' || this.peek().v === 'char' || this.peek().v === 'double')) { name += ' ' + this.peek().v; this.p++; } }
+    while(this.is('::') || (this.is('.') && this.peek(1).t === 'id' && !this.cfCallLike())){ var sep = this.next().v; var y = this.peek(); if(y.t !== 'id') return null; name += sep === '::' ? '::' + y.v : '.' + y.v; this.p++; }
+    var args = [];
+    if(this.is('<')){
+      var save = this.p; this.p++;
+      var ok = true;
+      if(!this.closeAngle()){
+        do { var a = this.typeInner(); if(!a){ if(this.peek().t === 'num'){ this.p++; a = { name:'#' }; } else { ok = false; break; } } args.push(a); } while(this.eat(','));
+        if(ok && !this.closeAngle()) ok = false;
+      }
+      if(!ok){ this.p = save; return CF_BASE[name] || this.types[name] || /^std::/.test(name) ? { name:name, args:[] } : null; }
+    }
+    var t = { name:name.replace(/^std::/, '').replace(/^System\.(Collections\.Generic\.)?/, ''), args:args };
+    while(true){
+      if(this.is('const')){ this.p++; continue; }
+      if(this.is('&') || this.is('&&') || this.is('*')){ this.p++; continue; }
+      if(this.cs && this.is('?') && !(this.peek(1).t === 'id' && (this.peek(2).v === ':' ))){ var nx = this.peek(1); if(nx.t === 'id' || nx.v === '[' || nx.v === '>' || nx.v === ',' || nx.v === ')'){ this.p++; t.nullable = true; continue; } }
+      if(this.cs && this.is('[') && this.is(']', 1)){ this.p += 2; t = { name:'array', args:[t] }; continue; }
+      break;
+    }
+    return t;
+  };
+  CP.cfCallLike = function(){ return false; };
+  // объявление переменной в начале оператора?
+  CP.declAhead = function(){
+    var save = this.p, t = this.tryType(), ok = false;
+    if(t){
+      var x = this.peek();
+      if(x.t === 'id' && !CF_KW[x.v]){ var y = this.peek(1); ok = y.v === '=' || y.v === ';' || y.v === ',' || y.v === '(' || y.v === '{' || y.v === ':' || y.v === 'in' || y.v === ')'; }
+      else if(this.is('[') && !this.cs && t.name === 'auto'){ ok = true; }   // структурное связывание: auto [k, v]
+    }
+    this.p = save; return ok;
+  };
+  CP.program = function(){
+    var items = [];
+    // сначала собираем имена типов, чтобы отличать объявления
+    for(var i = 0; i < this.tk.length - 1; i++){ var a = this.tk[i]; if(a.t === 'id' && (a.v === 'struct' || a.v === 'class' || a.v === 'record') && this.tk[i + 1].t === 'id') this.types[this.tk[i + 1].v] = 1; }
+    while(this.peek().t !== 'eof') { var it = this.topItem(); if(it) items.push(it); }
+    return items;
+  };
+  CP.topItem = function(){
+    if(this.eat(';')) return null;
+    if(this.is('using') && !this.is('(', 1)){ while(!this.eat(';')) this.p++; return null; }
+    if(this.is('namespace')){ this.p++; while(!this.is('{') && !this.is(';')) this.p++; if(this.eat(';')) return null; this.p++; var inner = []; while(!this.eat('}')){ var it = this.topItem(); if(it) inner.push(it); } return { k:'ns', items:inner }; }
+    if(this.is('template')){ this.p++; this.want('<'); var d = 1; while(d){ var x = this.next(); if(x.v === '<') d++; else if(x.v === '>') d--; else if(x.v === '>>') d -= 2; } }
+    this.skipAttrs(); this.skipMods();
+    if(this.is('struct') || this.is('class') || this.is('record') || this.is('interface') || this.is('enum')) return this.typeDecl();
+    // макрос блока: TRIOSTEUM_BLOCK("...")
+    if(this.peek().t === 'id' && /^[A-Z_][A-Z0-9_]+$/.test(this.peek().v) && this.is('(', 1) && !this.defines[this.peek().v]){ this.p++; var d2 = 0; do { var z = this.next(); if(z.v === '(') d2++; else if(z.v === ')') d2--; } while(d2 > 0); this.eat(';'); return null; }
+    return this.memberDecl(null);
+  };
+  CP.typeDecl = function(){
+    var kind = this.next().v; if(kind === 'record' && (this.is('class') || this.is('struct'))) this.p++;
+    if(kind === 'enum'){ if(this.is('class')) this.p++; var en = this.ident(), vals = {}, k = 0; if(this.eat(':')) this.tryType(); this.want('{'); while(!this.eat('}')){ var vn = this.ident(); if(this.eat('=')) k = this.expr().v; vals[vn] = k++; this.eat(','); } this.eat(';'); return { k:'enum', name:en, vals:vals }; }
+    var name = this.ident(); this.types[name] = 1;
+    if(this.is('<')){ var d = 0; do { var x = this.next(); if(x.v === '<') d++; else if(x.v === '>') d--; } while(d > 0); }
+    var td = { k:'type', kind:kind, name:name, fields:[], methods:{}, statics:[], params:null };
+    if(kind === 'record' && this.is('(')){ td.params = this.params(); td.params.forEach(function(p){ td.fields.push({ name:p.name, type:p.type }); }); }
+    if(this.eat(':')){ do { this.tryType(); } while(this.eat(',')); }
+    while(this.is('where')){ while(!this.is('{') && !this.is(';')) this.p++; }
+    if(this.eat(';')) return td;
+    this.want('{');
+    while(!this.eat('}')){
+      if(this.eat(';')) continue;
+      if(this.is('public') && this.is(':', 1) || this.is('private') && this.is(':', 1) || this.is('protected') && this.is(':', 1)){ this.p += 2; continue; }
+      this.skipAttrs();
+      var st = false; while(this.peek().t === 'id' && (CF_MODS[this.peek().v] || this.peek().v === 'const')){ if(this.peek().v === 'static' || this.peek().v === 'const') st = st || this.peek().v === 'static' || (this.cs && this.peek().v === 'const'); this.p++; }
+      if(this.is('struct') || this.is('class') || this.is('record') || this.is('enum')){ var nested = this.typeDecl(); (td.nested = td.nested || []).push(nested); continue; }
+      // конструктор
+      if(this.peek().t === 'id' && this.peek().v === name && this.is('(', 1)){
+        this.p++; var ps = this.params(), inits = [];
+        if(this.eat(':')){
+          do { var iname = this.ident(); if(this.cs && (iname === 'base' || iname === 'this')){ this.args(); continue; } var iargs = this.is('{') ? this.braceList().items : this.args(); inits.push({ k:'expr', e:{ k:'assign', op:'=', l:{ k:'member', o:{ k:'this' }, n:iname }, r:iargs.length === 1 ? iargs[0] : { k:'list', items:iargs } } }); } while(this.eat(','));
+        }
+        while(this.is('noexcept')) this.p++;
+        var body = this.is('{') ? this.block() : (this.eat(';'), { k:'block', body:[] });
+        if(inits.length) body = { k:'block', body:inits.concat(body.body) };
+        td.ctor = { params:ps, body:body }; continue;
+      }
+      var m = this.memberDecl(td, st); if(!m) continue;
+      if(m.k === 'func'){ td.methods[m.name] = m; m.static = st; }
+      else if(m.k === 'vars'){ m.list.forEach(function(v){ (st ? td.statics : td.fields).push(v); }); }
+    }
+    this.eat(';');
+    return td;
+  };
+  CP.params = function(){
+    this.want('('); var ps = [];
+    while(!this.eat(')')){
+      this.skipAttrs(); while(this.is('this') || this.is('params') || this.is('ref') || this.is('out') || this.is('in')) this.p++;
+      var t = this.tryType() || { name:'auto', args:[] }, nm = this.peek().t === 'id' ? this.ident() : ('_' + ps.length), def = null;
+      if(this.is('[')){ this.p++; while(!this.eat(']')) this.p++; t = { name:'array', args:[t] }; }
+      if(this.eat('=')) def = this.assign();
+      ps.push({ name:nm, type:t, def:def }); this.eat(',');
+    }
+    return ps;
+  };
+  CP.memberDecl = function(td, st){
+    var save = this.p, t = this.tryType();
+    if(!t){ var x = this.peek(); throw CfErr('Непонятная конструкция «' + x.v + '»', x.line); }
+    if(this.is('operator')){ this.p++; while(!this.is('(')) this.p++; var opPs = this.params(); this.skipMods(); while(this.is('const')) this.p++; if(this.is('{')) this.block(); else this.eat(';'); return null; }
+    if(this.peek().t !== 'id'){ var y = this.peek(); throw CfErr('Ожидалось имя после типа «' + t.name + '», а встретилось «' + y.v + '»', y.line); }
+    var name = this.ident();
+    while(this.is('::')){ this.p++; name = this.ident(); }
+    if(this.is('<') && this.cs){ var d = 0; do { var z = this.next(); if(z.v === '<') d++; else if(z.v === '>') d--; } while(d > 0); }
+    if(this.is('(')){
+      var ps = this.params(); while(this.is('const') || this.is('override') || this.is('noexcept')) this.p++;
+      if(this.is('->')){ this.p++; this.tryType(); }
+      var body = null;
+      if(this.is('{')) body = this.block();
+      else if(this.eat('=>')){ var ex = this.expr(); this.eat(';'); body = { k:'block', body:[{ k:'return', e:ex }] }; }
+      else this.eat(';');
+      return { k:'func', name:name, params:ps, ret:t, body:body };
+    }
+    // свойство C#: { get; set; } или => выражение
+    if(this.cs && this.is('{')){
+      var p0 = this.p, getter = null; this.p++;
+      while(!this.eat('}')){ if(this.is('get') && this.is('=>', 1)){ this.p += 2; getter = this.expr(); this.eat(';'); } else if(this.is('get') && this.is('{', 1)){ this.p++; getter = this.block(); } else this.p++; }
+      var init = null; if(this.eat('=')){ init = this.expr(); } this.eat(';');
+      return { k:'vars', list:[{ name:name, type:t, init:init, getter:getter }] };
+    }
+    if(this.cs && this.is('=>')){ this.p++; var g = this.expr(); this.eat(';'); return { k:'vars', list:[{ name:name, type:t, getter:g }] }; }
+    var list = [this.varRest(t, name)];
+    while(this.eat(',')) list.push(this.varRest(t, this.ident()));
+    this.eat(';');
+    return { k:'vars', list:list };
+  };
+  CP.varRest = function(t, name){
+    var v = { name:name, type:t, init:null };
+    if(this.is('[') && !this.cs){ this.p++; var n = this.is(']') ? null : this.expr(); this.want(']'); v.type = { name:'carray', args:[t], n:n }; }
+    if(this.eat('=')) v.init = this.is('{') ? this.braceList() : this.assign();
+    else if(this.is('(')){ this.p++; var args = []; while(!this.eat(')')){ args.push(this.assign()); this.eat(','); } v.ctorArgs = args; }
+    else if(this.is('{')) v.init = this.braceList();
+    return v;
+  };
+  CP.braceList = function(){ var line = this.peek().line; this.want('{'); var items = []; while(!this.eat('}')){ if(this.is('{')) items.push(this.braceList()); else if(this.is('[') && this.cs){ this.p++; var key = this.expr(); this.want(']'); this.want('='); items.push({ k:'kv', key:key, val:this.assign() }); } else items.push(this.assign()); this.eat(','); } return { k:'list', items:items, line:line }; };
+  CP.block = function(){ this.want('{'); var body = []; while(!this.eat('}')){ if(this.peek().t === 'eof') throw CfErr('Не закрыта фигурная скобка «{»'); var s = this.stmt(); if(s) body.push(s); } return { k:'block', body:body }; };
+  CP.stmt = function(){
+    var x = this.peek(), line = x.line;
+    if(this.eat(';')) return null;
+    if(this.is('{')) return this.block();
+    if(x.t === 'id'){
+      switch(x.v){
+        case 'if': this.p++; this.want('('); var c = this.expr(); this.want(')'); var th = this.stmt(), el = this.eat('else') ? this.stmt() : null; return { k:'if', c:c, t:th, e:el, line:line };
+        case 'while': this.p++; this.want('('); var wc = this.expr(); this.want(')'); return { k:'while', c:wc, b:this.stmt(), line:line };
+        case 'do': this.p++; var db = this.stmt(); this.want('while'); this.want('('); var dc = this.expr(); this.want(')'); this.eat(';'); return { k:'dowhile', c:dc, b:db, line:line };
+        case 'for': return this.forStmt();
+        case 'foreach': this.p++; this.want('('); var ft = this.tryType(), fn; if(this.is('(')){ this.p++; fn = []; while(!this.eat(')')){ fn.push(this.ident()); this.eat(','); } } else fn = this.ident(); this.want('in'); var fe = this.expr(); this.want(')'); return { k:'forin', name:fn, e:fe, b:this.stmt(), line:line };
+        case 'return': this.p++; var re = this.is(';') ? null : (this.is('{') ? this.braceList() : this.expr()); this.eat(';'); return { k:'return', e:re, line:line };
+        case 'break': this.p++; this.eat(';'); return { k:'break' };
+        case 'continue': this.p++; this.eat(';'); return { k:'continue' };
+        case 'throw': this.p++; var te = this.is(';') ? null : this.expr(); this.eat(';'); return { k:'throw', e:te, line:line };
+        case 'try': this.p++; var tb = this.block(), cb = null, cn = null, fb = null; while(this.is('catch')){ this.p++; if(this.eat('(')){ var tt = this.tryType(); if(this.peek().t === 'id') cn = this.ident(); while(!this.eat(')')) this.p++; } if(this.is('when')){ this.p++; this.want('('); this.expr(); this.want(')'); } cb = this.block(); } if(this.eat('finally')) fb = this.block(); return { k:'try', b:tb, c:cb, cn:cn, f:fb };
+        case 'switch': return this.switchStmt();
+        case 'using':
+          this.p++;
+          if(this.eat('(')){ var us = this.declAhead() ? this.declStmt(true) : { k:'expr', e:this.expr() }; this.want(')'); return { k:'block', body:[us, this.stmt()] }; }
+          return this.declStmt();
+      }
+      if(CF_MODS[x.v] && x.v !== 'static'){ this.skipMods(); return this.stmt(); }
+      if(x.v === 'static' || x.v === 'const' || x.v === 'constexpr'){ this.p++; return this.stmt(); }
+      if(this.declAhead()) return this.declStmt();
+    }
+    var e = this.expr(); this.eat(';'); return { k:'expr', e:e, line:line };
+  };
+  CP.declStmt = function(noSemi){
+    var t = this.tryType();
+    if(this.is('[')){ this.p++; var names = []; while(!this.eat(']')){ names.push(this.ident()); this.eat(','); } this.want('='); var e = this.expr(); if(!noSemi) this.eat(';'); return { k:'bind', names:names, e:e }; }
+    var list = [this.varRest(t, this.ident())];
+    while(this.eat(',')) list.push(this.varRest(t, this.ident()));
+    if(!noSemi) this.eat(';');
+    return { k:'decl', list:list, line:list[0] ? this.peek().line : 0 };
+  };
+  CP.forStmt = function(){
+    var line = this.peek().line; this.p++; this.want('(');
+    var init = null;
+    if(!this.is(';')){
+      if(this.declAhead()){
+        var save = this.p, t = this.tryType();
+        if(this.is('[')){ this.p++; var names = []; while(!this.eat(']')){ names.push(this.ident()); this.eat(','); } this.want(':'); var re = this.expr(); this.want(')'); return { k:'forin', name:names, e:re, b:this.stmt(), line:line }; }
+        var nm = this.ident();
+        if(this.eat(':')){ var re2 = this.expr(); this.want(')'); return { k:'forin', name:nm, type:t, e:re2, b:this.stmt(), line:line }; }
+        this.p = save; init = this.declStmt(true);
+      } else init = { k:'expr', e:this.exprList() };
+    }
+    this.want(';');
+    var cond = this.is(';') ? null : this.expr(); this.want(';');
+    var step = this.is(')') ? null : this.exprList(); this.want(')');
+    return { k:'for', init:init, c:cond, s:step, b:this.stmt(), line:line };
+  };
+  CP.exprList = function(){ var l = [this.expr()]; while(this.eat(',')) l.push(this.expr()); return l.length === 1 ? l[0] : { k:'seq', l:l }; };
+  CP.switchStmt = function(){
+    var line = this.peek().line; this.p++; this.want('('); var e = this.expr(); this.want(')'); this.want('{');
+    var cases = [], cur = null;
+    while(!this.eat('}')){
+      if(this.eat('case')){ var v = this.expr(); this.want(':'); cur = { v:v, body:[] }; cases.push(cur); continue; }
+      if(this.is('default') && this.is(':', 1)){ this.p += 2; cur = { def:true, body:[] }; cases.push(cur); continue; }
+      var s = this.stmt(); if(s && cur) cur.body.push(s);
+    }
+    return { k:'switch', e:e, cases:cases, line:line };
+  };
+  /* ---------- выражения ---------- */
+  var CF_BIN = { '||':3, '??':3, '&&':4, '|':5, '^':6, '&':7, '==':8, '!=':8, '<':9, '>':9, '<=':9, '>=':9, 'is':9, 'as':9, '<<':10, '>>':10, '+':11, '-':11, '*':12, '/':12, '%':12 };
+  CP.expr = function(){ return this.assign(); };
+  CP.assign = function(){
+    // лямбды C#: x => ..., (a, b) => ...
+    if(this.cs && this.peek().t === 'id' && this.is('=>', 1)){ var pn = this.ident(); this.p++; return this.lambdaBody([pn]); }
+    if(this.cs && this.is('(')){ var save = this.p, ok = false, ps = []; this.p++; while(this.peek().t === 'id' || this.is(',')){ if(this.peek().t === 'id'){ if(this.peek(1).t === 'id'){ this.tryType(); } ps.push(this.ident()); } else this.p++; } if(this.eat(')') && this.is('=>')){ this.p++; return this.lambdaBody(ps); } this.p = save; }
+    var l = this.ternary();
+    var x = this.peek();
+    if(x.t === 'op' && /^([+\-*\/%&|^]|<<|>>)?=$/.test(x.v) && x.v !== '==' && x.v !== '<=' && x.v !== '>=' && x.v !== '!='){ this.p++; var r = this.is('{') ? this.braceList() : this.assign(); return { k:'assign', op:x.v, l:l, r:r, line:x.line }; }
+    return l;
+  };
+  CP.lambdaBody = function(ps){ if(this.is('{')) return { k:'lambda', params:ps, body:this.block() }; return { k:'lambda', params:ps, body:{ k:'block', body:[{ k:'return', e:this.assign() }] } }; };
+  CP.ternary = function(){
+    var c = this.binary(0);
+    if(this.is('?')){ this.p++; var a = this.assign(); this.want(':'); var b = this.assign(); return { k:'cond', c:c, a:a, b:b }; }
+    return c;
+  };
+  CP.binary = function(min){
+    var l = this.unary();
+    while(true){
+      var x = this.peek(); if(x.t !== 'op' && !(x.t === 'id' && (x.v === 'is' || x.v === 'as'))) break;
+      var pr = CF_BIN[x.v]; if(!pr || pr <= min) break;
+      this.p++;
+      if(x.v === 'is' || x.v === 'as'){ var neg = this.eat('not'); var ty = this.tryType(); if(this.peek().t === 'id' && x.v === 'is' && !CF_BIN[this.peek().v]) this.p++; l = { k:x.v, e:l, type:ty, neg:neg, null:!ty && this.eat('null') }; if(!ty && x.v === 'is' && l.null === false && this.is('null')){ this.p++; l.null = true; } continue; }
+      var r = this.binary(pr);
+      l = { k:'bin', op:x.v, l:l, r:r, line:x.line };
+    }
+    return l;
+  };
+  CP.unary = function(){
+    var x = this.peek();
+    if(x.t === 'op' && (x.v === '!' || x.v === '-' || x.v === '+' || x.v === '~')){ this.p++; return { k:'un', op:x.v, e:this.unary() }; }
+    if(x.t === 'op' && (x.v === '++' || x.v === '--')){ this.p++; return { k:'pre', op:x.v, e:this.unary() }; }
+    if(x.t === 'op' && (x.v === '*' || x.v === '&')){ this.p++; return this.unary(); }
+    if(x.t === 'id' && x.v === 'await'){ this.p++; return this.unary(); }
+    if(x.t === 'id' && (x.v === 'sizeof' || x.v === 'typeof')){ this.p++; this.want('('); this.tryType(); this.want(')'); return { k:'num', v:8 }; }
+    // приведение типа: (double)x
+    if(this.is('(')){
+      var save = this.p; this.p++;
+      var t = this.tryType();
+      if(t && this.eat(')') && (CF_BASE[t.name.split(' ')[0]] || t.name === 'string' || this.types[t.name]) && !(this.peek().t === 'op' && /^([+*\/%<>=!&|^?:.,;)\]}]|==|!=|<=|>=|&&|\|\|)$/.test(this.peek().v) && this.peek().v !== '(' )) return { k:'cast', type:t, e:this.unary() };
+      this.p = save;
+    }
+    return this.postfix(this.primary());
+  };
+  CP.postfix = function(e){
+    while(true){
+      var x = this.peek();
+      if(this.is('(')){ e = { k:'call', f:e, args:this.args(), line:x.line }; continue; }
+      if(this.is('[')){ this.p++; var idx = this.expr(); this.want(']'); e = { k:'index', o:e, i:idx, line:x.line }; continue; }
+      if(this.is('.') || this.is('->') || this.is('?.') || this.is('::')){
+        var op = this.next().v, nm = this.ident(), targs = null;
+        if(this.is('<')){ var sv = this.p; this.p++; var ta = []; var ok = true; do { var tt = this.typeInner(); if(!tt){ ok = false; break; } ta.push(tt); } while(this.eat(',')); if(ok && this.closeAngle() && this.is('(')) targs = ta; else this.p = sv; }
+        e = { k:'member', o:e, n:nm, opt:op === '?.', targs:targs, line:x.line }; continue;
+      }
+      if(x.t === 'op' && (x.v === '++' || x.v === '--')){ this.p++; e = { k:'post', op:x.v, e:e }; continue; }
+      if(this.cs && x.t === 'op' && x.v === '!' && (this.peek(1).v === '.' || this.peek(1).v === ')' || this.peek(1).v === ';')){ this.p++; continue; }
+      break;
+    }
+    return e;
+  };
+  CP.args = function(){ this.want('('); var a = []; while(!this.eat(')')){ if(this.is('out') || this.is('ref')){ var kind = this.next().v; if(this.is('var') || this.declAhead()){ this.tryType(); } a.push({ k:'out', n:this.ident() }); } else if(this.peek().t === 'id' && this.is(':', 1) && this.cs){ this.p += 2; a.push(this.assign()); } else a.push(this.is('{') ? this.braceList() : this.assign()); this.eat(','); } return a; };
+  CP.primary = function(){
+    var x = this.next();
+    if(x.t === 'num') return { k:'num', v:x.v, isInt:x.isInt };
+    if(x.t === 'str'){ var s = x.v; while(this.peek().t === 'str'){ s += this.next().v; } return { k:'str', v:s }; }
+    if(x.t === 'chr') return { k:'str', v:x.v, chr:true };
+    if(x.t === 'interp') return { k:'interp', parts:x.v.map(function(p){ if(typeof p === 'string') return p; var m = /^(.*?)(?::([^:}]+))?$/.exec(p.expr), fmt = null, ex = p.expr; var colon = cfTopColon(p.expr); if(colon >= 0){ ex = p.expr.slice(0, colon); fmt = p.expr.slice(colon + 1); } var sub = new CfParser(ex, 'csharp'); return { e:sub.expr(), fmt:fmt }; }) };
+    if(x.t === 'op' && x.v === '('){ var e = this.expr(); if(this.is(',') && this.cs){ var items = [e]; while(this.eat(',')) items.push(this.expr()); this.want(')'); return { k:'tuple', items:items }; } this.want(')'); return e; }
+    if(x.t === 'op' && x.v === '{'){ this.p--; return this.braceList(); }
+    if(x.t === 'op' && x.v === '['){
+      // лямбда C++: [&](...) { ... }
+      if(!this.cs){ while(!this.eat(']')) this.p++; var ps = this.is('(') ? this.params() : []; while(this.is('mutable') || this.is('->')){ if(this.eat('->')) this.tryType(); else this.p++; } return { k:'lambda', params:ps.map(function(p){ return p.name; }), body:this.block() }; }
+      var arr = []; while(!this.eat(']')){ arr.push(this.assign()); this.eat(','); } return { k:'list', items:arr };
+    }
+    if(x.t === 'id'){
+      if(x.v === 'true') return { k:'lit', v:true };
+      if(x.v === 'false') return { k:'lit', v:false };
+      if(x.v === 'null' || x.v === 'nullptr') return { k:'lit', v:null };
+      if(x.v === 'this') return { k:'this' };
+      if(x.v === 'default'){ if(this.eat('(')){ var dt = this.tryType(); this.want(')'); return { k:'default', type:dt }; } return { k:'lit', v:null }; }
+      if(x.v === 'new') return this.newExpr();
+      if(this.defines[x.v] !== undefined){ var sub = new CfParser(this.defines[x.v], this.cs ? 'csharp' : 'cpp'); return sub.expr(); }
+      // вызов шаблона: static_cast<double>(x), Get<string>("k"), std::vector<int>{...}
+      var name = x.v;
+      while(this.is('::') && this.peek(1).t === 'id'){ this.p++; name += '::' + this.next().v; }
+      if(this.is('<')){
+        var sv = this.p; this.p++; var ta = [], ok = true;
+        if(!this.closeAngle()){ do { var tt = this.typeInner(); if(!tt){ if(this.peek().t === 'num'){ this.p++; continue; } ok = false; break; } ta.push(tt); } while(this.eat(',')); ok = ok && this.closeAngle(); }
+        if(ok && (this.is('(') || this.is('{'))){ if(this.is('{')) return { k:'construct', type:{ name:name.replace(/^std::/, ''), args:ta }, init:this.braceList() }; return { k:'id', n:name, targs:ta, line:x.line }; }
+        this.p = sv;
+      }
+      if(this.is('{') && (this.types[name] || /^std::/.test(name)) && !this.cs) return { k:'construct', type:{ name:name.replace(/^std::/, ''), args:[] }, init:this.braceList() };
+      return { k:'id', n:name, line:x.line };
+    }
+    throw CfErr('Неожиданное «' + x.v + '»', x.line);
+  };
+  function cfTopColon(s){ var d = 0, q = false; for(var i = 0; i < s.length; i++){ var c = s[i]; if(c === '"') q = !q; if(q) continue; if(c === '(' || c === '[' || c === '{') d++; else if(c === ')' || c === ']' || c === '}') d--; else if(c === '?' ) d += 100; else if(c === ':' && d === 0) return i; else if(c === ':' && d >= 100) d -= 100; } return -1; }
+  CP.newExpr = function(){
+    var line = this.peek().line;
+    if(this.is('{')){ var bl = this.braceList(); return { k:'anon', items:bl.items }; }
+    if(this.is('[')){ this.p++; this.want(']'); return { k:'list', items:this.braceList().items }; }
+    if(this.is('(')){ return { k:'new', type:null, args:this.args(), init:this.is('{') ? this.braceList() : null, line:line }; }
+    var t = this.typeInner();
+    if(this.is('[')){ this.p++; var n = this.is(']') ? null : this.expr(); this.want(']'); var init = this.is('{') ? this.braceList() : null; return { k:'newarr', type:t, n:n, init:init }; }
+    var args = this.is('(') ? this.args() : [];
+    var init2 = this.is('{') ? this.braceList() : null;
+    return { k:'new', type:t, args:args, init:init2, line:line };
+  };
+
+  /* ---------- выполнение ---------- */
+  function CfMap(){ this.m = new Map(); }
+  CfMap.prototype.key = function(k){ return typeof k === 'object' && k !== null ? JSON.stringify(k) : k; };
+  CfMap.prototype.get = function(k){ return this.m.has(this.key(k)) ? this.m.get(this.key(k)).v : undefined; };
+  CfMap.prototype.has = function(k){ return this.m.has(this.key(k)); };
+  CfMap.prototype.set = function(k, v){ this.m.set(this.key(k), { k:k, v:v }); };
+  CfMap.prototype.del = function(k){ return this.m.delete(this.key(k)); };
+  CfMap.prototype.pairs = function(){ var out = []; this.m.forEach(function(x){ out.push(x); }); return out; };
+  CfMap.prototype.sorted = false;
+  function CfSet(){ this.s = new Map(); }
+  function CfIter(arr, i){ this.arr = arr; this.i = i; }
+  function CfBreak(){} function CfCont(){} function CfRet(v){ this.v = v; }
+  function CfObj(type){ this.__t = type; }
+
+  function CfVM(prog, lang, io){
+    this.cs = lang === 'csharp'; this.lang = lang; this.out = []; this.io = io || {}; this.types = {}; this.funcs = {}; this.globals = new Map(); this.steps = 0;
+    var self = this;
+    (function reg(items){ items.forEach(function(it){
+      if(it.k === 'ns') reg(it.items);
+      else if(it.k === 'type'){ self.types[it.name] = it; (it.nested || []).forEach(function(n){ if(n.k === 'type') self.types[n.name] = n; else if(n.k === 'enum') self.types[n.name] = n; }); }
+      else if(it.k === 'enum') self.types[it.name] = it;
+      else if(it.k === 'func') (self.funcs[it.name] = self.funcs[it.name] || []).push(it);
+      else if(it.k === 'vars') it.list.forEach(function(v){ self.globals.set(v.name, { v:undefined, t:v.type, decl:v }); });
+    }); })(prog);
+    var gs = { vars:this.globals, up:null };
+    this.statics = {};
+    this.globals.forEach(function(slot){ slot.v = slot.decl.init || slot.decl.ctorArgs ? self.initVar(slot.decl, gs) : self.defVal(slot.t); });
+    Object.keys(this.types).forEach(function(n){ var td = self.types[n]; if(td.k !== 'type') return; var st = self.statics[n] = {}; (td.statics || []).forEach(function(v){ if(v.getter) return; st[v.name] = v.init || v.ctorArgs ? self.initVar(v, { vars:new Map(), up:gs, td:td }) : self.defVal(v.type); }); });
+  }
+  var VM = CfVM.prototype;
+  VM.tick = function(){ if(++this.steps > 3e6) throw CfErr('Слишком долгое выполнение — возможен бесконечный цикл'); };
+  VM.isIntType = function(t){ return !!(t && (CF_INT[t.name] || CF_INT[t.name.split(' ')[0]] || /^(size_t|std::size_t|Int32|Int64)$/.test(t.name))); };
+  VM.defVal = function(t){
+    if(!t) return undefined; var n = t.name;
+    if(n === 'array' || n === 'carray'){ var a = []; if(t.n){ var len = this.eval(t.n, { vars:this.globals, up:null }); for(var i = 0; i < len; i++) a.push(this.defVal(t.args[0])); } return a; }
+    if(/^(vector|List|deque|list|IEnumerable|IList|ICollection|Queue|Stack|IReadOnlyList|array)$/.test(n)) return [];
+    if(/^(map|unordered_map|Dictionary|SortedDictionary|IDictionary|IReadOnlyDictionary)$/.test(n)){ var m = new CfMap(); m.sorted = /^(map|SortedDictionary)$/.test(n); return m; }
+    if(/^(set|unordered_set|HashSet|SortedSet)$/.test(n)) return new CfMap();
+    if(/^(string|String)$/.test(n)) return this.cs ? null : '';
+    if(n === 'bool') return false;
+    if(CF_BASE[n.split(' ')[0]] && n !== 'auto' && n !== 'var' && n !== 'object' && n !== 'dynamic' && n !== 'void') return 0;
+    if(this.types[n] && this.types[n].k === 'type' && !this.cs) return this.construct(this.types[n], [], null, { vars:this.globals, up:null });
+    return this.cs ? (this.types[n] && this.types[n].kind === 'struct' ? this.construct(this.types[n], [], null, { vars:this.globals, up:null }) : null) : undefined;
+  };
+  VM.lookup = function(sc, n){ for(var s = sc; s; s = s.up){ if(s.vars.has(n)) return s.vars.get(n); } return null; };
+  VM.declare = function(sc, n, v, t){ sc.vars.set(n, { v:v, t:t }); };
+  VM.initVar = function(d, sc){
+    var t = d.type, v;
+    if(d.ctorArgs){ var args = d.ctorArgs.map(function(a){ return this.eval(a, sc); }, this); v = this.constructType(t, args, null, sc); }
+    else if(d.init && d.init.k === 'list') v = this.fromList(t, d.init, sc);
+    else if(d.init) v = this.eval(d.init, sc);
+    else v = this.defVal(t);
+    return this.coerce(t, v);
+  };
+  VM.coerce = function(t, v){ if(t && typeof v === 'number' && this.isIntType(t)) return Math.trunc(v); if(t && /^(string|String)$/.test(t.name) && typeof v === 'number' && !this.cs) return v; return v; };
+  VM.fromList = function(t, l, sc){
+    var self = this, n = t ? t.name : 'auto';
+    if(t && (this.types[n] && this.types[n].k === 'type')) return this.construct(this.types[n], l.items.map(function(x){ return x.k === 'list' ? x : self.eval(x, sc); }), null, sc, true);
+    if(/^(map|unordered_map|Dictionary|SortedDictionary)$/.test(n)){ var m = new CfMap(); l.items.forEach(function(x){ if(x.k === 'kv') m.set(self.eval(x.key, sc), self.eval(x.val, sc)); else if(x.k === 'list') m.set(self.eval(x.items[0], sc), self.eval(x.items[1], sc)); }); return m; }
+    var el = t && t.args && t.args[0];
+    if(t && /^(pair|tuple|KeyValuePair)$/.test(n)) return { first:this.eval(l.items[0], sc), second:this.eval(l.items[1], sc) };
+    return l.items.map(function(x){ return x.k === 'list' ? self.fromList(el || null, x, sc) : self.coerce(el, self.eval(x, sc)); });
+  };
+  VM.construct = function(td, args, init, sc, positional){
+    if(td.k === 'enum') return 0;
+    var o = new CfObj(td.name), self = this;
+    var fs = td.fields;
+    var inner = { vars:new Map(), up:{ vars:this.globals, up:null } };
+    fs.forEach(function(f){ o[f.name] = f.init || f.ctorArgs ? self.initVar(f, inner) : self.defVal(f.type); });
+    if(td.params){ td.params.forEach(function(p, i){ o[p.name] = self.coerce(p.type, args[i] !== undefined ? args[i] : (p.def ? self.eval(p.def, sc) : self.defVal(p.type))); }); }
+    else if(td.ctor && !positional){ this.callFunc({ params:td.ctor.params, body:td.ctor.body, name:td.name }, args, o, td); }
+    else if(args.length){ args.forEach(function(a, i){ var f = fs[i]; if(f) o[f.name] = a && a.k === 'list' ? self.fromList(f.type, a, sc) : self.coerce(f.type, a); }); }
+    if(init) this.applyInit(o, init, sc);
+    return o;
+  };
+  VM.applyInit = function(o, init, sc){
+    var self = this;
+    init.items.forEach(function(x){
+      if(x.k === 'assign' && x.l.k === 'id'){ var v = x.r.k === 'list' ? self.fromList(null, x.r, sc) : self.eval(x.r, sc); if(o instanceof CfMap) o.set(x.l.n, v); else o[x.l.n] = v; }
+      else if(x.k === 'kv'){ o.set(self.eval(x.key, sc), self.eval(x.val, sc)); }
+      else if(x.k === 'list' && o instanceof CfMap){ o.set(self.eval(x.items[0], sc), self.eval(x.items[1], sc)); }
+      else if(Array.isArray(o)) o.push(self.eval(x, sc));
+    });
+  };
+  VM.constructType = function(t, args, init, sc){
+    var n = t ? t.name : null;
+    if(!n) return {};
+    if(this.types[n]) return this.construct(this.types[n], args, init, sc);
+    var b = this.builtinNew(t, args, init, sc); if(b !== undefined) return b;
+    throw CfErr('Неизвестный тип «' + n + '»');
+  };
+  VM.builtinNew = function(t, args, init, sc){
+    var n = t.name, self = this;
+    if(/^(vector|List|deque|list|Queue|Stack|HashSet|IEnumerable)$/.test(n) || /^(map|unordered_map|Dictionary|SortedDictionary|set|unordered_set|SortedSet)$/.test(n)){
+      var v = this.defVal(t);
+      if(Array.isArray(v)){ if(args.length === 2 && typeof args[0] === 'number' && !this.cs){ for(var i = 0; i < args[0]; i++) v.push(args[1]); } else if(args.length === 1 && typeof args[0] === 'number' && !this.cs){ for(var j = 0; j < args[0]; j++) v.push(this.defVal(t.args[0])); } else if(args.length === 1 && Array.isArray(args[0])) v = args[0].slice(); else if(args.length === 2 && args[0] instanceof CfIter) v = args[0].arr.slice(args[0].i, args[1].i); }
+      if(init) this.applyInit(v, init, sc);
+      return v;
+    }
+    if(/^(string|String)$/.test(n)) return args.length === 2 && typeof args[0] === 'number' ? String(args[1]).repeat(args[0]) : String(args[0] || '');
+    if(/^(StringBuilder)$/.test(n)){ var sb = { __t:'StringBuilder', s:args[0] ? String(args[0]) : '' }; return sb; }
+    if(/^(pair|KeyValuePair|Tuple)$/.test(n)) return { first:args[0], second:args[1], Key:args[0], Value:args[1], Item1:args[0], Item2:args[1] };
+    if(/^(Random)$/.test(n)) return { __t:'Random' };
+    if(/^(object)$/.test(n)) return {};
+    if(/^(DateTime)$/.test(n)) return args.length ? new Date(args[0], (args[1] || 1) - 1, args[2] || 1) : new Date();
+    if(/^(Exception|ArgumentException|InvalidOperationException|runtime_error|invalid_argument|logic_error|exception)$/.test(n)) return { __t:'Exception', Message:args[0] || '', what:args[0] || '' };
+    if(this.io.newObj){ var r = this.io.newObj(n, args, this); if(r !== undefined) return r; }
+    return undefined;
+  };
+  VM.callFunc = function(f, args, self, td){
+    if(!f.body) throw CfErr('У функции «' + f.name + '» нет тела');
+    var sc = { vars:new Map(), up:{ vars:this.globals, up:null }, self:self, td:td };
+    var vm = this;
+    f.params.forEach(function(p, i){ var v = args[i]; if(v === undefined && p.def) v = vm.eval(p.def, sc); if(v === undefined) v = vm.defVal(p.type); sc.vars.set(p.name, { v:vm.coerce(p.type, v), t:p.type }); });
+    try { this.exec(f.body, sc); } catch(e){ if(e instanceof CfRet) return f.ret && e.v && e.v.k === 'list' ? e.v : e.v; throw e; }
+    return undefined;
+  };
+  VM.callFn = function(fn, args){
+    if(typeof fn === 'function') return fn.apply(null, args);
+    if(fn && fn.__lambda) return fn.call(args);
+    throw CfErr('Это не функция');
+  };
+  VM.lambda = function(node, sc){
+    var vm = this;
+    var L = { __lambda:true, call:function(args){
+      var s2 = { vars:new Map(), up:sc, self:sc.self, td:sc.td };
+      node.params.forEach(function(p, i){ s2.vars.set(p, { v:args[i] }); });
+      try { vm.exec(node.body, s2); } catch(e){ if(e instanceof CfRet) return e.v; throw e; }
+      return undefined;
+    } };
+    return L;
+  };
+  VM.exec = function(s, sc){
+    if(!s) return;
+    this.tick();
+    var vm = this;
+    switch(s.k){
+      case 'block': var inner = { vars:new Map(), up:sc, self:sc.self, td:sc.td }; for(var i = 0; i < s.body.length; i++) this.exec(s.body[i], inner); return;
+      case 'expr': this.eval(s.e, sc); return;
+      case 'decl': s.list.forEach(function(d){ var v = vm.initVar(d, sc); if(d.init && d.init.k === 'list' && (!d.type || d.type.name === 'auto' || d.type.name === 'var')) v = vm.fromList(null, d.init, sc); sc.vars.set(d.name, { v:v, t:d.type && d.type.name !== 'auto' && d.type.name !== 'var' ? d.type : vm.guessType(d.init, sc) }); }); return;
+      case 'bind': var bv = this.eval(s.e, sc); s.names.forEach(function(n, i){ sc.vars.set(n, { v:vm.part(bv, i) }); }); return;
+      case 'if': if(this.truthy(this.eval(s.c, sc))) this.exec(s.t, sc); else if(s.e) this.exec(s.e, sc); return;
+      case 'while': while(this.truthy(this.eval(s.c, sc))){ this.tick(); try { this.exec(s.b, sc); } catch(e){ if(e instanceof CfBreak) break; if(e instanceof CfCont) continue; throw e; } } return;
+      case 'dowhile': do { this.tick(); try { this.exec(s.b, sc); } catch(e){ if(e instanceof CfBreak) break; if(e instanceof CfCont) continue; throw e; } } while(this.truthy(this.eval(s.c, sc))); return;
+      case 'for':
+        var fs = { vars:new Map(), up:sc, self:sc.self, td:sc.td };
+        if(s.init) this.exec(s.init, fs);
+        while(!s.c || this.truthy(this.eval(s.c, fs))){ this.tick(); try { this.exec(s.b, fs); } catch(e){ if(e instanceof CfBreak) break; if(!(e instanceof CfCont)) throw e; } if(s.s) this.eval(s.s, fs); }
+        return;
+      case 'forin':
+        var coll = this.iterable(this.eval(s.e, sc));
+        for(var k = 0; k < coll.length; k++){
+          this.tick();
+          var ls = { vars:new Map(), up:sc, self:sc.self, td:sc.td };
+          if(Array.isArray(s.name)) s.name.forEach(function(n, j){ ls.vars.set(n, { v:vm.part(coll[k], j) }); }); else ls.vars.set(s.name, { v:coll[k], t:s.type && s.type.name !== 'auto' && s.type.name !== 'var' ? s.type : null });
+          try { this.exec(s.b, ls); } catch(e){ if(e instanceof CfBreak) break; if(e instanceof CfCont) continue; throw e; }
+        }
+        return;
+      case 'return': throw new CfRet(s.e ? (s.e.k === 'list' ? this.fromRet(s.e, sc) : this.eval(s.e, sc)) : undefined);
+      case 'break': throw new CfBreak();
+      case 'continue': throw new CfCont();
+      case 'throw': var ev = s.e ? this.eval(s.e, sc) : { Message:'исключение' }; throw CfErr('Исключение: ' + (ev && (ev.Message || ev.what) || ev), s.line);
+      case 'try':
+        try { this.exec(s.b, sc); }
+        catch(e){ if(e instanceof CfRet || e instanceof CfBreak || e instanceof CfCont) throw e; if(!s.c) throw e; var cs2 = { vars:new Map(), up:sc, self:sc.self, td:sc.td }; if(s.cn) cs2.vars.set(s.cn, { v:{ Message:String(e.message || e), what:String(e.message || e) } }); this.exec(s.c, cs2); }
+        finally { if(s.f) this.exec(s.f, sc); }
+        return;
+      case 'switch':
+        var sv = this.eval(s.e, sc), hit = false;
+        try { for(var c = 0; c < s.cases.length; c++){ var cs = s.cases[c]; if(!hit && (cs.def || this.eq(this.eval(cs.v, sc), sv))) hit = true; if(hit) cs.body.forEach(function(st){ vm.exec(st, sc); }); }
+          if(!hit){ var d = s.cases.filter(function(x){ return x.def; })[0]; if(d) d.body.forEach(function(st){ vm.exec(st, sc); }); } }
+        catch(e){ if(!(e instanceof CfBreak)) throw e; }
+        return;
+    }
+  };
+  VM.fromRet = function(l, sc){
+    // return {a, b}; — по типу результата функции
+    var f = this.curFunc; if(f && f.ret) return this.fromList(f.ret, l, sc);
+    return this.fromList(null, l, sc);
+  };
+  VM.guessType = function(e, sc){ if(!e) return null; if(e.k === 'num') return e.isInt ? { name:'int' } : { name:'double' }; if(e.k === 'id'){ var sl = this.lookup(sc, e.n); return sl ? sl.t : null; } if(e.k === 'call' && e.f.k === 'member' && /^(size|Count|Length|length|count)$/.test(e.f.n)) return { name:'size_t' }; return null; };
+  VM.part = function(v, i){ if(v && v.k !== undefined && v.v !== undefined && i < 2) return i ? v.v : v.k; if(v && v.first !== undefined) return i ? v.second : v.first; if(v && v.Key !== undefined) return i ? v.Value : v.Key; if(Array.isArray(v)) return v[i]; if(v && v.Item1 !== undefined) return v['Item' + (i + 1)]; return undefined; };
+  VM.iterable = function(v){
+    if(Array.isArray(v)) return v;
+    if(v instanceof CfMap){ var ps = v.pairs().map(function(p){ return { first:p.k, second:p.v, Key:p.k, Value:p.v }; }); if(v.sorted || !this.cs) ps.sort(function(a, b){ return a.first < b.first ? -1 : (a.first > b.first ? 1 : 0); }); return ps; }
+    if(typeof v === 'string') return v.split('');
+    if(v && v.__group) return v.items;
+    if(v && typeof v === 'object') return Object.keys(v).filter(function(k){ return k !== '__t'; }).map(function(k){ return { first:k, second:v[k], Key:k, Value:v[k] }; });
+    return [];
+  };
+  VM.truthy = function(v){ return !!v && !(v instanceof CfMap && false); };
+  VM.eq = function(a, b){ if(a instanceof Date && b instanceof Date) return +a === +b; return a === b || (a == null && b == null); };
+  VM.isIntExpr = function(e, sc){
+    if(!e) return false;
+    switch(e.k){
+      case 'num': return !!e.isInt;
+      case 'id': var sl = this.lookup(sc, e.n); return !!(sl && this.isIntType(sl.t));
+      case 'cast': return this.isIntType(e.type);
+      case 'bin': return '+-*/%'.indexOf(e.op) >= 0 && this.isIntExpr(e.l, sc) && this.isIntExpr(e.r, sc);
+      case 'un': return this.isIntExpr(e.e, sc);
+      case 'post': case 'pre': return this.isIntExpr(e.e, sc);
+      case 'call': return !!(e.f.k === 'member' && /^(size|Count|Length|length|count|IndexOf|find)$/.test(e.f.n));
+      case 'member': if(/^(Count|Length)$/.test(e.n)) return true; var ov = null; try { ov = this.eval(e.o, sc); } catch(_){} if(ov && ov.__t && this.types[ov.__t]){ var fd = this.types[ov.__t].fields.filter(function(f){ return f.name === e.n; })[0]; return !!(fd && this.isIntType(fd.type)); } return false;
+    }
+    return false;
+  };
+  VM.num = function(v){ if(typeof v === 'number') return v; if(typeof v === 'boolean') return v ? 1 : 0; if(typeof v === 'string' && v.length === 1 && !this.cs) return v.charCodeAt(0); if(v instanceof Date) return +v; if(v == null) return 0; var n = Number(v); return n; };
+  VM.binop = function(op, a, b, e, sc){
+    switch(op){
+      case '+': if(typeof a === 'string' || typeof b === 'string') return (a == null ? '' : this.str(a)) + (b == null ? '' : this.str(b)); if(a instanceof CfIter) return new CfIter(a.arr, a.i + b); return this.num(a) + this.num(b);
+      case '-': if(a instanceof CfIter && b instanceof CfIter) return a.i - b.i; if(a instanceof CfIter) return new CfIter(a.arr, a.i - b); if(a instanceof Date && b instanceof Date) return { __t:'TimeSpan', ms:a - b, TotalDays:(a - b) / 864e5, Days:Math.floor((a - b) / 864e5), TotalHours:(a - b) / 36e5 }; return this.num(a) - this.num(b);
+      case '*': return this.num(a) * this.num(b);
+      case '/': var bb = this.num(b); if(bb === 0 && this.isIntExpr(e.l, sc) && this.isIntExpr(e.r, sc)) throw CfErr('Деление на ноль', e.line); var r = this.num(a) / bb; return this.isIntExpr(e.l, sc) && this.isIntExpr(e.r, sc) ? Math.trunc(r) : r;
+      case '%': return this.num(a) % this.num(b);
+      case '==': return this.eq(a, b);
+      case '!=': return !this.eq(a, b);
+      case '<': return a < b; case '>': return a > b; case '<=': return a <= b; case '>=': return a >= b;
+      case '&': return this.num(a) & this.num(b); case '|': return this.num(a) | this.num(b); case '^': return this.num(a) ^ this.num(b);
+      case '<<': if(a && a.__t === 'ostream'){ a.write(b); return a; } return this.num(a) << this.num(b);
+      case '>>': return this.num(a) >> this.num(b);
+    }
+    throw CfErr('Неизвестная операция ' + op);
+  };
+  VM.str = function(v, fmt){
+    if(v === null || v === undefined) return '';
+    if(typeof v === 'boolean') return this.cs ? (v ? 'True' : 'False') : (v ? '1' : '0');
+    if(typeof v === 'number'){
+      if(fmt){
+        var m = /^([NnFfPpCcDdEe0#])(\d*)/.exec(fmt);
+        if(m && /[NnFfPpCcDd]/.test(m[1])){ var d = m[2] === '' ? (/[Dd]/.test(m[1]) ? 0 : 2) : +m[2], x = /[Pp]/.test(m[1]) ? v * 100 : v; var s = x.toLocaleString('ru-RU', { minimumFractionDigits:d, maximumFractionDigits:d, useGrouping:/[NnCcPp]/.test(m[1]) }).replace(/ /g, ' '); return s + (/[Pp]/.test(m[1]) ? '%' : (/[Cc]/.test(m[1]) ? ' ₽' : '')); }
+        if(/^[0#,]+(\.[0#]+)?$/.test(fmt)){ var dec = (fmt.split('.')[1] || '').length; return v.toFixed(dec); }
+      }
+      if(this.cs) return String(Math.round(v * 1e10) / 1e10).replace('.', ',');
+      return Number.isInteger(v) ? String(v) : String(Math.round(v * 1e6) / 1e6);
+    }
+    if(v instanceof Date) return v.toLocaleDateString('ru-RU');
+    if(Array.isArray(v)) return this.cs ? 'System.Collections.Generic.List' : v.map(this.str, this).join(' ');
+    if(v && v.__t === 'StringBuilder') return v.s;
+    if(v && v.__t && this.types[v.__t] && this.types[v.__t].params){ var self = this, td = this.types[v.__t]; return td.name + ' { ' + td.params.map(function(p){ return p.name + ' = ' + self.str(v[p.name]); }).join(', ') + ' }'; }
+    if(typeof v === 'object') return JSON.stringify(cfToJson(v));
+    return String(v);
+  };
+  VM.ref = function(e, sc){
+    // ссылка для присваивания
+    var vm = this;
+    if(e.k === 'id'){
+      var sl = this.lookup(sc, e.n);
+      if(sl) return { get:function(){ return sl.v; }, set:function(v){ sl.v = vm.coerce(sl.t, v); } };
+      if(sc.self && sc.self[e.n] !== undefined) return { get:function(){ return sc.self[e.n]; }, set:function(v){ sc.self[e.n] = v; } };
+      if(sc.td && this.statics[sc.td.name] && e.n in this.statics[sc.td.name]){ var st = this.statics[sc.td.name]; return { get:function(){ return st[e.n]; }, set:function(v){ st[e.n] = v; } }; }
+      throw CfErr('Неизвестная переменная «' + e.n + '»', e.line);
+    }
+    if(e.k === 'member'){ var o = this.eval(e.o, sc); return { get:function(){ return vm.getMember(o, e.n, e); }, set:function(v){ if(o == null) throw CfErr('Обращение к пустому объекту', e.line); o[e.n] = v; } }; }
+    if(e.k === 'index'){
+      var oo = this.eval(e.o, sc), ix = this.eval(e.i, sc);
+      if(oo instanceof CfMap) return { get:function(){ if(!oo.has(ix)){ if(vm.cs) throw CfErr('Ключ «' + ix + '» не найден в словаре', e.line); oo.set(ix, 0); } return oo.get(ix); }, set:function(v){ oo.set(ix, v); } };
+      return { get:function(){ return vm.index(oo, ix, e); }, set:function(v){ if(Array.isArray(oo) && (ix < 0 || ix >= oo.length) && vm.cs) throw CfErr('Индекс ' + ix + ' вне диапазона', e.line); oo[ix] = v; } };
+    }
+    throw CfErr('Сюда нельзя присвоить');
+  };
+  VM.index = function(o, i, e){
+    if(o instanceof CfMap){ if(!o.has(i)){ if(this.cs) throw CfErr('Ключ «' + i + '» не найден в словаре', e && e.line); o.set(i, 0); } return o.get(i); }
+    if(Array.isArray(o)){ if(typeof i === 'object' && i && i.__t === 'Index') i = o.length - i.n; if(i < 0 || i >= o.length){ if(this.cs) throw CfErr('Индекс ' + i + ' вне диапазона (элементов ' + o.length + ')', e && e.line); return undefined; } return o[i]; }
+    if(typeof o === 'string') return o[i];
+    if(o && typeof o === 'object') return o[i];
+    throw CfErr('Индексация пустого значения', e && e.line);
+  };
+  VM.eval = function(e, sc){
+    var vm = this;
+    switch(e.k){
+      case 'num': return e.v;
+      case 'str': return e.v;
+      case 'lit': return e.v;
+      case 'this': return sc.self;
+      case 'interp': return e.parts.map(function(p){ return typeof p === 'string' ? p : vm.str(vm.eval(p.e, sc), p.fmt); }).join('');
+      case 'tuple': var tp = {}; e.items.forEach(function(x, i){ tp['Item' + (i + 1)] = vm.eval(x, sc); }); return tp;
+      case 'list': return this.fromList(null, e, sc);
+      case 'anon': var ao = {}; e.items.forEach(function(x){ if(x.k === 'assign') ao[x.l.n] = vm.eval(x.r, sc); else if(x.k === 'member') ao[x.n] = vm.eval(x, sc); else if(x.k === 'id') ao[x.n] = vm.eval(x, sc); }); return ao;
+      case 'id': return this.getId(e, sc);
+      case 'default': return this.defVal(e.type);
+      case 'seq': var lv; e.l.forEach(function(x){ lv = vm.eval(x, sc); }); return lv;
+      case 'assign':
+        var rf = this.ref(e.l, sc), rv = e.r.k === 'list' ? this.fromList(null, e.r, sc) : this.eval(e.r, sc);
+        if(e.op !== '='){ var op = e.op.slice(0, -1); rv = this.binop(op, rf.get(), rv, { l:e.l, r:e.r, line:e.line }, sc); }
+        rf.set(rv); return rv;
+      case 'cond': return this.truthy(this.eval(e.c, sc)) ? this.eval(e.a, sc) : this.eval(e.b, sc);
+      case 'bin':
+        if(e.op === '&&') return this.truthy(this.eval(e.l, sc)) && this.truthy(this.eval(e.r, sc));
+        if(e.op === '||') return this.truthy(this.eval(e.l, sc)) || this.truthy(this.eval(e.r, sc));
+        if(e.op === '??'){ var lv2 = this.eval(e.l, sc); return lv2 != null ? lv2 : this.eval(e.r, sc); }
+        return this.binop(e.op, this.eval(e.l, sc), this.eval(e.r, sc), e, sc);
+      case 'is': var iv = this.eval(e.e, sc), res = e.null ? iv == null : (e.type ? this.isType(iv, e.type) : false); return e.neg ? !res : res;
+      case 'as': var av = this.eval(e.e, sc); return this.isType(av, e.type) ? av : null;
+      case 'un': var u = this.eval(e.e, sc); if(e.op === '!') return !this.truthy(u); if(e.op === '-') return -this.num(u); if(e.op === '~') return ~this.num(u); return this.num(u);
+      case 'pre': case 'post':
+        var r2 = this.ref(e.e, sc), old = r2.get(), nv = old instanceof CfIter ? new CfIter(old.arr, old.i + (e.op === '++' ? 1 : -1)) : this.num(old) + (e.op === '++' ? 1 : -1); r2.set(nv); return e.k === 'pre' ? nv : old;
+      case 'cast': var cv = this.eval(e.e, sc); if(this.isIntType(e.type)) return Math.trunc(this.num(cv)); if(/^(double|float|decimal)$/.test(e.type.name)) return this.num(cv); if(e.type.name === 'string') return this.str(cv); return cv;
+      case 'index': return this.index(this.eval(e.o, sc), this.eval(e.i, sc), e);
+      case 'member': var mo = this.eval(e.o, sc); if(mo == null && e.opt) return null; return this.getMember(mo, e.n, e, sc);
+      case 'lambda': return this.lambda(e, sc);
+      case 'construct': return e.init ? (this.types[e.type.name] ? this.fromList(e.type, e.init, sc) : this.fromList(e.type, e.init, sc)) : this.constructType(e.type, [], null, sc);
+      case 'new':
+        var na = e.args.map(function(a){ return a.k === 'list' ? a : vm.eval(a, sc); });
+        if(!e.type){ return {}; }
+        return this.constructType(e.type, na, e.init, sc);
+      case 'newarr': if(e.init) return this.fromList({ name:'array', args:[e.type] }, e.init, sc); var len = this.num(this.eval(e.n, sc)), arr = []; for(var i = 0; i < len; i++) arr.push(this.defVal(e.type)); return arr;
+      case 'call': return this.call(e, sc);
+    }
+    throw CfErr('Неподдерживаемое выражение ' + e.k);
+  };
+  VM.isType = function(v, t){ var n = t.name; if(/^(int|long|double|float|decimal)$/.test(n)) return typeof v === 'number'; if(n === 'string') return typeof v === 'string'; if(n === 'bool') return typeof v === 'boolean'; return !!(v && v.__t === n); };
+  VM.getId = function(e, sc){
+    var n = e.n, sl = this.lookup(sc, n);
+    if(sl) return sl.v;
+    if(sc.self && typeof sc.self === 'object' && n in sc.self) return sc.self[n];
+    if(sc.self && sc.td){ var gt = this.findGetter(sc.td, n); if(gt) return this.runGetter(gt, sc.self, sc.td); }
+    if(sc.td && this.statics[sc.td.name] && n in this.statics[sc.td.name]) return this.statics[sc.td.name][n];
+    var bare = n.replace(/^std::/, '');
+    if(this.funcs[bare]) return { __fn:bare };
+    if(sc.td && sc.td.methods[n]) return { __method:n, self:sc.self, td:sc.td };
+    if(this.types[bare]) return { __type:bare };
+    if(bare === 'cout' || bare === 'cerr') return this.ostream();
+    if(bare === 'endl') return '\n';
+    if(/^(npos|string::npos)$/.test(bare)) return -1;
+    if(/^numeric_limits/.test(bare)) return { __t:'limits' };
+    var g = this.builtinGlobal(bare); if(g !== undefined) return g;
+    if(this.io.global){ var r = this.io.global(bare, this); if(r !== undefined) return r; }
+    throw CfErr('Неизвестное имя «' + n + '»', e.line);
+  };
+  VM.findGetter = function(td, n){ var all = td.fields.concat(td.statics || []); for(var i = 0; i < all.length; i++) if(all[i].name === n && all[i].getter) return all[i]; return null; };
+  VM.runGetter = function(f, self, td){ var sc = { vars:new Map(), up:{ vars:this.globals, up:null }, self:self, td:td }; if(f.getter.k === 'block'){ try { this.exec(f.getter, sc); } catch(e){ if(e instanceof CfRet) return e.v; throw e; } return undefined; } return this.eval(f.getter, sc); };
+  VM.ostream = function(){ var vm = this; return { __t:'ostream', write:function(v){ var s = vm.str(v); var last = vm.out.length ? vm.out[vm.out.length - 1] : null; if(last !== null && !/\n$/.test(last)) vm.out[vm.out.length - 1] = last + s; else vm.out.push(s); } }; };
+  VM.builtinGlobal = function(n){
+    var M = { Math:'Math', Console:'Console', Convert:'Convert', String:'String', string:'String', double:'Double', Double:'Double', decimal:'Double', Decimal:'Double', int:'Int', Int32:'Int', long:'Int', Int64:'Int', DateTime:'DateTime', Enumerable:'Enumerable', TimeSpan:'TimeSpan', StringComparison:'SC', Environment:'Environment' };
+    if(M[n]) return { __static:M[n] };
+    return undefined;
+  };
+  VM.call = function(e, sc){
+    var vm = this, f = e.f;
+    var elemT = null;
+    if(f.k === 'member' && f.o.k === 'id'){ var s0 = this.lookup(sc, f.o.n) || (sc.self && sc.td ? { t:(sc.td.fields.filter(function(x){ return x.name === f.o.n; })[0] || {}).type } : null); if(s0 && s0.t && s0.t.args && s0.t.args.length) elemT = s0.t.args.length === 2 && /map|Dictionary/.test(s0.t.name) ? { name:'pair', args:s0.t.args } : s0.t.args[0]; }
+    var argv = function(){ return e.args.map(function(a){ return a.k === 'out' ? a : (a.k === 'list' ? vm.fromList(elemT, a, sc) : vm.eval(a, sc)); }); };
+    if(f.k === 'id'){
+      var n = f.n.replace(/^std::/, ''), sl = this.lookup(sc, f.n);
+      if(sl && sl.v && (sl.v.__lambda || typeof sl.v === 'function')) return this.callFn(sl.v, argv());
+      if(sc.td && sc.td.methods[n]){ var m = sc.td.methods[n]; var keep = this.curFunc; this.curFunc = m; try { return this.callFunc(m, argv(), m.static ? null : sc.self, sc.td); } finally { this.curFunc = keep; } }
+      if(this.funcs[n]){ var cand = this.funcs[n], args = argv(), fn = cand.filter(function(x){ return x.params.length === args.length && x.body; })[0] || cand.filter(function(x){ return x.body; })[0]; var keep2 = this.curFunc; this.curFunc = fn; try { return this.callFunc(fn, args, null, null); } finally { this.curFunc = keep2; } }
+      if(this.types[n]) return this.constructType({ name:n, args:f.targs || [] }, argv(), null, sc);
+      return this.builtinCall(n, argv(), f, sc, e);
+    }
+    if(f.k === 'member'){
+      if(f.o.k === 'id' && (f.o.n === 'std' )) return this.builtinCall(f.n, argv(), f, sc, e);
+      var o = this.eval(f.o, sc);
+      if(o == null && f.opt) return null;
+      return this.method(o, f.n, argv(), f, sc, e);
+    }
+    var fv = this.eval(f, sc);
+    return this.callFn(fv, argv());
+  };
+  VM.sortCmp = function(cmp){ var vm = this; if(!cmp) return function(a, b){ return a < b ? -1 : (a > b ? 1 : 0); }; return function(a, b){ var r = vm.callFn(cmp, [a, b]); if(typeof r === 'boolean') return r ? -1 : (vm.callFn(cmp, [b, a]) ? 1 : 0); return r; }; };
+  VM.builtinCall = function(n, a, f, sc, e){
+    var vm = this, targ = f.targs && f.targs[0];
+    switch(n){
+      case 'static_cast': case 'dynamic_cast': case 'reinterpret_cast': case 'const_cast': return targ && this.isIntType(targ) ? Math.trunc(this.num(a[0])) : (targ && targ.name === 'string' ? this.str(a[0]) : a[0]);
+      case 'sqrt': return Math.sqrt(a[0]); case 'pow': return Math.pow(a[0], a[1]); case 'abs': case 'fabs': case 'llabs': return Math.abs(a[0]);
+      case 'round': return Math.round(a[0]); case 'floor': return Math.floor(a[0]); case 'ceil': return Math.ceil(a[0]); case 'trunc': return Math.trunc(a[0]);
+      case 'log': return Math.log(a[0]); case 'log10': return Math.log10(a[0]); case 'exp': return Math.exp(a[0]); case 'sin': return Math.sin(a[0]); case 'cos': return Math.cos(a[0]); case 'tan': return Math.tan(a[0]); case 'atan2': return Math.atan2(a[0], a[1]); case 'hypot': return Math.hypot.apply(null, a);
+      case 'max': if(Array.isArray(a[0])) return Math.max.apply(null, a[0]); return a.length > 2 && a[2] && a[2].__lambda ? (this.callFn(a[2], [a[0], a[1]]) ? a[1] : a[0]) : (a[0] > a[1] ? a[0] : a[1]);
+      case 'min': if(Array.isArray(a[0])) return Math.min.apply(null, a[0]); return a.length > 2 && a[2] && a[2].__lambda ? (this.callFn(a[2], [a[1], a[0]]) ? a[1] : a[0]) : (a[0] < a[1] ? a[0] : a[1]);
+      case 'swap': var r0 = this.ref(e.args[0], sc), r1 = this.ref(e.args[1], sc), t = r0.get(); r0.set(r1.get()); r1.set(t); return undefined;
+      case 'to_string': return this.str(a[0]);
+      case 'stod': case 'stof': case 'atof': return parseFloat(String(a[0]).replace(',', '.'));
+      case 'stoi': case 'stol': case 'atoi': return parseInt(a[0], 10);
+      case 'accumulate': var it0 = a[0], it1 = a[1], acc = a[2]; for(var i = it0.i; i < it1.i; i++) acc = a[3] ? this.callFn(a[3], [acc, it0.arr[i]]) : this.binop('+', acc, it0.arr[i], { l:e.args[2], r:{ k:'num' } }, sc); return acc;
+      case 'sort': case 'stable_sort': var arr = a[0].arr, part = arr.slice(a[0].i, a[1].i).sort(this.sortCmp(a[2])); for(var k = 0; k < part.length; k++) arr[a[0].i + k] = part[k]; return undefined;
+      case 'reverse': var ra = a[0].arr, rp = ra.slice(a[0].i, a[1].i).reverse(); for(var k2 = 0; k2 < rp.length; k2++) ra[a[0].i + k2] = rp[k2]; return undefined;
+      case 'count_if': return a[0].arr.slice(a[0].i, a[1].i).filter(function(x){ return vm.truthy(vm.callFn(a[2], [x])); }).length;
+      case 'count': return a[0].arr.slice(a[0].i, a[1].i).filter(function(x){ return vm.eq(x, a[2]); }).length;
+      case 'find': var fi = a[0].arr.indexOf(a[2], a[0].i); return new CfIter(a[0].arr, fi < 0 || fi >= a[1].i ? a[1].i : fi);
+      case 'find_if': for(var j = a[0].i; j < a[1].i; j++) if(this.truthy(this.callFn(a[2], [a[0].arr[j]]))) return new CfIter(a[0].arr, j); return new CfIter(a[0].arr, a[1].i);
+      case 'any_of': return a[0].arr.slice(a[0].i, a[1].i).some(function(x){ return vm.truthy(vm.callFn(a[2], [x])); });
+      case 'all_of': return a[0].arr.slice(a[0].i, a[1].i).every(function(x){ return vm.truthy(vm.callFn(a[2], [x])); });
+      case 'max_element': case 'min_element': var best = a[0].i; for(var q = a[0].i + 1; q < a[1].i; q++){ var less = a[2] ? this.truthy(this.callFn(a[2], [a[0].arr[best], a[0].arr[q]])) : a[0].arr[best] < a[0].arr[q]; if(n === 'max_element' ? less : !less && a[0].arr[q] !== a[0].arr[best] && (a[2] ? this.truthy(this.callFn(a[2], [a[0].arr[q], a[0].arr[best]])) : a[0].arr[q] < a[0].arr[best])) best = q; } return new CfIter(a[0].arr, best);
+      case 'distance': return a[1].i - a[0].i;
+      case 'make_pair': case 'make_tuple': return { first:a[0], second:a[1], Item1:a[0], Item2:a[1] };
+      case 'printf': var fmt = String(a[0]), ai = 1; this.ostream().write(fmt.replace(/%[-+ 0#]*\d*(?:\.(\d+))?[dioufFeEgGsc%]/g, function(m, prec){ if(m === '%%') return '%'; var v = a[ai++]; if(/[fFeEgG]$/.test(m)) return Number(v).toFixed(prec !== undefined ? +prec : 6); return vm.str(v); })); return 0;
+      case 'getline': return false;
+      case 'isnan': return isNaN(a[0]);
+      case 'nameof': return f.n;
+    }
+    throw CfErr('Неизвестная функция «' + n + '»', f.line);
+  };
+  // методы стандартных типов: строки, массивы и списки (с LINQ), словари, статические классы
+  VM.method = function(o, n, a, f, sc, e){
+    var vm = this, fn = function(x){ return function(){ return vm.callFn(x, Array.prototype.slice.call(arguments)); }; };
+    if(o && o.__fn) return this.call({ f:{ k:'id', n:o.__fn }, args:e.args }, sc);
+    if(o && o.__static) return this.staticCall(o.__static, n, a, f, sc, e);
+    if(o && o.__type){
+      var td = this.types[o.__type];
+      if(td && td.methods && td.methods[n]){ var m = td.methods[n]; var keep = this.curFunc; this.curFunc = m; try { return this.callFunc(m, a, null, td); } finally { this.curFunc = keep; } }
+      if(this.io.staticCall){ var sr = this.io.staticCall(o.__type, n, a, this, f); if(sr !== undefined) return sr; }
+      throw CfErr('У типа «' + o.__type + '» нет метода «' + n + '»', f.line);
+    }
+    if(o && o.__t && this.types[o.__t] && this.types[o.__t].methods && this.types[o.__t].methods[n]){ var td2 = this.types[o.__t], mm = td2.methods[n]; var keep2 = this.curFunc; this.curFunc = mm; try { return this.callFunc(mm, a, o, td2); } finally { this.curFunc = keep2; } }
+    if(o && o.__lambda && (n === 'Invoke' || n === 'operator()')) return this.callFn(o, a);
+    if(o && o.__t === 'ostream' && n === 'flush') return o;
+    if(this.io.method){ var ir = this.io.method(o, n, a, this, f); if(ir !== undefined) return ir === CF_VOID ? undefined : ir; }
+    if(typeof o === 'string') return this.strMethod(o, n, a, f);
+    if(typeof o === 'number'){ if(n === 'ToString') return this.str(o, a[0]); if(n === 'CompareTo') return o < a[0] ? -1 : (o > a[0] ? 1 : 0); if(n === 'Equals') return o === a[0]; }
+    if(o instanceof Date) return this.dateMethod(o, n, a, f);
+    if(o instanceof CfIter){ if(n === 'base') return o.i; }
+    if(o && o.__t === 'StringBuilder'){ if(n === 'Append'){ o.s += this.str(a[0]); return o; } if(n === 'AppendLine'){ o.s += (a.length ? this.str(a[0]) : '') + '\n'; return o; } if(n === 'ToString') return o.s; if(n === 'Clear'){ o.s = ''; return o; } }
+    if(o && o.__t === 'Random'){ if(n === 'Next') return a.length === 2 ? a[0] + Math.floor(Math.random() * (a[1] - a[0])) : Math.floor(Math.random() * (a[0] || 2147483647)); if(n === 'NextDouble') return Math.random(); }
+    if(o instanceof CfMap) return this.mapMethod(o, n, a, f, sc, e);
+    if(Array.isArray(o) || (o && o.__group)) return this.listMethod(o.__group ? o.items : o, n, a, f, sc, e, fn);
+    if(o && typeof o === 'object'){ if(n === 'ToString') return this.str(o); if(n === 'Equals') return JSON.stringify(o) === JSON.stringify(a[0]); if(n === 'GetHashCode') return 0; if(typeof o[n] === 'function') return o[n].apply(o, a); if(o[n] && o[n].__lambda) return this.callFn(o[n], a); }
+    if(o == null) throw CfErr('Вызов «' + n + '» у пустого значения (null)', f.line);
+    throw CfErr('Неизвестный метод «' + n + '»', f.line);
+  };
+  var CF_VOID = { __void:true };
+  VM.strMethod = function(s, n, a, f){
+    switch(n){
+      case 'size': case 'length': return s.length;
+      case 'empty': return !s.length;
+      case 'substr': return a.length > 1 ? s.substr(a[0], a[1]) : s.substr(a[0]);
+      case 'Substring': return a.length > 1 ? s.substr(a[0], a[1]) : s.substring(a[0]);
+      case 'find': case 'IndexOf': return s.indexOf(a[0], a[1] || 0);
+      case 'rfind': case 'LastIndexOf': return s.lastIndexOf(a[0]);
+      case 'c_str': case 'str': case 'ToString': case 'Trim': if(n === 'Trim') return s.trim(); return s;
+      case 'TrimStart': return s.replace(/^\s+/, ''); case 'TrimEnd': return s.replace(/\s+$/, '');
+      case 'ToUpper': case 'ToUpperInvariant': return s.toUpperCase(); case 'ToLower': case 'ToLowerInvariant': return s.toLowerCase();
+      case 'Contains': return s.indexOf(a[0]) >= 0; case 'StartsWith': case 'starts_with': return s.indexOf(a[0]) === 0; case 'EndsWith': case 'ends_with': return s.slice(-String(a[0]).length) === String(a[0]);
+      case 'Replace': return s.split(a[0]).join(a[1]);
+      case 'Split': return s.split(a.length > 1 && typeof a[0] === 'string' && a[0].length === 1 && typeof a[1] === 'string' ? new RegExp('[' + a.map(function(x){ return String(x).replace(/[\]\\^-]/g, '\\$&'); }).join('') + ']') : (a[0] === undefined ? /\s+/ : a[0]));
+      case 'PadLeft': return s.padStart(a[0], a[1] || ' '); case 'PadRight': return s.padEnd(a[0], a[1] || ' ');
+      case 'append': case 'push_back': return s + a[0];
+      case 'at': return s[a[0]];
+      case 'Equals': return s === a[0];
+      case 'CompareTo': return s < a[0] ? -1 : (s > a[0] ? 1 : 0);
+      case 'compare': return s < a[0] ? -1 : (s > a[0] ? 1 : 0);
+      case 'ToCharArray': return s.split('');
+    }
+    throw CfErr('Неизвестный метод строки «' + n + '»', f.line);
+  };
+  VM.dateMethod = function(d, n, a){
+    var c = new Date(+d);
+    switch(n){
+      case 'AddDays': c.setDate(c.getDate() + a[0]); return c; case 'AddMonths': c.setMonth(c.getMonth() + a[0]); return c; case 'AddYears': c.setFullYear(c.getFullYear() + a[0]); return c; case 'AddHours': c.setHours(c.getHours() + a[0]); return c;
+      case 'ToString': return a[0] ? String(a[0]).replace(/dd/g, String(d.getDate()).padStart(2, '0')).replace(/MM/g, String(d.getMonth() + 1).padStart(2, '0')).replace(/yyyy/g, d.getFullYear()) : d.toLocaleDateString('ru-RU');
+    }
+    throw CfErr('Неизвестный метод даты «' + n + '»');
+  };
+  VM.mapMethod = function(m, n, a, f, sc, e){
+    switch(n){
+      case 'ContainsKey': case 'count': case 'Contains': return n === 'count' ? (m.has(a[0]) ? 1 : 0) : m.has(a[0]);
+      case 'Add': if(a.length === 1){ m.set(a[0], true); return true; } if(m.has(a[0])) throw CfErr('Ключ «' + a[0] + '» уже есть в словаре', f.line); m.set(a[0], a[1]); return CF_VOID;
+      case 'insert': case 'emplace': case 'TryAdd': if(a.length === 1 && a[0] && a[0].first !== undefined){ if(!m.has(a[0].first)) m.set(a[0].first, a[0].second); return CF_VOID; } if(!m.has(a[0])) m.set(a[0], a.length > 1 ? a[1] : true); return true;
+      case 'Remove': case 'erase': return m.del(a[0]);
+      case 'Clear': case 'clear': m.m.clear(); return CF_VOID;
+      case 'size': return m.m.size;
+      case 'empty': return !m.m.size;
+      case 'at': if(!m.has(a[0])) throw CfErr('Ключ «' + a[0] + '» не найден', f.line); return m.get(a[0]);
+      case 'GetValueOrDefault': return m.has(a[0]) ? m.get(a[0]) : (a.length > 1 ? a[1] : 0);
+      case 'TryGetValue': var out = e.args[1]; var has = m.has(a[0]); if(out && out.k === 'out'){ var sl = this.lookup(sc, out.n); if(!sl){ sc.vars.set(out.n, { v:undefined }); sl = sc.vars.get(out.n); } sl.v = has ? m.get(a[0]) : 0; } return has;
+      case 'find': return m.has(a[0]) ? { first:a[0], second:m.get(a[0]) } : null;
+      case 'end': return null;
+      case 'ToList': case 'ToArray': return this.iterable(m);
+    }
+    return this.listMethod(this.iterable(m), n, a, f, sc, e);
+  };
+  VM.listMethod = function(arr, n, a, f, sc, e){
+    var vm = this, call = function(fn, args){ return vm.callFn(fn, args); }, key = function(fn){ return function(x){ return call(fn, [x]); }; };
+    var cmp = function(kf, desc){ return function(x, y){ var A = kf(x), B = kf(y), r = A < B ? -1 : (A > B ? 1 : 0); return desc ? -r : r; }; };
+    switch(n){
+      case 'push_back': case 'emplace_back': case 'Add': case 'Enqueue': case 'Push': case 'push': arr.push(a.length > 1 ? a : a[0]); return CF_VOID;
+      case 'AddRange': case 'insert': if(n === 'insert' && a[0] instanceof CfIter){ if(a.length === 3 && a[1] instanceof CfIter){ Array.prototype.splice.apply(arr, [a[0].i, 0].concat(a[1].arr.slice(a[1].i, a[2].i))); } else arr.splice(a[0].i, 0, a[1]); return CF_VOID; } Array.prototype.push.apply(arr, this.iterable(a[0])); return CF_VOID;
+      case 'Insert': arr.splice(a[0], 0, a[1]); return CF_VOID;
+      case 'pop_back': arr.pop(); return CF_VOID; case 'Pop': return arr.pop(); case 'Dequeue': return arr.shift(); case 'Peek': return n === 'Peek' ? arr[arr.length - 1] : arr[0];
+      case 'size': case 'Count': if(n === 'Count' && a.length) return arr.filter(key(a[0])).length; return arr.length;
+      case 'LongCount': return arr.length;
+      case 'empty': return !arr.length;
+      case 'reserve': case 'shrink_to_fit': return CF_VOID;
+      case 'resize': while(arr.length < a[0]) arr.push(a.length > 1 ? a[1] : 0); arr.length = a[0]; return CF_VOID;
+      case 'clear': case 'Clear': arr.length = 0; return CF_VOID;
+      case 'back': return arr[arr.length - 1]; case 'front': return arr[0];
+      case 'at': case 'ElementAt': if(a[0] < 0 || a[0] >= arr.length) throw CfErr('Индекс ' + a[0] + ' вне диапазона', f.line); return arr[a[0]];
+      case 'begin': case 'cbegin': return new CfIter(arr, 0); case 'end': case 'cend': return new CfIter(arr, arr.length);
+      case 'rbegin': return new CfIter(arr.slice().reverse(), 0); case 'rend': return new CfIter(arr, arr.length);
+      case 'erase': if(a[0] instanceof CfIter){ arr.splice(a[0].i, a[1] instanceof CfIter ? a[1].i - a[0].i : 1); return new CfIter(arr, a[0].i); } return CF_VOID;
+      case 'Remove': var ri = arr.indexOf(a[0]); if(ri >= 0) arr.splice(ri, 1); return ri >= 0;
+      case 'RemoveAt': arr.splice(a[0], 1); return CF_VOID;
+      case 'RemoveAll': var before = arr.length, keep = arr.filter(function(x){ return !vm.truthy(call(a[0], [x])); }); arr.length = 0; Array.prototype.push.apply(arr, keep); return before - arr.length;
+      case 'Contains': return arr.some(function(x){ return vm.eq(x, a[0]); });
+      case 'IndexOf': return arr.indexOf(a[0]);
+      case 'Sort': arr.sort(a[0] ? function(x, y){ return call(a[0], [x, y]); } : function(x, y){ return x < y ? -1 : (x > y ? 1 : 0); }); return CF_VOID;
+      case 'Reverse': if(a.length || e.f.o.k !== 'id'){ return arr.slice().reverse(); } arr.reverse(); return CF_VOID;
+      case 'ToList': case 'ToArray': case 'AsEnumerable': case 'ToHashSet': case 'ToImmutableList': return arr.slice();
+      case 'Select': return arr.map(function(x, i){ return call(a[0], [x, i]); });
+      case 'SelectMany': var sm = []; arr.forEach(function(x){ Array.prototype.push.apply(sm, vm.iterable(call(a[0], [x]))); }); return sm;
+      case 'Where': return arr.filter(function(x, i){ return vm.truthy(call(a[0], [x, i])); });
+      case 'Sum': return arr.reduce(function(s, x){ return s + vm.num(a[0] ? call(a[0], [x]) : x); }, 0);
+      case 'Average': if(!arr.length) throw CfErr('Average: последовательность пуста', f.line); return arr.reduce(function(s, x){ return s + vm.num(a[0] ? call(a[0], [x]) : x); }, 0) / arr.length;
+      case 'Max': case 'Min': if(!arr.length) throw CfErr(n + ': последовательность пуста', f.line); var vals = arr.map(function(x){ return a[0] ? call(a[0], [x]) : x; }); return vals.reduce(function(m, x){ return n === 'Max' ? (x > m ? x : m) : (x < m ? x : m); });
+      case 'MaxBy': case 'MinBy': var bx = arr[0]; arr.forEach(function(x){ var A = call(a[0], [x]), B = call(a[0], [bx]); if(n === 'MaxBy' ? A > B : A < B) bx = x; }); return bx;
+      case 'OrderBy': return arr.slice().sort(cmp(key(a[0]), false)); case 'OrderByDescending': return arr.slice().sort(cmp(key(a[0]), true));
+      case 'ThenBy': case 'ThenByDescending': return arr;
+      case 'Order': return arr.slice().sort(cmp(function(x){ return x; }, false));
+      case 'First': case 'FirstOrDefault': var fx = a[0] ? arr.filter(key(a[0])) : arr; if(!fx.length){ if(n === 'First') throw CfErr('First: подходящих элементов нет', f.line); return null; } return fx[0];
+      case 'Last': case 'LastOrDefault': var lx = a[0] ? arr.filter(key(a[0])) : arr; if(!lx.length){ if(n === 'Last') throw CfErr('Last: подходящих элементов нет', f.line); return null; } return lx[lx.length - 1];
+      case 'Single': case 'SingleOrDefault': var sx = a[0] ? arr.filter(key(a[0])) : arr; return sx[0] === undefined ? null : sx[0];
+      case 'Any': return a[0] ? arr.some(function(x){ return vm.truthy(call(a[0], [x])); }) : arr.length > 0;
+      case 'All': return arr.every(function(x){ return vm.truthy(call(a[0], [x])); });
+      case 'Skip': return arr.slice(a[0]); case 'Take': return arr.slice(0, a[0]); case 'TakeLast': return arr.slice(Math.max(0, arr.length - a[0])); case 'SkipLast': return arr.slice(0, Math.max(0, arr.length - a[0]));
+      case 'TakeWhile': var tw = []; for(var i = 0; i < arr.length && vm.truthy(call(a[0], [arr[i]])); i++) tw.push(arr[i]); return tw;
+      case 'SkipWhile': var j = 0; while(j < arr.length && vm.truthy(call(a[0], [arr[j]]))) j++; return arr.slice(j);
+      case 'Distinct': var seen = {}; return arr.filter(function(x){ var k = JSON.stringify(x); if(seen[k]) return false; seen[k] = 1; return true; });
+      case 'DistinctBy': var seen2 = {}; return arr.filter(function(x){ var k = JSON.stringify(call(a[0], [x])); if(seen2[k]) return false; seen2[k] = 1; return true; });
+      case 'Concat': case 'Union': return arr.concat(this.iterable(a[0]));
+      case 'Append': return arr.concat([a[0]]);
+      case 'Zip': var other = this.iterable(a[0]); return arr.slice(0, Math.min(arr.length, other.length)).map(function(x, i){ return a[1] ? call(a[1], [x, other[i]]) : { Item1:x, Item2:other[i], First:x, Second:other[i] }; });
+      case 'Aggregate': var acc = a.length > 1 ? a[0] : arr[0], fnA = a.length > 1 ? a[1] : a[0]; (a.length > 1 ? arr : arr.slice(1)).forEach(function(x){ acc = call(fnA, [acc, x]); }); return acc;
+      case 'GroupBy': var groups = [], idx = {}; arr.forEach(function(x){ var k = call(a[0], [x]), ks = JSON.stringify(k); if(!idx[ks]){ idx[ks] = { __group:true, Key:k, items:[] }; groups.push(idx[ks]); } idx[ks].items.push(a[1] ? call(a[1], [x]) : x); }); return groups;
+      case 'ToDictionary': var d = new CfMap(); arr.forEach(function(x){ d.set(call(a[0], [x]), a[1] ? call(a[1], [x]) : x); }); return d;
+      case 'ToLookup': return this.listMethod(arr, 'GroupBy', a, f, sc, e);
+      case 'Join': if(typeof a[0] === 'string') return arr.map(function(x){ return vm.str(x); }).join(a[0]); break;
+      case 'ForEach': arr.forEach(function(x){ call(a[0], [x]); }); return CF_VOID;
+      case 'Exists': return arr.some(function(x){ return vm.truthy(call(a[0], [x])); });
+      case 'Find': var ff = arr.filter(key(a[0])); return ff.length ? ff[0] : null;
+      case 'FindAll': return arr.filter(key(a[0]));
+      case 'FindIndex': for(var q = 0; q < arr.length; q++) if(vm.truthy(call(a[0], [arr[q]]))) return q; return -1;
+      case 'ToString': return this.str(arr);
+      case 'Cast': case 'OfType': return arr;
+      case 'Chunk': var ch = []; for(var c = 0; c < arr.length; c += a[0]) ch.push(arr.slice(c, c + a[0])); return ch;
+    }
+    if(arr && arr.Key !== undefined && n === 'Key') return arr.Key;
+    throw CfErr('Неизвестный метод списка «' + n + '»', f.line);
+  };
+  VM.staticCall = function(cls, n, a, f, sc, e){
+    var vm = this;
+    if(cls === 'Math'){
+      var M = { Sqrt:Math.sqrt, Pow:Math.pow, Abs:Math.abs, Floor:Math.floor, Ceiling:Math.ceil, Truncate:Math.trunc, Log:Math.log, Log10:Math.log10, Exp:Math.exp, Sin:Math.sin, Cos:Math.cos, Tan:Math.tan, Atan2:Math.atan2, Sign:Math.sign };
+      if(M[n]) return M[n].apply(null, a);
+      if(n === 'Max') return Math.max(a[0], a[1]); if(n === 'Min') return Math.min(a[0], a[1]);
+      if(n === 'Round'){ var d = typeof a[1] === 'number' ? a[1] : 0, k = Math.pow(10, d), x = a[0] * k, r = Math.round(x); if(Math.abs(x % 1) === 0.5) r = 2 * Math.round(x / 2); return r / k; }
+      if(n === 'Clamp') return Math.min(Math.max(a[0], a[1]), a[2]);
+    }
+    if(cls === 'Console'){ if(n === 'WriteLine'){ this.ostream().write((a.length ? this.fmtArgs(a) : '') + '\n'); return CF_VOID; } if(n === 'Write'){ this.ostream().write(this.fmtArgs(a)); return CF_VOID; } if(n === 'ReadLine') return null; }
+    if(cls === 'Convert'){ if(/^To(Double|Decimal|Single)$/.test(n)) return parseFloat(String(a[0]).replace(',', '.')) || 0; if(/^ToInt(32|64|16)$/.test(n)) return Math.round(parseFloat(String(a[0]).replace(',', '.')) || 0); if(n === 'ToString') return this.str(a[0]); if(n === 'ToBoolean') return !!a[0] && a[0] !== 'false'; if(n === 'ToDateTime') return new Date(a[0]); }
+    if(cls === 'Double' || cls === 'Int'){ if(n === 'Parse'){ var p = parseFloat(String(a[0]).replace(/\s/g, '').replace(',', '.')); if(isNaN(p)) throw CfErr('Не число: «' + a[0] + '»', f.line); return cls === 'Int' ? Math.trunc(p) : p; } if(n === 'TryParse'){ var p2 = parseFloat(String(a[0]).replace(/\s/g, '').replace(',', '.')), out = e.args[1]; if(out && out.k === 'out'){ var sl = this.lookup(sc, out.n); if(!sl){ sc.vars.set(out.n, { v:0 }); sl = sc.vars.get(out.n); } sl.v = isNaN(p2) ? 0 : p2; } return !isNaN(p2); } if(n === 'IsNaN') return isNaN(a[0]); }
+    if(cls === 'String'){ if(n === 'Join') return this.iterable(a[1]).concat(a.slice(2)).map(function(x){ return vm.str(x); }).join(a[0]); if(n === 'IsNullOrEmpty') return a[0] == null || a[0] === ''; if(n === 'IsNullOrWhiteSpace') return a[0] == null || !String(a[0]).trim(); if(n === 'Format') return this.fmtArgs(a); if(n === 'Concat') return a.map(function(x){ return vm.str(x); }).join(''); }
+    if(cls === 'DateTime'){ if(n === 'Parse') return new Date(String(a[0]).replace(/^(\d\d)\.(\d\d)\.(\d{4})/, '$3-$2-$1')); if(n === 'DaysInMonth') return new Date(a[0], a[1], 0).getDate(); }
+    if(cls === 'Enumerable'){ if(n === 'Range'){ var rr = []; for(var i = 0; i < a[1]; i++) rr.push(a[0] + i); return rr; } if(n === 'Repeat'){ var rp = []; for(var j = 0; j < a[1]; j++) rp.push(a[0]); return rp; } if(n === 'Empty') return []; }
+    if(cls === 'TimeSpan' && n === 'FromDays') return { __t:'TimeSpan', ms:a[0] * 864e5, TotalDays:a[0] };
+    if(this.io.staticCall){ var r2 = this.io.staticCall(cls, n, a, this, f); if(r2 !== undefined) return r2; }
+    throw CfErr('Неизвестный метод «' + cls + '.' + n + '»', f.line);
+  };
+  VM.fmtArgs = function(a){ if(a.length > 1 && typeof a[0] === 'string' && /\{\d/.test(a[0])){ var vm = this; return a[0].replace(/\{(\d+)(?::([^}]+))?\}/g, function(m, i, fmt){ return vm.str(a[+i + 1], fmt); }); } return this.str(a[0]); };
+  VM.getMember = function(o, n, e, sc){
+    if(o == null){ if(e && e.opt) return null; throw CfErr('Обращение к «' + n + '» у пустого значения (null)', e && e.line); }
+    if(o.__static){
+      if(o.__static === 'Math'){ if(n === 'PI') return Math.PI; if(n === 'E') return Math.E; }
+      if(o.__static === 'DateTime'){ if(n === 'Now') return new Date(); if(n === 'Today'){ var t = new Date(); t.setHours(0, 0, 0, 0); return t; } }
+      if(o.__static === 'String' && n === 'Empty') return '';
+      if(o.__static === 'Double'){ if(n === 'MaxValue') return Number.MAX_VALUE; if(n === 'MinValue') return -Number.MAX_VALUE; if(n === 'NaN') return NaN; }
+      if(o.__static === 'Int'){ if(n === 'MaxValue') return 2147483647; if(n === 'MinValue') return -2147483648; }
+      if(o.__static === 'Environment' && n === 'NewLine') return '\n';
+      return { __static:o.__static + '.' + n };
+    }
+    if(o.__type){
+      var td = this.types[o.__type];
+      if(td && td.k === 'enum' && n in td.vals) return td.vals[n];
+      if(this.statics[o.__type] && n in this.statics[o.__type]) return this.statics[o.__type][n];
+      if(td && td.methods && td.methods[n]) return { __fn2:true, td:td, n:n };
+      if(this.io.staticMember){ var sm = this.io.staticMember(o.__type, n, this); if(sm !== undefined) return sm; }
+      return { __type:o.__type + '.' + n };
+    }
+    if(o.__t === 'limits'){ return { __static:'limits' }; }
+    if(Array.isArray(o)){ if(n === 'Count' || n === 'Length' || n === 'size') return o.length; }
+    if(typeof o === 'string'){ if(n === 'Length' || n === 'length') return o.length; }
+    if(o instanceof CfMap){ if(n === 'Count') return o.m.size; if(n === 'Keys') return o.pairs().map(function(p){ return p.k; }); if(n === 'Values') return o.pairs().map(function(p){ return p.v; }); }
+    if(o instanceof Date){ var D = { Year:o.getFullYear(), Month:o.getMonth() + 1, Day:o.getDate(), Hour:o.getHours(), Minute:o.getMinutes(), DayOfWeek:o.getDay(), DayOfYear:Math.floor((o - new Date(o.getFullYear(), 0, 0)) / 864e5) }; if(n in D) return D[n]; if(n === 'Date'){ var c = new Date(+o); c.setHours(0, 0, 0, 0); return c; } }
+    if(o.__group){ if(n === 'Key') return o.Key; if(n === 'Count') return o.items.length; }
+    if(o.__t && this.types[o.__t]){ var g = this.findGetter(this.types[o.__t], n); if(g) return this.runGetter(g, o, this.types[o.__t]); }
+    if(this.io.member){ var r = this.io.member(o, n, this); if(r !== undefined) return r; }
+    if(n in o) return o[n];
+    // поля строк данных: регистр и синонимы
+    var k = cfFindKey(o, n); if(k !== null) return o[k];
+    if(o.__t) throw CfErr('У «' + o.__t + '» нет поля «' + n + '»', e && e.line);
+    return undefined;
+  };
+  function cfFindKey(o, n){ if(!o || typeof o !== 'object') return null; var lo = String(n).toLowerCase().replace(/_/g, ''); for(var k in o){ if(String(k).toLowerCase().replace(/[_\s]/g, '') === lo) return k; } var syn = typeof fieldSyn === 'function' ? fieldSyn(n) : []; for(var i = 0; i < syn.length; i++){ for(var k2 in o){ if(String(k2).toLowerCase() === syn[i]) return k2; } } return null; }
+  function cfToJson(v, depth){
+    depth = depth || 0; if(depth > 30) return null;
+    if(v === undefined || v === null) return null;
+    if(typeof v === 'number') return isFinite(v) ? Math.round(v * 1e10) / 1e10 : null;
+    if(typeof v !== 'object') return v;
+    if(v instanceof Date) return v.toLocaleDateString('ru-RU');
+    if(Array.isArray(v)) return v.map(function(x){ return cfToJson(x, depth + 1); });
+    if(v instanceof CfMap){ var o = {}; v.pairs().forEach(function(p){ o[String(p.k)] = cfToJson(p.v, depth + 1); }); return o; }
+    if(v.__group) return { Key:cfToJson(v.Key, depth + 1), Items:cfToJson(v.items, depth + 1) };
+    if(v.__lambda || v.__static || v.__type) return null;
+    if(v.__t === 'StringBuilder') return v.s;
+    var r = {}; for(var k in v){ if(k === '__t') continue; r[k] = cfToJson(v[k], depth + 1); } return r;
+  }
+
+  /* =====================================================================
+     ВСТРОЕННЫЙ ИСПОЛНИТЕЛЬ 1С (встроенный язык и язык запросов).
+     Код блока выполняется прямо в Triosteum. Запросы (ВЫБРАТЬ … ИЗ …)
+     работают над данными схемы: таблица «Документ.ЗаказКлиента» берётся
+     из входных данных блока (по имени или вся входная таблица).
+     ===================================================================== */
+  var BSL_KW = {
+    'процедура':'proc', 'procedure':'proc', 'функция':'func', 'function':'func', 'конецпроцедуры':'endproc', 'endprocedure':'endproc', 'конецфункции':'endfunc', 'endfunction':'endfunc',
+    'экспорт':'export', 'export':'export', 'перем':'var', 'var':'var', 'знач':'val', 'val':'val', 'если':'if', 'if':'if', 'тогда':'then', 'then':'then', 'иначеесли':'elsif', 'elsif':'elsif',
+    'иначе':'else', 'else':'else', 'конецесли':'endif', 'endif':'endif', 'для':'for', 'for':'for', 'каждого':'each', 'each':'each', 'из':'in', 'in':'in', 'по':'to', 'to':'to',
+    'цикл':'do', 'do':'do', 'конеццикла':'enddo', 'enddo':'enddo', 'пока':'while', 'while':'while', 'прервать':'break', 'break':'break', 'продолжить':'continue', 'continue':'continue',
+    'возврат':'return', 'return':'return', 'новый':'new', 'new':'new', 'и':'and', 'and':'and', 'или':'or', 'or':'or', 'не':'not', 'not':'not', 'истина':'true', 'true':'true',
+    'ложь':'false', 'false':'false', 'неопределено':'undef', 'undefined':'undef', 'null':'null', 'попытка':'try', 'try':'try', 'исключение':'except', 'except':'except',
+    'конецпопытки':'endtry', 'endtry':'endtry', 'вызватьисключение':'raise', 'raise':'raise', 'перейти':'goto', 'goto':'goto'
+  };
+  function BslErr(msg, line){ var e = new Error(msg + (line ? ' (строка ' + line + ')' : '')); e.bsl = true; return e; }
+  function bslTokens(src){
+    var t = [], i = 0, n = src.length, line = 1;
+    function push(type, v, extra){ var o = { t:type, v:v, line:line }; if(extra) for(var k in extra) o[k] = extra[k]; t.push(o); }
+    while(i < n){
+      var c = src[i];
+      if(c === '\n'){ line++; i++; continue; }
+      if(/\s/.test(c)){ i++; continue; }
+      if(c === '/' && src[i + 1] === '/'){ while(i < n && src[i] !== '\n') i++; continue; }
+      if((c === '#' || c === '&') && (t.length === 0 || t[t.length - 1].line < line)){ while(i < n && src[i] !== '\n') i++; continue; }
+      if(c === '"'){
+        var s = ''; i++;
+        while(i < n){
+          if(src[i] === '"'){ if(src[i + 1] === '"'){ s += '"'; i += 2; continue; } i++; break; }
+          if(src[i] === '\n'){ line++; s += '\n'; i++; while(i < n && /[ \t]/.test(src[i])) i++; if(src[i] === '|') i++; else if(src[i] === '/' && src[i + 1] === '/'){ while(i < n && src[i] !== '\n') i++; } continue; }
+          s += src[i++];
+        }
+        // строка может продолжаться следующим литералом через перевод строки: "…" \n "|…"
+        push('str', s); continue;
+      }
+      if(c === "'"){ var e2 = src.indexOf("'", i + 1), d = src.slice(i + 1, e2).replace(/\D/g, ''); push('date', new Date(+d.slice(0, 4), +(d.slice(4, 6) || 1) - 1, +(d.slice(6, 8) || 1), +(d.slice(8, 10) || 0), +(d.slice(10, 12) || 0), +(d.slice(12, 14) || 0))); i = e2 + 1; continue; }
+      if(/[0-9]/.test(c)){ var m = /^[0-9]+(\.[0-9]+)?/.exec(src.slice(i)); push('num', parseFloat(m[0])); i += m[0].length; continue; }
+      if(/[A-Za-z_\u0400-\u04FF]/.test(c)){ var m2 = /^[A-Za-z_\u0400-\u04FF][\w\u0400-\u04FF]*/.exec(src.slice(i)), w = m2[0], lw = w.toLowerCase().replace(/ё/g, 'е'); if(BSL_KW[lw]) push('kw', BSL_KW[lw], { raw:w }); else push('id', w, { lo:lw }); i += w.length; continue; }
+      var two = src.substr(i, 2);
+      if(two === '<>' || two === '<=' || two === '>='){ push('op', two); i += 2; continue; }
+      if(c === '~'){ var m3 = /^~[\w\u0400-\u04FF]+:?/.exec(src.slice(i)); i += m3 ? m3[0].length : 1; continue; }
+      push('op', c); i++;
+    }
+    push('eof', null);
+    return t;
+  }
+  function BslParser(src){ this.tk = bslTokens(src); this.p = 0; }
+  var BP = BslParser.prototype;
+  BP.peek = function(o){ return this.tk[this.p + (o || 0)]; };
+  BP.next = function(){ return this.tk[this.p++]; };
+  BP.isKw = function(k, o){ var x = this.peek(o); return x.t === 'kw' && x.v === k; };
+  BP.isOp = function(v, o){ var x = this.peek(o); return x.t === 'op' && x.v === v; };
+  BP.eatKw = function(k){ if(this.isKw(k)){ this.p++; return true; } return false; };
+  BP.eatOp = function(v){ if(this.isOp(v)){ this.p++; return true; } return false; };
+  var BSL_KW_RU = { then:'Тогда', do:'Цикл', endif:'КонецЕсли', enddo:'КонецЦикла', endfunc:'КонецФункции', endproc:'КонецПроцедуры', 'in':'Из', to:'По', endtry:'КонецПопытки', except:'Исключение' };
+  BP.wantKw = function(k){ if(!this.eatKw(k)){ var x = this.peek(); throw BslErr('Ожидалось «' + (BSL_KW_RU[k] || k) + '», а встретилось «' + (x.raw || x.v || 'конец кода') + '»', x.line); } };
+  BP.wantOp = function(v){ if(!this.eatOp(v)){ var x = this.peek(); throw BslErr('Ожидалось «' + v + '», а встретилось «' + (x.raw || x.v || 'конец кода') + '»', x.line); } };
+  BP.module = function(){
+    var mod = { procs:{}, vars:[], body:[] };
+    while(this.peek().t !== 'eof'){
+      if(this.isKw('proc') || this.isKw('func')){ var pr = this.proc(); mod.procs[pr.lo] = pr; continue; }
+      if(this.isKw('var')){ this.p++; do { mod.vars.push(this.next().v); this.eatKw('export'); } while(this.eatOp(',')); this.eatOp(';'); continue; }
+      var s = this.stmt(); if(s) mod.body.push(s);
+    }
+    return mod;
+  };
+  BP.proc = function(){
+    var isFunc = this.next().v === 'func', name = this.next(), ps = [];
+    this.wantOp('(');
+    while(!this.eatOp(')')){ var byVal = this.eatKw('val'), pn = this.next(); var def = null; if(this.eatOp('=')) def = this.unary(); ps.push({ name:pn.v, lo:pn.lo || String(pn.v).toLowerCase(), def:def, byVal:byVal }); this.eatOp(','); }
+    this.eatKw('export');
+    var body = this.stmts(isFunc ? ['endfunc'] : ['endproc']);
+    this.next();
+    return { name:name.v, lo:name.lo || String(name.v).toLowerCase(), params:ps, body:body, isFunc:isFunc };
+  };
+  BP.stmts = function(ends){
+    var out = [];
+    while(true){
+      var x = this.peek();
+      if(x.t === 'eof') throw BslErr('Не хватает «' + (BSL_KW_RU[ends[0]] || ends[0]) + '»', x.line);
+      if(x.t === 'kw' && ends.indexOf(x.v) >= 0) return out;
+      var s = this.stmt(); if(s) out.push(s);
+    }
+  };
+  BP.stmt = function(){
+    var x = this.peek(), line = x.line;
+    if(this.eatOp(';')) return null;
+    if(x.t === 'kw'){
+      switch(x.v){
+        case 'if':
+          this.p++; var branches = [], c = this.expr(); this.wantKw('then'); var b = this.stmts(['elsif', 'else', 'endif']); branches.push({ c:c, b:b });
+          while(this.eatKw('elsif')){ var c2 = this.expr(); this.wantKw('then'); branches.push({ c:c2, b:this.stmts(['elsif', 'else', 'endif']) }); }
+          var els = this.eatKw('else') ? this.stmts(['endif']) : null; this.wantKw('endif'); this.eatOp(';');
+          return { k:'if', br:branches, els:els, line:line };
+        case 'for':
+          this.p++;
+          if(this.eatKw('each')){ var vn = this.next(); this.wantKw('in'); var coll = this.expr(); this.wantKw('do'); var body = this.stmts(['enddo']); this.wantKw('enddo'); this.eatOp(';'); return { k:'foreach', v:vn.lo || String(vn.v).toLowerCase(), coll:coll, b:body, line:line }; }
+          var iv = this.next(); this.wantOp('='); var from = this.expr(); this.wantKw('to'); var to = this.expr(); this.wantKw('do'); var fb = this.stmts(['enddo']); this.wantKw('enddo'); this.eatOp(';');
+          return { k:'for', v:iv.lo || String(iv.v).toLowerCase(), from:from, to:to, b:fb, line:line };
+        case 'while': this.p++; var wc = this.expr(); this.wantKw('do'); var wb = this.stmts(['enddo']); this.wantKw('enddo'); this.eatOp(';'); return { k:'while', c:wc, b:wb, line:line };
+        case 'return': this.p++; var re = (this.isOp(';') || (this.peek().t === 'kw' && /^(endfunc|endproc|endif|enddo|else|elsif|endtry|except)$/.test(this.peek().v))) ? null : this.expr(); this.eatOp(';'); return { k:'return', e:re, line:line };
+        case 'break': this.p++; this.eatOp(';'); return { k:'break' };
+        case 'continue': this.p++; this.eatOp(';'); return { k:'continue' };
+        case 'try': this.p++; var tb = this.stmts(['except']); this.wantKw('except'); var eb = this.stmts(['endtry']); this.wantKw('endtry'); this.eatOp(';'); return { k:'try', b:tb, e:eb };
+        case 'raise': this.p++; var rv = this.isOp(';') ? null : this.expr(); this.eatOp(';'); return { k:'raise', e:rv, line:line };
+        case 'var': this.p++; var names = []; do { var vt = this.next(); names.push(vt.lo || String(vt.v).toLowerCase()); } while(this.eatOp(',')); this.eatOp(';'); return { k:'vars', names:names };
+      }
+    }
+    var lhs = this.postfix(this.primary());
+    if(this.eatOp('=')){ var rhs = this.expr(); this.eatOp(';'); return { k:'assign', l:lhs, r:rhs, line:line }; }
+    this.eatOp(';');
+    return { k:'call', e:lhs, line:line };
+  };
+  BP.expr = function(){ return this.or(); };
+  BP.or = function(){ var l = this.and(); while(this.eatKw('or')) l = { k:'or', l:l, r:this.and() }; return l; };
+  BP.and = function(){ var l = this.not(); while(this.eatKw('and')) l = { k:'and', l:l, r:this.not() }; return l; };
+  BP.not = function(){ if(this.eatKw('not')) return { k:'not', e:this.not() }; return this.cmp(); };
+  BP.cmp = function(){ var l = this.add(); var x = this.peek(); if(x.t === 'op' && /^(=|<>|<|>|<=|>=)$/.test(x.v)){ this.p++; return { k:'cmp', op:x.v, l:l, r:this.add(), line:x.line }; } return l; };
+  BP.add = function(){ var l = this.mul(); while(this.isOp('+') || this.isOp('-')){ var op = this.next().v; l = { k:'bin', op:op, l:l, r:this.mul() }; } return l; };
+  BP.mul = function(){ var l = this.unary(); while(this.isOp('*') || this.isOp('/') || this.isOp('%')){ var op = this.next(); l = { k:'bin', op:op.v, l:l, r:this.unary(), line:op.line }; } return l; };
+  BP.unary = function(){ if(this.eatOp('-')) return { k:'neg', e:this.unary() }; if(this.eatOp('+')) return this.unary(); return this.postfix(this.primary()); };
+  BP.primary = function(){
+    var x = this.next();
+    if(x.t === 'num') return { k:'lit', v:x.v };
+    if(x.t === 'str'){ var s = x.v; while(this.peek().t === 'str') s += this.next().v; return { k:'lit', v:s }; }
+    if(x.t === 'date') return { k:'lit', v:x.v };
+    if(x.t === 'kw'){
+      if(x.v === 'true') return { k:'lit', v:true }; if(x.v === 'false') return { k:'lit', v:false };
+      if(x.v === 'undef') return { k:'lit', v:undefined }; if(x.v === 'null') return { k:'lit', v:null };
+      if(x.v === 'new'){
+        if(this.isOp('(')){ var a0 = this.args(); return { k:'new', nameExpr:a0[0], args:a0.slice(1), line:x.line }; }
+        var tn = this.next(); var args = this.isOp('(') ? this.args() : []; return { k:'new', name:String(tn.v).toLowerCase(), raw:tn.v, args:args, line:x.line };
+      }
+      throw BslErr('Неожиданное «' + x.raw + '»', x.line);
+    }
+    if(x.t === 'op' && x.v === '('){ var e = this.expr(); this.wantOp(')'); return e; }
+    if(x.t === 'op' && x.v === '?'){ var ta = this.args(); return { k:'tern', c:ta[0], a:ta[1], b:ta[2] }; }
+    if(x.t === 'id') return { k:'id', n:x.v, lo:x.lo, line:x.line };
+    throw BslErr('Неожиданное «' + (x.v === null ? 'конец кода' : x.v) + '»', x.line);
+  };
+  BP.args = function(){ this.wantOp('('); var a = []; while(!this.eatOp(')')){ if(this.isOp(',')){ this.p++; a.push(undefined); continue; } a.push(this.expr()); if(!this.isOp(')')) this.wantOp(','); } return a; };
+  BP.postfix = function(e){
+    while(true){
+      var x = this.peek();
+      if(this.isOp('(')){ e = { k:'call', f:e, args:this.args(), line:x.line }; continue; }
+      if(this.isOp('[')){ this.p++; var i = this.expr(); this.wantOp(']'); e = { k:'index', o:e, i:i, line:x.line }; continue; }
+      if(this.isOp('.')){ this.p++; var m = this.next(); e = { k:'member', o:e, n:m.t === 'kw' ? m.raw : m.v, lo:String(m.t === 'kw' ? m.raw : m.v).toLowerCase().replace(/ё/g, 'е'), line:x.line }; continue; }
+      return e;
+    }
+  };
+
+  /* ---------- значения 1С ---------- */
+  function BArr(a){ this.a = a || []; }
+  function BStruct(){ this.m = new Map(); }
+  BStruct.prototype.set = function(k, v){ var lo = String(k).toLowerCase().replace(/ё/g, 'е'), o = this.m.get(lo); if(o) o.v = v; else this.m.set(lo, { k:String(k), v:v }); };
+  BStruct.prototype.get = function(k){ var o = this.m.get(String(k).toLowerCase().replace(/ё/g, 'е')); return o ? o.v : BSL_MISSING; };
+  BStruct.prototype.has = function(k){ return this.m.has(String(k).toLowerCase().replace(/ё/g, 'е')); };
+  BStruct.prototype.keys = function(){ var o = []; this.m.forEach(function(x){ o.push(x.k); }); return o; };
+  function BMap(){ this.m = new Map(); }
+  BMap.prototype.key = function(k){ return k instanceof Date ? 'd' + (+k) : (typeof k === 'object' && k !== null ? JSON.stringify(bslToJson(k)) : typeof k + ':' + k); };
+  function BTable(){ this.cols = []; this.rows = []; this.props = new BStruct(); }
+  BTable.prototype.addCol = function(n){ if(!this.colOf(n)) this.cols.push(String(n)); };
+  BTable.prototype.colOf = function(n){ var lo = String(n).toLowerCase().replace(/ё/g, 'е'); for(var i = 0; i < this.cols.length; i++) if(this.cols[i].toLowerCase().replace(/ё/g, 'е') === lo) return this.cols[i]; return null; };
+  BTable.prototype.newRow = function(){ var r = new BRow(this); this.rows.push(r); return r; };
+  function BRow(t){ this.t = t; this.v = {}; }
+  function BSym(path){ this.path = path; }
+  BSym.prototype.toString = function(){ return this.path[this.path.length - 1]; };
+  var BSL_MISSING = { missing:true };
+  function bslFromJson(v, top){
+    if(v === null || v === undefined) return v === null ? null : undefined;
+    if(Array.isArray(v)){
+      if(v.length && v.every(function(x){ return x && typeof x === 'object' && !Array.isArray(x); })){ var t = new BTable(); v.forEach(function(o){ Object.keys(o).forEach(function(k){ if(k.indexOf('__') !== 0) t.addCol(k); }); }); v.forEach(function(o){ var r = t.newRow(); Object.keys(o).forEach(function(k){ if(k.indexOf('__') !== 0) r.v[t.colOf(k)] = bslFromJson(o[k]); }); }); return t; }
+      return new BArr(v.map(function(x){ return bslFromJson(x); }));
+    }
+    if(typeof v === 'object' && !(v instanceof Date)){ var s = new BStruct(); Object.keys(v).forEach(function(k){ s.set(k, bslFromJson(v[k])); }); return s; }
+    if(typeof v === 'string' && /^\d{2}\.\d{2}\.\d{4}$/.test(v)){ var p = v.split('.'); return new Date(+p[2], +p[1] - 1, +p[0]); }
+    return v;
+  }
+  function bslToJson(v, d){
+    d = d || 0; if(d > 30) return null;
+    if(v === undefined || v === BSL_MISSING) return null;
+    if(v === null || typeof v !== 'object') return typeof v === 'number' ? Math.round(v * 1e10) / 1e10 : v;
+    if(v instanceof Date) return ('0' + v.getDate()).slice(-2) + '.' + ('0' + (v.getMonth() + 1)).slice(-2) + '.' + v.getFullYear();
+    if(v instanceof BArr) return v.a.map(function(x){ return bslToJson(x, d + 1); });
+    if(v instanceof BTable) return v.rows.map(function(r){ var o = {}; v.cols.forEach(function(c){ o[c] = bslToJson(r.v[c], d + 1); }); return o; });
+    if(v instanceof BRow){ var o2 = {}; v.t.cols.forEach(function(c){ o2[c] = bslToJson(v.v[c], d + 1); }); return o2; }
+    if(v instanceof BStruct){ var o3 = {}; v.m.forEach(function(x){ o3[x.k] = bslToJson(x.v, d + 1); }); return o3; }
+    if(v instanceof BMap){ var o4 = {}; v.m.forEach(function(x){ o4[String(x.k)] = bslToJson(x.v, d + 1); }); return o4; }
+    if(v instanceof BSym) return String(v);
+    if(v.qres) return bslToJson(v.qres, d + 1);
+    if(v.kv) return { Ключ:bslToJson(v.k, d + 1), Значение:bslToJson(v.v, d + 1) };
+    return null;
+  }
+  function bslStr(v){
+    if(v === undefined || v === BSL_MISSING || v === null) return '';
+    if(typeof v === 'boolean') return v ? 'Да' : 'Нет';
+    if(typeof v === 'number') return String(Math.round(v * 1e10) / 1e10).replace('.', ',');
+    if(v instanceof Date) return bslToJson(v) + (v.getHours() || v.getMinutes() ? ' ' + ('0' + v.getHours()).slice(-2) + ':' + ('0' + v.getMinutes()).slice(-2) + ':' + ('0' + v.getSeconds()).slice(-2) : ' 0:00:00');
+    if(v instanceof BArr) return 'Массив';
+    if(v instanceof BStruct) return 'Структура';
+    if(v instanceof BTable) return 'ТаблицаЗначений';
+    if(v instanceof BMap) return 'Соответствие';
+    if(v instanceof BSym) return String(v);
+    if(v instanceof BRow) return 'СтрокаТаблицыЗначений';
+    return String(v);
+  }
+  function BslBreak(){} function BslCont(){} function BslRet(v){ this.v = v; }
+
+  /* ---------- исполнитель ---------- */
+  function BslVM(mod, ctx){ this.mod = mod; this.ctx = ctx || {}; this.out = []; this.notes = []; this.steps = 0; this.globals = new Map(); var self = this; mod.vars.forEach(function(n){ self.globals.set(String(n).toLowerCase(), undefined); }); }
+  var BV = BslVM.prototype;
+  BV.note = function(t){ if(this.notes.indexOf(t) < 0) this.notes.push(t); };
+  BV.tick = function(){ if(++this.steps > 3e6) throw BslErr('Слишком долгое выполнение — возможен бесконечный цикл'); };
+  BV.callProc = function(pr, args, line){
+    var sc = new Map(), self = this;
+    pr.params.forEach(function(p, i){ var v = args[i]; if(v === undefined && p.def) v = self.eval(p.def, sc); sc.set(p.lo, v); });
+    try { this.block(pr.body, sc); } catch(e){ if(e instanceof BslRet) return e.v; throw e; }
+    return undefined;
+  };
+  BV.block = function(list, sc){ for(var i = 0; i < list.length; i++) this.exec(list[i], sc); };
+  BV.exec = function(s, sc){
+    this.tick(); var self = this;
+    switch(s.k){
+      case 'assign': this.assign(s.l, this.eval(s.r, sc), sc); return;
+      case 'call': this.eval(s.e, sc); return;
+      case 'vars': s.names.forEach(function(n){ sc.set(n, undefined); }); return;
+      case 'if': for(var i = 0; i < s.br.length; i++){ if(this.truthy(this.eval(s.br[i].c, sc))){ this.block(s.br[i].b, sc); return; } } if(s.els) this.block(s.els, sc); return;
+      case 'while': while(this.truthy(this.eval(s.c, sc))){ this.tick(); try { this.block(s.b, sc); } catch(e){ if(e instanceof BslBreak) break; if(e instanceof BslCont) continue; throw e; } } return;
+      case 'for':
+        var from = this.num(this.eval(s.from, sc)), to = this.num(this.eval(s.to, sc));
+        for(var k = from; k <= to; k++){ this.tick(); sc.set(s.v, k); try { this.block(s.b, sc); } catch(e){ if(e instanceof BslBreak) break; if(e instanceof BslCont) continue; throw e; } k = this.num(sc.get(s.v)); }
+        return;
+      case 'foreach':
+        var items = this.items(this.eval(s.coll, sc), s.line);
+        for(var j = 0; j < items.length; j++){ this.tick(); sc.set(s.v, items[j]); try { this.block(s.b, sc); } catch(e){ if(e instanceof BslBreak) break; if(e instanceof BslCont) continue; throw e; } }
+        return;
+      case 'return': throw new BslRet(s.e ? this.eval(s.e, sc) : undefined);
+      case 'break': throw new BslBreak();
+      case 'continue': throw new BslCont();
+      case 'try': try { this.block(s.b, sc); } catch(e){ if(e instanceof BslRet || e instanceof BslBreak || e instanceof BslCont) throw e; this.lastErr = String(e.message || e); this.block(s.e, sc); } return;
+      case 'raise': throw BslErr(s.e ? bslStr(this.eval(s.e, sc)) : (this.lastErr || 'Исключение'), s.line);
+    }
+  };
+  BV.items = function(v, line){
+    if(v instanceof BArr) return v.a.slice();
+    if(v instanceof BTable) return v.rows.slice();
+    if(v instanceof BStruct || v instanceof BMap){ var o = []; v.m.forEach(function(x){ o.push({ kv:true, k:x.k, v:x.v }); }); return o; }
+    if(v && v.qres) return v.qres.rows.slice();
+    if(v && v.cols) return v.cols.slice();
+    if(v === undefined || v === BSL_MISSING || v === null) throw BslErr('Для Каждого: коллекция не задана (Неопределено)', line);
+    throw BslErr('Для Каждого: значение не является коллекцией', line);
+  };
+  BV.truthy = function(v){ if(v === BSL_MISSING) return true; return !!v; };
+  BV.num = function(v){ if(typeof v === 'number') return v; if(v === undefined || v === null || v === BSL_MISSING) return 0; if(typeof v === 'boolean') return v ? 1 : 0; if(v instanceof Date) return +v / 1000; var n = parseFloat(String(v).replace(/\s/g, '').replace(',', '.')); if(isNaN(n)) throw BslErr('Преобразование значения к типу Число не может быть выполнено: «' + v + '»'); return n; };
+  BV.eq = function(a, b){ if(a instanceof BSym) a = String(a); if(b instanceof BSym) b = String(b); if(a instanceof Date && b instanceof Date) return +a === +b; if(a instanceof BRow && b instanceof BRow) return a === b; return a === b || ((a === undefined || a === BSL_MISSING) && (b === undefined || b === BSL_MISSING)); };
+  BV.lookupVar = function(lo, sc){ if(sc.has(lo)) return { sc:sc }; if(this.globals.has(lo)) return { sc:this.globals }; return null; };
+  BV.assign = function(l, v, sc){
+    if(l.k === 'id'){ var r = this.lookupVar(l.lo, sc); (r ? r.sc : sc).set(l.lo, v); return; }
+    if(l.k === 'member'){ var o = this.eval(l.o, sc); this.setMember(o, l.n, v, l.line); return; }
+    if(l.k === 'index'){ var c = this.eval(l.o, sc), i = this.eval(l.i, sc); this.setIndex(c, i, v, l.line); return; }
+    throw BslErr('Сюда нельзя присвоить', l.line);
+  };
+  BV.setMember = function(o, n, v, line){
+    if(o instanceof BRow){ var c = o.t.colOf(n); if(!c){ o.t.addCol(n); c = o.t.colOf(n); } o.v[c] = v; return; }
+    if(o instanceof BStruct){ if(!o.has(n)) throw BslErr('Поле объекта не обнаружено (' + n + ')', line); o.set(n, v); return; }
+    if(o instanceof BTable){ o.props.set(n, v); return; }
+    if(o && o.query){ if(/^(текст|text)$/i.test(n)) o.text = String(v); return; }
+    throw BslErr('Нельзя установить поле «' + n + '»', line);
+  };
+  BV.setIndex = function(c, i, v, line){
+    if(c instanceof BArr){ var k = this.num(i); if(k < 0 || k >= c.a.length) throw BslErr('Индекс находится за границами массива', line); c.a[k] = v; return; }
+    if(c instanceof BMap){ c.m.set(c.key(i), { k:i, v:v }); return; }
+    if(c instanceof BStruct){ c.set(i, v); return; }
+    if(c instanceof BRow){ this.setMember(c, typeof i === 'number' ? c.t.cols[i] : i, v, line); return; }
+    throw BslErr('Индексация недоступна', line);
+  };
+  BV.getMember = function(o, n, line){
+    var lo = String(n).toLowerCase().replace(/ё/g, 'е');
+    if(o instanceof BSym) return new BSym(o.path.concat([n]));
+    if(o instanceof BRow){ var c = o.t.colOf(n); if(c) return o.v[c]; var syn = bslSynCol(o.t, n); if(syn) return o.v[syn]; throw BslErr('Поле объекта не обнаружено (' + n + ')', line); }
+    if(o instanceof BStruct){ if(o.has(n)) return o.get(n); var ks = o.keys(), sk = bslSynKey(ks, n); if(sk) return o.get(sk); throw BslErr('Поле объекта не обнаружено (' + n + ')', line); }
+    if(o instanceof BTable){ if(lo === 'колонки' || lo === 'columns') return { cols:o.cols, table:o }; if(o.props.has(n)) return o.props.get(n); throw BslErr('Поле объекта не обнаружено (' + n + ')', line); }
+    if(o && o.kv){ if(lo === 'ключ' || lo === 'key') return o.k; if(lo === 'значение' || lo === 'value') return o.v; }
+    if(o && o.query){ if(lo === 'текст' || lo === 'text') return o.text; }
+    if(o && o.sel){ var r = o.rows[o.i]; if(!r) throw BslErr('Выборка: сначала вызовите Следующий()', line); return this.getMember(r, n, line); }
+    if(o && o.cols && lo === 'количество') return o.cols.length;
+    if(o instanceof Date){ var D = { 'год':o.getFullYear(), 'месяц':o.getMonth() + 1, 'день':o.getDate() }; if(lo in D) return D[lo]; }
+    if(o === undefined || o === BSL_MISSING) throw BslErr('Поле объекта не обнаружено (' + n + '): значение Неопределено', line);
+    throw BslErr('Поле объекта не обнаружено (' + n + ')', line);
+  };
+  BV.eval = function(e, sc){
+    var self = this;
+    switch(e.k){
+      case 'lit': return e.v;
+      case 'id':
+        var r = this.lookupVar(e.lo, sc); if(r) return r.sc.get(e.lo);
+        if(this.mod.procs[e.lo]) return { proc:this.mod.procs[e.lo] };
+        return this.global(e.n, e.lo, e.line);
+      case 'member': return this.getMember(this.eval(e.o, sc), e.n, e.line);
+      case 'index':
+        var c = this.eval(e.o, sc), i = this.eval(e.i, sc);
+        if(c instanceof BArr){ var k = this.num(i); if(k < 0 || k >= c.a.length) throw BslErr('Индекс находится за границами массива', e.line); return c.a[k]; }
+        if(c instanceof BTable){ var k2 = this.num(i); if(k2 < 0 || k2 >= c.rows.length) throw BslErr('Индекс находится за границами таблицы', e.line); return c.rows[k2]; }
+        if(c instanceof BMap){ var x = c.m.get(c.key(i)); return x ? x.v : undefined; }
+        if(c instanceof BStruct || c instanceof BRow) return this.getMember(c, typeof i === 'number' && c instanceof BRow ? c.t.cols[i] : i, e.line);
+        throw BslErr('Индексация недоступна', e.line);
+      case 'tern': return this.truthy(this.eval(e.c, sc)) ? this.eval(e.a, sc) : this.eval(e.b, sc);
+      case 'not': return !this.truthy(this.eval(e.e, sc));
+      case 'and': return this.truthy(this.eval(e.l, sc)) && this.truthy(this.eval(e.r, sc));
+      case 'or': return this.truthy(this.eval(e.l, sc)) || this.truthy(this.eval(e.r, sc));
+      case 'neg': return -this.num(this.eval(e.e, sc));
+      case 'cmp':
+        var a = this.eval(e.l, sc), b = this.eval(e.r, sc);
+        if(e.op === '=') return this.eq(a, b); if(e.op === '<>') return !this.eq(a, b);
+        if(a instanceof Date || b instanceof Date){ a = +a; b = +b; } else if(typeof a === 'string' && typeof b === 'string'){} else { a = this.num(a); b = this.num(b); }
+        return e.op === '<' ? a < b : e.op === '>' ? a > b : e.op === '<=' ? a <= b : a >= b;
+      case 'bin':
+        var l = this.eval(e.l, sc), rr = this.eval(e.r, sc);
+        if(e.op === '+'){ if(typeof l === 'string') return l + bslStr(rr); if(l instanceof Date){ return new Date(+l + this.num(rr) * 1000); } return this.num(l) + this.num(rr); }
+        if(e.op === '-'){ if(l instanceof Date && rr instanceof Date) return (l - rr) / 1000; if(l instanceof Date) return new Date(+l - this.num(rr) * 1000); return this.num(l) - this.num(rr); }
+        if(e.op === '*') return this.num(l) * this.num(rr);
+        if(e.op === '/'){ var dv = this.num(rr); if(dv === 0) throw BslErr('Деление на 0', e.line); return this.num(l) / dv; }
+        if(e.op === '%') return this.num(l) % this.num(rr);
+        break;
+      case 'new': return this.newObj(e.name || String(this.eval(e.nameExpr, sc)).toLowerCase(), e.args.map(function(a){ return a === undefined ? undefined : self.eval(a, sc); }), e.line, e.raw);
+      case 'call':
+        var args = e.args.map(function(a){ return a === undefined ? undefined : self.eval(a, sc); });
+        if(e.f.k === 'id'){
+          var pr = this.mod.procs[e.f.lo];
+          if(pr) return this.callProc(pr, args, e.line);
+          return this.builtin(e.f.n, e.f.lo, args, e.line, e, sc);
+        }
+        if(e.f.k === 'member') return this.method(this.eval(e.f.o, sc), e.f.n, e.f.lo, args, e.line, e, sc);
+        throw BslErr('Это не процедура', e.line);
+    }
+    throw BslErr('Неподдерживаемое выражение');
+  };
+  BV.global = function(n, lo, line){
+    if(/^(перечисления|справочники|документы|константы|регистрысведений|регистрынакопления|бизнеспроцессы|планывидовхарактеристик|планысчетов|catalogs|documents|enums|constants)$/.test(lo)){ this.note('Обращение к объектам базы 1С («' + n + '») — в Triosteum блок работает с данными схемы'); return new BSym([n]); }
+    if(lo === 'входныеданные' && this.ctx.input !== undefined) return this.ctx.input;
+    throw BslErr('Переменная не определена (' + n + ')', line);
+  };
+  BV.newObj = function(lo, args, line, raw){
+    switch(lo.replace(/ё/g, 'е')){
+      case 'массив': case 'array': var a = new BArr(); if(typeof args[0] === 'number') for(var i = 0; i < args[0]; i++) a.a.push(undefined); return a;
+      case 'структура': case 'structure': var s = new BStruct(); if(typeof args[0] === 'string'){ args[0].split(',').forEach(function(k, j){ k = k.trim(); if(k) s.set(k, args[j + 1]); }); } return s;
+      case 'фиксированнаяструктура': return args[0] instanceof BStruct ? args[0] : new BStruct();
+      case 'соответствие': case 'map': return new BMap();
+      case 'таблицазначений': case 'valuetable': return new BTable();
+      case 'запрос': case 'query': return { query:true, text:typeof args[0] === 'string' ? args[0] : '', params:new BStruct() };
+      case 'описаниетипов': return { types:args[0] };
+    }
+    throw BslErr('Тип не определён (' + (raw || lo) + ')', line);
+  };
+  BV.method = function(o, n, lo, a, line, e, sc){
+    var self = this; lo = lo.replace(/ё/g, 'е');
+    if(o instanceof BSym){ this.note('Метод «' + o.path.concat([n]).join('.') + '» базы 1С — заменён значением из схемы'); return a.length ? a[0] : new BSym(o.path.concat([n])); }
+    if(o instanceof BArr){
+      switch(lo){
+        case 'добавить': case 'add': o.a.push(a[0]); return;
+        case 'количество': case 'count': return o.a.length;
+        case 'получить': case 'get': return o.a[this.num(a[0])];
+        case 'установить': case 'set': o.a[this.num(a[0])] = a[1]; return;
+        case 'вставить': case 'insert': o.a.splice(this.num(a[0]), 0, a[1]); return;
+        case 'удалить': case 'delete': o.a.splice(this.num(a[0]), 1); return;
+        case 'найти': case 'find': for(var i = 0; i < o.a.length; i++) if(this.eq(o.a[i], a[0])) return i; return undefined;
+        case 'очистить': case 'clear': o.a.length = 0; return;
+        case 'вграница': case 'ubound': return o.a.length - 1;
+      }
+    }
+    if(o instanceof BStruct){
+      switch(lo){
+        case 'вставить': case 'insert': o.set(a[0], a[1]); return;
+        case 'свойство': case 'property': var has = o.has(a[0]) || !!bslSynKey(o.keys(), a[0]); if(e.args[1] && has) this.assign(e.args[1], o.get(o.has(a[0]) ? a[0] : bslSynKey(o.keys(), a[0])), sc); return has;
+        case 'количество': case 'count': return o.m.size;
+        case 'удалить': case 'delete': o.m.delete(String(a[0]).toLowerCase()); return;
+        case 'очистить': case 'clear': o.m.clear(); return;
+      }
+    }
+    if(o instanceof BMap){
+      switch(lo){
+        case 'вставить': case 'insert': o.m.set(o.key(a[0]), { k:a[0], v:a[1] }); return;
+        case 'получить': case 'get': var x = o.m.get(o.key(a[0])); return x ? x.v : undefined;
+        case 'удалить': case 'delete': o.m.delete(o.key(a[0])); return;
+        case 'количество': case 'count': return o.m.size;
+        case 'очистить': case 'clear': o.m.clear(); return;
+      }
+    }
+    if(o instanceof BTable) return this.tableMethod(o, lo, a, line, e, sc);
+    if(o instanceof BRow){ if(lo === 'владелец' || lo === 'owner') return o.t; }
+    if(o && o.cols && o.table){
+      if(lo === 'добавить' || lo === 'add'){ o.table.addCol(a[0]); return; }
+      if(lo === 'найти' || lo === 'find') return o.table.colOf(a[0]) ? { name:o.table.colOf(a[0]) } : undefined;
+      if(lo === 'количество' || lo === 'count') return o.table.cols.length;
+      if(lo === 'удалить' || lo === 'delete'){ var cn = o.table.colOf(a[0] && a[0].name || a[0]); o.table.cols = o.table.cols.filter(function(c){ return c !== cn; }); return; }
+    }
+    if(o && o.query){
+      if(lo === 'установитьпараметр' || lo === 'setparameter'){ o.params.set(a[0], a[1]); return; }
+      if(lo === 'выполнить' || lo === 'execute'){ var t = bslQuery(o.text, o.params, this); return { qres:t }; }
+      if(lo === 'выполнитьпакет' || lo === 'executebatch'){ var t2 = bslQuery(o.text, o.params, this, true); return new BArr(t2.map(function(x){ return { qres:x }; })); }
+    }
+    if(o && o.qres){
+      if(lo === 'выгрузить' || lo === 'unload') return bslCopyTable(o.qres);
+      if(lo === 'пустой' || lo === 'isempty') return !o.qres.rows.length;
+      if(lo === 'выбрать' || lo === 'select') return { sel:true, rows:o.qres.rows, i:-1 };
+    }
+    if(o && o.sel){
+      if(lo === 'следующий' || lo === 'next'){ o.i++; return o.i < o.rows.length; }
+      if(lo === 'количество' || lo === 'count') return o.rows.length;
+    }
+    if(o === undefined || o === BSL_MISSING) throw BslErr('Метод объекта не обнаружен (' + n + '): значение Неопределено', line);
+    throw BslErr('Метод объекта не обнаружен (' + n + ')', line);
+  };
+  BV.tableMethod = function(t, lo, a, line, e, sc){
+    var self = this;
+    switch(lo){
+      case 'добавить': case 'add': return t.newRow();
+      case 'количество': case 'count': return t.rows.length;
+      case 'получить': case 'get': return t.rows[this.num(a[0])];
+      case 'итог': case 'total': var c = t.colOf(a[0]); return t.rows.reduce(function(s, r){ var v = r.v[c]; return s + (typeof v === 'number' ? v : (parseFloat(v) || 0)); }, 0);
+      case 'очистить': case 'clear': t.rows.length = 0; return;
+      case 'удалить': case 'delete': var idx = typeof a[0] === 'number' ? a[0] : t.rows.indexOf(a[0]); if(idx >= 0) t.rows.splice(idx, 1); return;
+      case 'выгрузитьколонку': case 'unloadcolumn': var cc = t.colOf(a[0] && a[0].name || a[0]); return new BArr(t.rows.map(function(r){ return r.v[cc]; }));
+      case 'загрузитьколонку': case 'loadcolumn': var lc = t.colOf(a[1]); t.addCol(a[1]); lc = t.colOf(a[1]); a[0].a.forEach(function(v, i){ (t.rows[i] || t.newRow()).v[lc] = v; }); return;
+      case 'скопировать': case 'copy': case 'выгрузить': case 'unload': return bslCopyTable(t, a[0]);
+      case 'найти': case 'find': var cols = a[1] ? String(a[1]).split(',').map(function(x){ return t.colOf(x.trim()); }) : t.cols; for(var i = 0; i < t.rows.length; i++) for(var j = 0; j < cols.length; j++) if(this.eq(t.rows[i].v[cols[j]], a[0])) return t.rows[i]; return undefined;
+      case 'найтистроки': case 'findrows': var f = a[0]; return new BArr(t.rows.filter(function(r){ var ok = true; f.m.forEach(function(x){ if(!self.eq(r.v[t.colOf(x.k)], x.v)) ok = false; }); return ok; }));
+      case 'сортировать': case 'sort':
+        var spec = String(a[0]).split(',').map(function(x){ var p = x.trim().split(/\s+/); return { c:t.colOf(p[0]), d:/^(убыв|desc)/i.test(p[1] || '') }; });
+        t.rows.sort(function(x, y){ for(var i = 0; i < spec.length; i++){ var A = x.v[spec[i].c], B = y.v[spec[i].c]; if(A instanceof Date) A = +A; if(B instanceof Date) B = +B; if(A < B) return spec[i].d ? 1 : -1; if(A > B) return spec[i].d ? -1 : 1; } return 0; }); return;
+      case 'свернуть': case 'groupby':
+        var gc = String(a[0] || '').split(',').map(function(x){ return t.colOf(x.trim()); }).filter(Boolean), sc2 = String(a[1] || '').split(',').map(function(x){ return t.colOf(x.trim()); }).filter(Boolean), g = {}, order = [];
+        t.rows.forEach(function(r){ var k = JSON.stringify(gc.map(function(c){ return bslToJson(r.v[c]); })); if(!g[k]){ g[k] = { v:{} }; gc.forEach(function(c){ g[k].v[c] = r.v[c]; }); sc2.forEach(function(c){ g[k].v[c] = 0; }); order.push(k); } sc2.forEach(function(c){ g[k].v[c] += self.num(r.v[c]); }); });
+        t.cols = gc.concat(sc2); t.rows = order.map(function(k){ var r = new BRow(t); r.v = g[k].v; return r; }); return;
+      case 'индекс': case 'index': return t.rows.indexOf(a[0]);
+      case 'свойство': case 'property': var key = t.props.has(a[0]) ? a[0] : bslSynKey(t.props.keys(), a[0]); if(key && e.args[1]) this.assign(e.args[1], t.props.get(key), sc); return !!key;
+      case 'вставить': case 'insert': var nr = new BRow(t); t.rows.splice(this.num(a[0]), 0, nr); return nr;
+      case 'заполнитьзначения': case 'fillvalues': var fc = a[1] ? String(a[1]).split(',').map(function(x){ return t.colOf(x.trim()); }) : t.cols; t.rows.forEach(function(r){ fc.forEach(function(c){ r.v[c] = a[0]; }); }); return;
+    }
+    if(t.props.has(lo)) return this.method(t.props.get(lo), lo, lo, a, line, e, sc);
+    throw BslErr('Метод объекта не обнаружен (' + lo + ')', line);
+  };
+  function bslCopyTable(t, filter){ var c = new BTable(); c.cols = t.cols.slice(); c.props = t.props; (filter instanceof BArr ? filter.a : t.rows).forEach(function(r){ var nr = new BRow(c); for(var k in r.v) nr.v[k] = r.v[k]; c.rows.push(nr); }); return c; }
+  function bslSynCol(t, n){ var syn = typeof fieldSyn === 'function' ? fieldSyn(n) : []; for(var i = 0; i < syn.length; i++){ var c = t.colOf(syn[i]); if(c) return c; } return null; }
+  function bslSynKey(keys, n){ var lo = String(n).toLowerCase(), syn = typeof fieldSyn === 'function' ? fieldSyn(n) : []; for(var i = 0; i < keys.length; i++){ var k = keys[i].toLowerCase(); if(k === lo || syn.indexOf(k) >= 0) return keys[i]; } return null; }
+  BV.builtin = function(n, lo, a, line, e, sc){
+    var self = this, s0 = a[0] === undefined || a[0] === null ? '' : a[0];
+    lo = lo.replace(/ё/g, 'е');
+    switch(lo){
+      case 'сообщить': case 'message': this.out.push(bslStr(a[0])); return;
+      case 'строка': case 'string': return bslStr(a[0]);
+      case 'число': case 'number': return this.num(a[0]);
+      case 'булево': case 'boolean': return !!a[0] && a[0] !== 'Ложь' && a[0] !== 'false';
+      case 'дата': case 'date': if(typeof a[0] === 'string'){ var d = a[0].replace(/\D/g, ''); return new Date(+d.slice(0, 4), +(d.slice(4, 6) || 1) - 1, +(d.slice(6, 8) || 1)); } if(a[0] instanceof Date) return a[0]; return new Date(a[0], (a[1] || 1) - 1, a[2] || 1, a[3] || 0, a[4] || 0, a[5] || 0);
+      case 'текущаядата': case 'currentdate': case 'текущаядатасеанса': return new Date();
+      case 'год': case 'year': return a[0].getFullYear(); case 'месяц': case 'month': return a[0].getMonth() + 1; case 'день': case 'day': return a[0].getDate();
+      case 'началомесяца': case 'begofmonth': return new Date(a[0].getFullYear(), a[0].getMonth(), 1);
+      case 'конецмесяца': case 'endofmonth': return new Date(a[0].getFullYear(), a[0].getMonth() + 1, 0, 23, 59, 59);
+      case 'началогода': case 'begofyear': return new Date(a[0].getFullYear(), 0, 1);
+      case 'началодня': case 'begofday': return new Date(a[0].getFullYear(), a[0].getMonth(), a[0].getDate());
+      case 'добавитьмесяц': case 'addmonth': var dm = new Date(+a[0]); dm.setMonth(dm.getMonth() + this.num(a[1])); return dm;
+      case 'стрдлина': case 'strlen': return String(s0).length;
+      case 'сокрлп': case 'trimall': return String(s0).trim(); case 'сокрл': case 'triml': return String(s0).replace(/^\s+/, ''); case 'сокрп': case 'trimr': return String(s0).replace(/\s+$/, '');
+      case 'врег': case 'upper': return String(s0).toUpperCase(); case 'нрег': case 'lower': return String(s0).toLowerCase(); case 'трег': case 'title': return String(s0).replace(/(^|\s)(\S)/g, function(m, p, c){ return p + c.toUpperCase(); });
+      case 'лев': case 'left': return String(s0).slice(0, a[1]); case 'прав': case 'right': return String(s0).slice(-a[1]);
+      case 'сред': case 'mid': return a.length > 2 ? String(s0).substr(a[1] - 1, a[2]) : String(s0).substr(a[1] - 1);
+      case 'стрнайти': case 'strfind': case 'найти': case 'find': return String(s0).indexOf(a[1]) + 1;
+      case 'стрзаменить': case 'strreplace': return String(s0).split(a[1]).join(a[2]);
+      case 'стрразделить': case 'strsplit': return new BArr(String(s0).split(new RegExp('[' + String(a[1] || ',').replace(/[\]\\^-]/g, '\\$&') + ']')).filter(function(x){ return a[2] === false ? true : x !== ''; }));
+      case 'стрсоединить': case 'strconcat': return a[0].a.map(bslStr).join(a[1] === undefined ? '' : a[1]);
+      case 'стрчисловхождений': case 'stroccurrencecount': return String(s0).split(a[1]).length - 1;
+      case 'стрначинаетсяс': case 'strstartswith': return String(s0).indexOf(a[1]) === 0;
+      case 'стрзаканчиваетсяна': case 'strendswith': return String(s0).slice(-String(a[1]).length) === String(a[1]);
+      case 'стршаблон': case 'strtemplate': return String(s0).replace(/%(\d)/g, function(m, i){ return bslStr(a[+i]); });
+      case 'формат': case 'format': return bslFormat(a[0], a[1] || '');
+      case 'окр': case 'round': var k = Math.pow(10, a[1] || 0), x = this.num(a[0]) * k; return (x < 0 ? -Math.round(-x) : Math.round(x)) / k;
+      case 'цел': case 'int': return Math.trunc(this.num(a[0]));
+      case 'макс': case 'max': return Math.max.apply(null, a.map(function(v){ return self.num(v); }));
+      case 'мин': case 'min': return Math.min.apply(null, a.map(function(v){ return self.num(v); }));
+      case 'pow': return Math.pow(this.num(a[0]), this.num(a[1])); case 'sqrt': return Math.sqrt(this.num(a[0])); case 'log': return Math.log(this.num(a[0])); case 'log10': return Math.log10(this.num(a[0])); case 'exp': return Math.exp(this.num(a[0]));
+      case 'значениезаполнено': case 'valueisfilled': var v = a[0]; return !(v === undefined || v === null || v === '' || v === 0 || v === false || v === BSL_MISSING || (v instanceof BArr && !v.a.length) || (v instanceof BTable && !v.rows.length) || (v instanceof Date && +v === +new Date(1, 0, 1)));
+      case 'типзнч': case 'typeof': var tv = a[0]; return tv === undefined ? 'Неопределено' : typeof tv === 'number' ? 'Число' : typeof tv === 'string' ? 'Строка' : typeof tv === 'boolean' ? 'Булево' : tv instanceof Date ? 'Дата' : bslStr(tv);
+      case 'тип': case 'type': return String(a[0]);
+      case 'предопределенноезначение': case 'predefinedvalue': return new BSym(String(a[0]).split('.'));
+      case 'описаниеошибки': case 'errordescription': return this.lastErr || '';
+      case 'вычислить': case 'eval': throw BslErr('Вычислить() недоступно в Triosteum', line);
+    }
+    throw BslErr('Процедура или функция с указанным именем не определена (' + n + ')', line);
+  };
+  function bslFormat(v, f){
+    var p = {}; String(f).split(';').forEach(function(x){ var m = /^\s*([А-ЯA-Z]+)\s*=\s*'?([^']*)'?\s*$/i.exec(x); if(m) p[m[1].toUpperCase()] = m[2]; });
+    if(v instanceof Date){ var df = p['ДФ'] || p.DF || 'dd.MM.yyyy'; return df.replace(/yyyy|гггг/g, v.getFullYear()).replace(/MM/g, ('0' + (v.getMonth() + 1)).slice(-2)).replace(/dd|дд/g, ('0' + v.getDate()).slice(-2)).replace(/HH|чч/g, ('0' + v.getHours()).slice(-2)).replace(/mm|мм/g, ('0' + v.getMinutes()).slice(-2)); }
+    if(typeof v === 'number'){ var d = p['ЧДЦ'] !== undefined ? +p['ЧДЦ'] : (p.ND !== undefined ? +p.ND : null); var s = v.toLocaleString('ru-RU', { minimumFractionDigits:d === null ? 0 : d, maximumFractionDigits:d === null ? 10 : d, useGrouping:p['ЧГ'] !== '0' }).replace(/\u00a0/g, p['ЧРГ'] !== undefined ? p['ЧРГ'] : ' '); if(p['ЧРД']) s = s.replace(',', p['ЧРД']); return s; }
+    if(typeof v === 'boolean') return v ? (p['БИ'] || 'Да') : (p['БЛ'] || 'Нет');
+    return bslStr(v);
+  }
+
+  /* ---------- язык запросов над данными схемы ---------- */
+  var BQ_KW = { 'выбрать':'SELECT', 'select':'SELECT', 'различные':'DISTINCT', 'distinct':'DISTINCT', 'первые':'TOP', 'top':'TOP', 'разрешенные':'ALLOWED', 'allowed':'ALLOWED', 'как':'AS', 'as':'AS', 'из':'FROM', 'from':'FROM', 'где':'WHERE', 'where':'WHERE',
+    'сгруппировать':'GROUP', 'group':'GROUP', 'по':'BY', 'by':'BY', 'имеющие':'HAVING', 'having':'HAVING', 'упорядочить':'ORDER', 'order':'ORDER', 'убыв':'DESC', 'desc':'DESC', 'возр':'ASC', 'asc':'ASC',
+    'и':'AND', 'and':'AND', 'или':'OR', 'or':'OR', 'не':'NOT', 'not':'NOT', 'в':'IN', 'in':'IN', 'между':'BETWEEN', 'between':'BETWEEN', 'подобно':'LIKE', 'like':'LIKE', 'есть':'IS', 'is':'IS', 'null':'NULL',
+    'выбор':'CASE', 'case':'CASE', 'когда':'WHEN', 'when':'WHEN', 'тогда':'THEN', 'then':'THEN', 'иначе':'ELSE', 'else':'ELSE', 'конец':'END', 'end':'END', 'истина':'TRUE', 'true':'TRUE', 'ложь':'FALSE', 'false':'FALSE',
+    'неопределено':'UNDEF', 'undefined':'UNDEF', 'поместить':'INTO', 'into':'INTO', 'итоги':'TOTALS', 'totals':'TOTALS', 'объединить':'UNION', 'union':'UNION', 'все':'ALL', 'all':'ALL',
+    'левое':'LEFT', 'left':'LEFT', 'правое':'RIGHT', 'right':'RIGHT', 'внутреннее':'INNER', 'inner':'INNER', 'полное':'FULL', 'full':'FULL', 'соединение':'JOIN', 'join':'JOIN', 'для':'FOR', 'изменения':'UPDATE', 'индексировать':'INDEX' };
+  function bqTokens(src){
+    var t = [], i = 0, n = src.length;
+    while(i < n){
+      var c = src[i];
+      if(/\s/.test(c)){ i++; continue; }
+      if(c === '/' && src[i + 1] === '/'){ while(i < n && src[i] !== '\n') i++; continue; }
+      if(c === '"'){ var s = ''; i++; while(i < n){ if(src[i] === '"'){ if(src[i + 1] === '"'){ s += '"'; i += 2; continue; } i++; break; } s += src[i++]; } t.push({ t:'str', v:s }); continue; }
+      if(c === '&'){ var m = /^&[\w\u0400-\u04FF]+/.exec(src.slice(i)); t.push({ t:'param', v:m[0].slice(1) }); i += m[0].length; continue; }
+      if(/[0-9]/.test(c)){ var m2 = /^[0-9]+(\.[0-9]+)?/.exec(src.slice(i)); t.push({ t:'num', v:parseFloat(m2[0]) }); i += m2[0].length; continue; }
+      if(/[A-Za-z_\u0400-\u04FF]/.test(c)){ var m3 = /^[A-Za-z_\u0400-\u04FF][\w\u0400-\u04FF]*/.exec(src.slice(i)), w = m3[0], lw = w.toLowerCase().replace(/ё/g, 'е'); t.push(BQ_KW[lw] ? { t:'kw', v:BQ_KW[lw], raw:w } : { t:'id', v:w }); i += w.length; continue; }
+      var two = src.substr(i, 2); if(two === '<>' || two === '<=' || two === '>='){ t.push({ t:'op', v:two }); i += 2; continue; }
+      t.push({ t:'op', v:c }); i++;
+    }
+    t.push({ t:'eof' });
+    return t;
+  }
+  function BQP(src){ this.tk = bqTokens(src); this.p = 0; }
+  BQP.prototype.peek = function(o){ return this.tk[this.p + (o || 0)]; };
+  BQP.prototype.next = function(){ return this.tk[this.p++]; };
+  BQP.prototype.kw = function(k, o){ var x = this.peek(o); return x.t === 'kw' && x.v === k; };
+  BQP.prototype.eat = function(k){ if(this.kw(k)){ this.p++; return true; } return false; };
+  BQP.prototype.op = function(v){ var x = this.peek(); return x.t === 'op' && x.v === v; };
+  BQP.prototype.eatOp = function(v){ if(this.op(v)){ this.p++; return true; } return false; };
+  BQP.prototype.want = function(k){ if(!this.eat(k)){ var x = this.peek(); throw BslErr('Ошибка в тексте запроса: ожидалось ' + ({ FROM:'ИЗ', BY:'ПО', END:'КОНЕЦ', THEN:'ТОГДА', AS:'КАК' }[k] || k) + ', а встретилось «' + (x.raw || x.v || 'конец текста') + '»'); } };
+  BQP.prototype.batch = function(){ var qs = []; while(this.peek().t !== 'eof'){ if(this.eatOp(';')) continue; qs.push(this.select()); } return qs; };
+  BQP.prototype.select = function(){
+    this.want('SELECT'); var q = { items:[], distinct:false, top:null, joins:[] };
+    this.eat('ALLOWED'); if(this.eat('DISTINCT')) q.distinct = true; if(this.eat('TOP')) q.top = this.next().v; this.eat('ALLOWED'); if(this.eat('DISTINCT')) q.distinct = true;
+    do {
+      if(this.eatOp('*')){ q.items.push({ star:true }); continue; }
+      var e = this.expr(), as = null; if(this.eat('AS')) as = this.next().v; else if(this.peek().t === 'id') as = this.next().v;
+      q.items.push({ e:e, as:as || (e.k === 'path' ? e.p[e.p.length - 1] : 'Поле' + (q.items.length + 1)) });
+    } while(this.eatOp(','));
+    if(this.eat('INTO')) q.into = this.next().v;
+    if(this.eat('FROM')){
+      q.from = this.source();
+      while(this.kw('LEFT') || this.kw('INNER') || this.kw('RIGHT') || this.kw('FULL') || this.kw('JOIN')){ var jt = this.next().v; if(jt !== 'JOIN') this.eat('OUTER'); this.want('JOIN'); var src = this.source(); this.want('BY'); q.joins.push({ type:jt === 'JOIN' ? 'INNER' : jt, src:src, on:this.expr() }); }
+      while(this.eatOp(',')){ q.joins.push({ type:'CROSS', src:this.source(), on:null }); }
+    }
+    if(this.eat('WHERE')) q.where = this.expr();
+    if(this.eat('GROUP')){ this.want('BY'); q.group = []; do { q.group.push(this.expr()); } while(this.eatOp(',')); }
+    if(this.eat('HAVING')) q.having = this.expr();
+    if(this.eat('UNION')){ var all = this.eat('ALL'); q.union = { all:all, q:this.select() }; return q; }
+    if(this.eat('ORDER')){ this.want('BY'); q.order = []; do { var oe = this.expr(), desc = this.eat('DESC'); this.eat('ASC'); q.order.push({ e:oe, desc:desc }); } while(this.eatOp(',')); }
+    if(this.eat('TOTALS')){ while(this.peek().t !== 'eof' && !this.op(';')) this.p++; }
+    if(this.eat('FOR')){ while(this.peek().t !== 'eof' && !this.op(';')) this.p++; }
+    if(this.eat('INDEX')){ while(this.peek().t !== 'eof' && !this.op(';')) this.p++; }
+    return q;
+  };
+  BQP.prototype.source = function(){
+    if(this.eatOp('(')){ var sub = this.select(); this.eatOp(')'); var as0 = this.eat('AS') ? this.next().v : 'Вложенный'; return { sub:sub, as:as0 }; }
+    var path = [this.next().v]; while(this.eatOp('.')) path.push(this.next().v);
+    var args = null; if(this.eatOp('(')){ args = []; var d = 1; while(d > 0 && this.peek().t !== 'eof'){ var x = this.next(); if(x.t === 'op' && x.v === '(') d++; else if(x.t === 'op' && x.v === ')') d--; } }
+    var as = this.eat('AS') ? this.next().v : (this.peek().t === 'id' ? this.next().v : path[path.length - 1]);
+    return { path:path, as:as };
+  };
+  BQP.prototype.expr = function(){ return this.or(); };
+  BQP.prototype.or = function(){ var l = this.and(); while(this.eat('OR')) l = { k:'or', l:l, r:this.and() }; return l; };
+  BQP.prototype.and = function(){ var l = this.not(); while(this.eat('AND')) l = { k:'and', l:l, r:this.not() }; return l; };
+  BQP.prototype.not = function(){ if(this.eat('NOT')) return { k:'not', e:this.not() }; return this.cmp(); };
+  BQP.prototype.cmp = function(){
+    var l = this.add(), x = this.peek();
+    if(x.t === 'op' && /^(=|<>|<|>|<=|>=)$/.test(x.v)){ this.p++; return { k:'cmp', op:x.v, l:l, r:this.add() }; }
+    var neg = false; if(this.kw('NOT') && (this.kw('IN', 1) || this.kw('BETWEEN', 1) || this.kw('LIKE', 1))){ this.p++; neg = true; }
+    if(this.eat('IN')){ this.eat('HIERARCHY'); this.eatOp('('); var list = []; if(this.kw('SELECT')){ list.push({ k:'sub', q:this.select() }); } else { do { list.push(this.add()); } while(this.eatOp(',')); } this.eatOp(')'); return { k:'in', e:l, list:list, neg:neg }; }
+    if(this.eat('BETWEEN')){ var a = this.add(); this.want('AND'); var b = this.add(); return { k:'between', e:l, a:a, b:b, neg:neg }; }
+    if(this.eat('LIKE')){ return { k:'like', e:l, pat:this.add(), neg:neg }; }
+    if(this.eat('IS')){ var n2 = this.eat('NOT'); this.want('NULL'); return { k:'isnull', e:l, neg:n2 }; }
+    return l;
+  };
+  BQP.prototype.add = function(){ var l = this.mul(); while(this.op('+') || this.op('-')){ var o = this.next().v; l = { k:'bin', op:o, l:l, r:this.mul() }; } return l; };
+  BQP.prototype.mul = function(){ var l = this.un(); while(this.op('*') || this.op('/')){ var o = this.next().v; l = { k:'bin', op:o, l:l, r:this.un() }; } return l; };
+  BQP.prototype.un = function(){ if(this.eatOp('-')) return { k:'neg', e:this.un() }; return this.prim(); };
+  BQP.prototype.prim = function(){
+    var x = this.next();
+    if(x.t === 'num' || x.t === 'str') return { k:'lit', v:x.v };
+    if(x.t === 'param') return { k:'param', n:x.v };
+    if(x.t === 'kw'){
+      if(x.v === 'TRUE') return { k:'lit', v:true }; if(x.v === 'FALSE') return { k:'lit', v:false }; if(x.v === 'NULL' || x.v === 'UNDEF') return { k:'lit', v:null };
+      if(x.v === 'CASE'){ var whens = [], els = null; while(this.eat('WHEN')){ var c = this.expr(); this.want('THEN'); whens.push({ c:c, v:this.expr() }); } if(this.eat('ELSE')) els = this.expr(); this.want('END'); return { k:'case', whens:whens, els:els }; }
+    }
+    if(x.t === 'op' && x.v === '('){ var e = this.expr(); this.eatOp(')'); return e; }
+    if(x.t === 'id'){
+      var lo = x.v.toLowerCase();
+      if(this.op('(')){
+        this.p++;
+        if(/^(значение|value)$/.test(lo)){ var parts = []; while(!this.eatOp(')')){ var y = this.next(); if(y.v !== '.') parts.push(y.v); } return { k:'lit', v:new BSym(parts) }; }
+        if(/^(выразить|cast)$/.test(lo)){ var ce = this.expr(); this.want('AS'); var d = 1; while(d && this.peek().t !== 'eof'){ var z = this.next(); if(z.v === '(') d++; else if(z.v === ')') d--; } return ce; }
+        var distinct = this.eat('DISTINCT'), args = [];
+        if(this.eatOp('*')) args.push({ k:'star' }); else if(!this.op(')')){ do { if(this.kw('MONTH') || this.peek().t === 'id' && /^(месяц|год|день|неделя|квартал)$/i.test(this.peek().v) && (this.op(')', 1) || this.peek(1).v === ',')) args.push({ k:'lit', v:this.next().v }); else args.push(this.expr()); } while(this.eatOp(',')); }
+        this.eatOp(')');
+        return { k:'fn', n:lo, args:args, distinct:distinct };
+      }
+      var path = [x.v]; while(this.op('.') && this.peek(1).t !== 'eof'){ this.p++; path.push(this.next().v); }
+      return { k:'path', p:path };
+    }
+    throw BslErr('Ошибка в тексте запроса: неожиданное «' + (x.raw || x.v) + '»');
+  };
+  var BQ_AGG = { 'сумма':1, 'sum':1, 'количество':1, 'count':1, 'максимум':1, 'max':1, 'минимум':1, 'min':1, 'среднее':1, 'avg':1 };
+  var BQ_SUFFIX = ['НачальныйОстаток', 'КонечныйОстаток', 'Остаток', 'Оборот', 'Приход', 'Расход'];
+  function bqHasAgg(e){ if(!e || typeof e !== 'object') return false; if(e.k === 'fn' && BQ_AGG[e.n]) return true; for(var k in e){ var v = e[k]; if(Array.isArray(v)){ for(var i = 0; i < v.length; i++) if(bqHasAgg(v[i])) return true; } else if(v && typeof v === 'object' && v.k && bqHasAgg(v)) return true; } return false; }
+  // таблица-источник запроса: по имени из входных данных или вся входная таблица
+  function bqSource(src, vm, temps){
+    var data = vm.ctx.input, path = src.path, last = path[path.length - 1];
+    var lo = function(s){ return String(s).toLowerCase().replace(/ё/g, 'е'); };
+    if(temps[lo(path.join('.'))]) return temps[lo(path.join('.'))];
+    var names = [path.slice(1).join('.'), path.slice(1).join(''), last];
+    if(/^(остатки|обороты|остаткииобороты|срезпоследних|срезпервых|balance|turnovers)$/i.test(last) && path.length > 2) names.push(path[path.length - 2]);
+    if(path.length > 2) names.push(path[1]);
+    var props = data instanceof BTable ? data.props : (data instanceof BStruct ? data : null);
+    if(props){ for(var i = 0; i < names.length; i++){ if(names[i] && props.has(names[i])){ var v = props.get(names[i]); if(v instanceof BTable) return v; if(v instanceof BArr) return bslFromJson(bslToJson(v)); } } }
+    if(data instanceof BTable){ if(path.length) vm.note('Источник «' + path.join('.') + '» — взяты входные данные блока (' + data.rows.length + ' записей)'); return data; }
+    vm.note('Источник «' + path.join('.') + '» не найден во входных данных — результат пуст');
+    var t = new BTable(); return t;
+  }
+  function bqResolve(ctx, path, vm, single){
+    var row = null, rest = path;
+    var a0 = String(path[0]).toLowerCase().replace(/ё/g, 'е');
+    if(ctx.aliases[a0] !== undefined){ row = ctx.aliases[a0]; rest = path.slice(1); }
+    else if(single){ row = ctx.aliases[single]; }
+    if(!rest.length) return row;
+    rest = rest.filter(function(s){ return !/^(ссылка|ref)$/i.test(s); });
+    if(!rest.length) return row;
+    var cur = row;
+    for(var i = 0; i < rest.length; i++){
+      if(cur === null || cur === undefined || cur === BSL_MISSING) return BSL_MISSING;
+      var nm = rest[i], v = bqField(cur, nm);
+      if(v === BSL_MISSING && i < rest.length - 1){ continue; }       // «Контрагент.Наименование» — строка сама себе представление
+      if(v === BSL_MISSING && i > 0 && /^(наименование|представление|description|presentation|код|code)$/i.test(nm) && (typeof cur !== 'object')) return cur;
+      if(v === BSL_MISSING){ vm.note('Поля «' + rest.join('.') + '» нет во входных данных — условия с ним не применялись'); return BSL_MISSING; }
+      cur = v;
+    }
+    return cur;
+  }
+  function bqField(r, nm){
+    if(r instanceof BRow){
+      var c = r.t.colOf(nm); if(c) return r.v[c];
+      for(var i = 0; i < BQ_SUFFIX.length; i++){ var sfx = BQ_SUFFIX[i]; if(nm.length > sfx.length && nm.slice(-sfx.length).toLowerCase() === sfx.toLowerCase()){ var c2 = r.t.colOf(nm.slice(0, -sfx.length)); if(c2) return r.v[c2]; } }
+      var syn = bslSynCol(r.t, nm); if(syn) return r.v[syn];
+      return BSL_MISSING;
+    }
+    if(r instanceof BStruct){ return r.has(nm) ? r.get(nm) : BSL_MISSING; }
+    return BSL_MISSING;
+  }
+  function bslQuery(text, params, vm, batch){
+    var qs = new BQP(String(text || '')).batch(), temps = vm.qtemps || (vm.qtemps = {}), res = [];
+    if(!qs.length) throw BslErr('Текст запроса пуст');
+    qs.forEach(function(q){ var t = bqRun(q, params, vm, temps); if(q.into) temps[String(q.into).toLowerCase()] = t; res.push(t); });
+    return batch ? res : res[res.length - 1];
+  }
+  function bqRun(q, params, vm, temps){
+    var srcT = q.from ? (q.from.sub ? bqRun(q.from.sub, params, vm, temps) : bqSource(q.from, vm, temps)) : null;
+    var main = q.from ? String(q.from.as).toLowerCase().replace(/ё/g, 'е') : null;
+    var ctxs = srcT ? srcT.rows.map(function(r){ var a = {}; a[main] = r; return { aliases:a }; }) : [{ aliases:{} }];
+    q.joins.forEach(function(j){
+      var jt = j.src.sub ? bqRun(j.src.sub, params, vm, temps) : bqSource(j.src, vm, temps), ja = String(j.src.as).toLowerCase().replace(/ё/g, 'е'), out = [];
+      ctxs.forEach(function(c){
+        var hit = false;
+        jt.rows.forEach(function(r){ var a = Object.assign({}, c.aliases); a[ja] = r; var nc = { aliases:a }; if(!j.on || bqTruth(bqEval(j.on, nc, params, vm, null))){ out.push(nc); hit = true; } });
+        if(!hit && (j.type === 'LEFT' || j.type === 'FULL')){ var a2 = Object.assign({}, c.aliases); a2[ja] = null; out.push({ aliases:a2 }); }
+      });
+      ctxs = out;
+    });
+    var single = q.joins.length ? null : main;
+    if(q.where) ctxs = ctxs.filter(function(c){ return bqTruth(bqEval(q.where, c, params, vm, single)); });
+    var t = new BTable(), grouped = !!q.group || q.items.some(function(it){ return it.e && bqHasAgg(it.e); });
+    var items = [];
+    q.items.forEach(function(it){ if(it.star && srcT){ srcT.cols.forEach(function(c){ items.push({ e:{ k:'path', p:[c] }, as:c }); }); } else if(!it.star) items.push(it); });
+    items.forEach(function(it){ t.addCol(it.as); });
+    if(grouped){
+      var groups = [], idx = {};
+      ctxs.forEach(function(c){ var key = JSON.stringify((q.group || []).map(function(g){ return bslToJson(bqEval(g, c, params, vm, single)); })); if(!idx[key]){ idx[key] = []; groups.push(idx[key]); } idx[key].push(c); });
+      if(!groups.length && !q.group) groups.push([]);
+      groups.forEach(function(gr){
+        var hv = q.having ? bqTruth(bqEval(q.having, gr[0] || { aliases:{} }, params, vm, single, gr)) : true; if(!hv) return;
+        var r = t.newRow(); items.forEach(function(it){ var v = bqEval(it.e, gr[0] || { aliases:{} }, params, vm, single, gr); r.v[t.colOf(it.as)] = v === BSL_MISSING ? null : v; });
+      });
+    } else {
+      ctxs.forEach(function(c){ var r = t.newRow(); items.forEach(function(it){ var v = bqEval(it.e, c, params, vm, single); r.v[t.colOf(it.as)] = v === BSL_MISSING ? null : v; }); r.__ctx = c; });
+    }
+    if(q.distinct){ var seen = {}; t.rows = t.rows.filter(function(r){ var k = JSON.stringify(bslToJson(r)); if(seen[k]) return false; seen[k] = 1; return true; }); }
+    if(q.order){
+      t.rows.sort(function(x, y){
+        for(var i = 0; i < q.order.length; i++){
+          var o = q.order[i], A = bqOrderVal(o.e, x, t, params, vm, single), B = bqOrderVal(o.e, y, t, params, vm, single);
+          if(A instanceof Date) A = +A; if(B instanceof Date) B = +B;
+          if(A === B) continue; if(A === null || A === undefined) return o.desc ? 1 : -1; if(B === null || B === undefined) return o.desc ? -1 : 1;
+          return (A < B ? -1 : 1) * (o.desc ? -1 : 1);
+        }
+        return 0;
+      });
+    }
+    t.rows.forEach(function(r){ delete r.__ctx; });
+    if(q.top) t.rows = t.rows.slice(0, q.top);
+    if(q.union){ var u = bqRun(q.union.q, params, vm, temps); u.rows.forEach(function(r){ var nr = t.newRow(); t.cols.forEach(function(c, i){ nr.v[c] = r.v[u.cols[i]]; }); }); if(!q.union.all){ var s2 = {}; t.rows = t.rows.filter(function(r){ var k = JSON.stringify(bslToJson(r)); if(s2[k]) return false; s2[k] = 1; return true; }); } }
+    return t;
+  }
+  function bqOrderVal(e, r, t, params, vm, single){ if(e.k === 'path' && e.p.length === 1 && t.colOf(e.p[0])) return r.v[t.colOf(e.p[0])]; if(r.__ctx) return bqEval(e, r.__ctx, params, vm, single); if(e.k === 'path'){ var c = t.colOf(e.p[e.p.length - 1]); if(c) return r.v[c]; } return null; }
+  function bqTruth(v){ return v === BSL_MISSING ? true : !!v; }
+  function bqEval(e, c, params, vm, single, group){
+    var ev = function(x){ return bqEval(x, c, params, vm, single, group); };
+    switch(e.k){
+      case 'lit': return e.v instanceof BSym ? String(e.v) : e.v;
+      case 'param': if(!params.has(e.n)) throw BslErr('Не установлено значение параметра «' + e.n + '»'); var pv = params.get(e.n); return pv instanceof BSym ? String(pv) : pv;
+      case 'path': return bqResolve(c, e.p, vm, single);
+      case 'and': return bqTruth(ev(e.l)) && bqTruth(ev(e.r));
+      case 'or': return bqTruth(ev(e.l)) || bqTruth(ev(e.r));
+      case 'not': var nv = ev(e.e); return nv === BSL_MISSING ? true : !nv;
+      case 'neg': return -vm.num(ev(e.e));
+      case 'cmp':
+        var a = ev(e.l), b = ev(e.r); if(a === BSL_MISSING || b === BSL_MISSING) return BSL_MISSING;
+        if(a instanceof BSym) a = String(a); if(b instanceof BSym) b = String(b);
+        if(a instanceof Date) a = +a; if(b instanceof Date) b = +b;
+        if(typeof a === 'string' && typeof b === 'string' && e.op === '=') return a.replace(/\s/g, '').toLowerCase() === b.replace(/\s/g, '').toLowerCase();
+        if(typeof a === 'string' && typeof b === 'number' && !isNaN(parseFloat(a))) a = parseFloat(a);
+        switch(e.op){ case '=': return a === b; case '<>': return a !== b; case '<': return a < b; case '>': return a > b; case '<=': return a <= b; case '>=': return a >= b; }
+        break;
+      case 'bin': var l = ev(e.l), r = ev(e.r); if(l === BSL_MISSING || r === BSL_MISSING) return null; if(e.op === '+' && (typeof l === 'string' || typeof r === 'string')) return bslStr(l) + bslStr(r); l = vm.num(l); r = vm.num(r); return e.op === '+' ? l + r : e.op === '-' ? l - r : e.op === '*' ? l * r : (r === 0 ? 0 : l / r);
+      case 'in':
+        var v = ev(e.e); if(v === BSL_MISSING) return BSL_MISSING;
+        var list = [];
+        e.list.forEach(function(x){ if(x.k === 'sub'){ var st = bqRun(x.q, params, vm, vm.qtemps || {}); st.rows.forEach(function(rr){ list.push(rr.v[st.cols[0]]); }); return; } var lv = ev(x); if(lv instanceof BArr) list = list.concat(lv.a); else if(lv instanceof BTable) lv.rows.forEach(function(rr){ list.push(rr.v[lv.cols[0]]); }); else list.push(lv); });
+        var hit = list.some(function(x){ return vm.eq(x instanceof BSym ? String(x) : x, v); });
+        return e.neg ? !hit : hit;
+      case 'between': var bv = ev(e.e), lo = ev(e.a), hi = ev(e.b); if(bv === BSL_MISSING) return BSL_MISSING; if(bv instanceof Date){ bv = +bv; lo = +lo; hi = +hi; } var inb = bv >= lo && bv <= hi; return e.neg ? !inb : inb;
+      case 'like': var sv = ev(e.e); if(sv === BSL_MISSING) return BSL_MISSING; var re = new RegExp('^' + String(ev(e.pat)).replace(/[.*+?^${}()|\\]/g, '\\$&').replace(/%/g, '.*').replace(/_/g, '.') + '$', 'i'); var lk = re.test(bslStr(sv)); return e.neg ? !lk : lk;
+      case 'isnull': var iv = ev(e.e), isn = iv === null || iv === undefined || iv === BSL_MISSING; return e.neg ? !isn : isn;
+      case 'case': for(var i = 0; i < e.whens.length; i++) if(bqTruth(ev(e.whens[i].c)) && ev(e.whens[i].c) !== BSL_MISSING) return ev(e.whens[i].v); return e.els ? ev(e.els) : null;
+      case 'fn':
+        if(BQ_AGG[e.n]){
+          var rows = group || [c], vals = [];
+          rows.forEach(function(gc){ if(e.args[0] && e.args[0].k === 'star'){ vals.push(1); return; } var x = bqEval(e.args[0], gc, params, vm, single, null); if(x !== null && x !== undefined && x !== BSL_MISSING) vals.push(x); });
+          if(e.distinct){ var sd = {}; vals = vals.filter(function(x){ var k = JSON.stringify(bslToJson(x)); if(sd[k]) return false; sd[k] = 1; return true; }); }
+          if(/^(количество|count)$/.test(e.n)) return vals.length;
+          if(!vals.length) return null;
+          var nums = vals.map(function(x){ return x instanceof Date ? +x : (typeof x === 'number' ? x : vm.num(x)); });
+          if(/^(сумма|sum)$/.test(e.n)) return Math.round(nums.reduce(function(s, x){ return s + x; }, 0) * 1e8) / 1e8;
+          if(/^(среднее|avg)$/.test(e.n)) return nums.reduce(function(s, x){ return s + x; }, 0) / nums.length;
+          var best = vals[0]; vals.forEach(function(x, i){ if(/^(максимум|max)$/.test(e.n) ? nums[i] > (best instanceof Date ? +best : vm.num(best)) : nums[i] < (best instanceof Date ? +best : vm.num(best))) best = x; }); return best;
+        }
+        var A = e.args.map(ev);
+        switch(e.n){
+          case 'естьnull': case 'isnull': return A[0] === null || A[0] === undefined || A[0] === BSL_MISSING ? A[1] : A[0];
+          case 'год': case 'year': return A[0] instanceof Date ? A[0].getFullYear() : null;
+          case 'месяц': case 'month': return A[0] instanceof Date ? A[0].getMonth() + 1 : null;
+          case 'день': case 'dayofmonth': return A[0] instanceof Date ? A[0].getDate() : null;
+          case 'началопериода': case 'beginofperiod': var d = A[0]; if(!(d instanceof Date)) return d; var per = String(A[1]).toLowerCase(); return /год|year/.test(per) ? new Date(d.getFullYear(), 0, 1) : /месяц|month/.test(per) ? new Date(d.getFullYear(), d.getMonth(), 1) : /квартал|quarter/.test(per) ? new Date(d.getFullYear(), Math.floor(d.getMonth() / 3) * 3, 1) : new Date(d.getFullYear(), d.getMonth(), d.getDate());
+          case 'подстрока': case 'substring': return bslStr(A[0]).substr(A[1] - 1, A[2]);
+          case 'представление': case 'presentation': return bslStr(A[0]);
+          case 'датавремя': case 'datetime': return new Date(A[0], (A[1] || 1) - 1, A[2] || 1, A[3] || 0, A[4] || 0, A[5] || 0);
+          case 'разностьдат': case 'datediff': var ms = A[1] - A[0], u = String(A[2]).toLowerCase(); return Math.floor(ms / (/день|day/.test(u) ? 864e5 : /час|hour/.test(u) ? 36e5 : /минут|minute/.test(u) ? 6e4 : 1e3));
+          case 'добавитькдате': case 'dateadd': var dd = new Date(+A[0]), uu = String(A[1]).toLowerCase(); if(/месяц|month/.test(uu)) dd.setMonth(dd.getMonth() + A[2]); else if(/год|year/.test(uu)) dd.setFullYear(dd.getFullYear() + A[2]); else dd.setDate(dd.getDate() + A[2]); return dd;
+        }
+        throw BslErr('Функция «' + e.n + '» в запросе не поддерживается');
+    }
+    throw BslErr('Ошибка вычисления запроса');
+  }
+
+  /* =====================================================================
+     ЗАПУСК БЛОКОВ C++, C# И 1С: вход блока → аргументы функции,
+     результат → записи для следующих блоков. Без входа — демо-данные.
+     ===================================================================== */
+  // синонимы полей: блок на английском читает данные с русскими заголовками и наоборот
+  var FIELD_SYN = [
+    ['id', 'номер', 'код', 'заказ', 'артикул', 'number', 'no'], ['name', 'наименование', 'название', 'статья', 'имя', 'номенклатура', 'материал', 'title'],
+    ['revenue', 'выручка', 'доход', 'сумма', 'суммадокумента', 'amount', 'sales'], ['cost', 'себестоимость', 'затраты', 'расход', 'costs'],
+    ['plan', 'план', 'плановое', 'бюджет'], ['fact', 'факт', 'фактическое', 'actual'], ['qty', 'количество', 'кол', 'колво', 'quantity', 'count', 'остаток', 'вналичии'],
+    ['price', 'цена', 'стоимость'], ['value', 'значение', 'показатель', 'величина'], ['date', 'дата', 'период', 'day'], ['client', 'клиент', 'контрагент', 'покупатель', 'customer'],
+    ['warehouse', 'склад', 'stock'], ['status', 'статус', 'состояние'], ['total', 'итого', 'всего'], ['margin', 'маржа'], ['marginpct', 'маржапроцент', 'маржа%', 'margin_pct'],
+    ['planned_min', 'плановоевремя', 'планмин'], ['run_min', 'работа', 'работамин', 'фактвремя'], ['ideal_rate', 'норма', 'нормавыработки'], ['produced', 'выпущено', 'выпуск'], ['good', 'годных', 'годные'],
+    ['signal', 'сигнал', 'ряд', 'series', 'values', 'значения'], ['window', 'окно', 'период'], ['threshold_pct', 'порог', 'thresholdpct', 'threshold']
+  ];
+  function fieldSyn(n){
+    var lo = String(n).toLowerCase().replace(/[\s_]/g, ''), out = [];
+    FIELD_SYN.forEach(function(g){ var hit = g.some(function(x){ return x.replace(/[\s_]/g, '') === lo; }); if(hit) g.forEach(function(x){ if(out.indexOf(x) < 0) out.push(x); }); });
+    return out;
+  }
+  // демо-данные для запуска без входа (кнопка «Запустить» в редакторе)
+  function demoRows1c(){
+    return {
+      rows:[{ Заказ:'З-1047', Выручка:12800000, Себестоимость:11570000 }, { Заказ:'З-1050', Выручка:3900000, Себестоимость:2913000 }, { Заказ:'З-1052', Выручка:7400000, Себестоимость:6505000 }],
+      props:{
+        ЗаказКлиента:[{ Номер:'З-1047', Дата:'03.11.2026', Контрагент:'ООО «СтальПром»', СуммаДокумента:12800000, Проведен:true, Статус:'КВыполнению' },
+          { Номер:'З-1050', Дата:'05.11.2026', Контрагент:'АО «ТехМаш»', СуммаДокумента:3900000, Проведен:true, Статус:'КВыполнению' },
+          { Номер:'З-1051', Дата:'06.11.2026', Контрагент:'ООО «ЛогистикПлюс»', СуммаДокумента:1380000, Проведен:false, Статус:'КВыполнению' },
+          { Номер:'З-1052', Дата:'10.11.2026', Контрагент:'ООО «ЭнергоРесурс»', СуммаДокумента:7400000, Проведен:true, Статус:'Закрыт' }],
+        ТоварыНаСкладах:[{ Номенклатура:'Лист г/к 4 мм', Склад:'Основной', ВНаличии:42.5 }, { Номенклатура:'Подшипник 6205', Склад:'Основной', ВНаличии:1200 }, { Номенклатура:'Электроды МР-3', Склад:'Цех 2', ВНаличии:0 }, { Номенклатура:'Лист г/к 4 мм', Склад:'Цех 2', ВНаличии:8 }],
+        Товары:[{ Номенклатура:'Лист г/к 4 мм', Количество:3.2, Проведен:true, Заказ:'З-1047' }, { Номенклатура:'Электроды МР-3', Количество:0.4, Проведен:true, Заказ:'З-1047' }, { Номенклатура:'Лист г/к 4 мм', Количество:1.1, Проведен:true, Заказ:'З-1047' }, { Номенклатура:'Подшипник 6205', Количество:40, Проведен:true, Заказ:'З-1050' }],
+        Статьи:[{ Статья:'Металл', План:6.2, Факт:7.07 }, { Статья:'Работа', План:2.38, Факт:2.53 }, { Статья:'Энергия', План:0.38, Факт:0.40 }],
+        Ряд:[24.1, 23.8, 23.5, 22.9, 23.5, 21.4], Окно:3, Порог:5, Дата:'30.11.2026', Заказ:'З-1047'
+      }
+    };
+  }
+  var DEMO_SERIES = [12, 15, 11, 18, 20, 17, 21];
+  function sampleNum(name, i){
+    var n = String(name || '').toLowerCase();
+    var M = { planned_min:480, run_min:420, ideal_rate:2, produced:800, good:768, revenue:1280000, cost:1157000, plan:100, fact:108, qty:12, price:250, threshold:5, window:3 };
+    for(var k in M) if(n.indexOf(k) >= 0) return M[k] * (1 + (i || 0) * 0.13);
+    return Math.round(100 * (1 + (i || 0) * 0.37));
+  }
+  function cfSample(t, vm, i, name){
+    if(!t) return null;
+    var n = t.name;
+    if(/^(vector|List|IEnumerable|IList|array|IReadOnlyList|ICollection)$/.test(n)){ var el = t.args[0]; if(el && /^(double|float|decimal|int|long)$/.test(el.name)) return DEMO_SERIES.slice(); var out = []; for(var j = 0; j < 3; j++) out.push(cfSample(el, vm, j)); return out; }
+    if(vm.types[n] && vm.types[n].k === 'type'){ var td = vm.types[n], o = {}; td.fields.forEach(function(f, k){ o[f.name] = cfSample(f.type, vm, (i || 0) + k * 0.1, f.name); }); if(td.fields.some(function(f){ return /^(id|Id|name|Name)$/.test(f.name); })){} return o; }
+    if(/^(string|String)$/.test(n)) return /id/i.test(name || '') ? 'З-' + (1047 + (i | 0)) : ['Металл', 'Работа', 'Энергия', 'Накладные'][(i | 0) % 4];
+    if(/^(double|float|decimal|int|long|size_t|short|unsigned)/.test(n)) return Math.round(sampleNum(name, i) * 100) / 100;
+    if(n === 'bool') return true;
+    if(/^(Data|dynamic|object|auto)$/.test(n)) return demoRows1c().rows;
+    return null;
+  }
+  // аргумент функции из входных данных блока
+  function cfBind(t, v, vm){
+    if(!t) return v;
+    var n = t.name;
+    if(/^(vector|List|IEnumerable|IList|array|IReadOnlyList|ICollection)$/.test(n)){
+      var el = t.args[0], arr = Array.isArray(v) ? v : (v && typeof v === 'object' ? (function(){ for(var k in v) if(Array.isArray(v[k])) return v[k]; return [v]; })() : [v]);
+      if(el && /^(double|float|decimal|int|long|size_t)$/.test(el.name)) return arr.map(function(x){ if(typeof x === 'number') return x; if(x && typeof x === 'object'){ for(var k in x){ var nv = typeof x[k] === 'number' ? x[k] : parseFloat(String(x[k]).replace(/\s/g, '').replace(',', '.')); if(typeof x[k] !== 'boolean' && !isNaN(nv) && k.indexOf('__') !== 0) return nv; } } return parseFloat(x) || 0; });
+      return arr.map(function(x){ return cfBind(el, x, vm); });
+    }
+    if(vm.types[n] && vm.types[n].k === 'type' && v && typeof v === 'object' && !Array.isArray(v)){
+      var td = vm.types[n], o = new CfObj(n);
+      td.fields.forEach(function(f){ var k = cfFindKey(v, f.name), raw = k !== null ? v[k] : undefined; o[f.name] = raw === undefined ? vm.defVal(f.type) : (/^(double|float|decimal|int|long|size_t)$/.test(f.type.name) && typeof raw !== 'number' ? (parseFloat(String(raw).replace(/\s/g, '').replace(',', '.')) || 0) : raw); });
+      return o;
+    }
+    if(/^(double|float|decimal|int|long)$/.test(n) && typeof v !== 'number'){ if(v && typeof v === 'object' && !Array.isArray(v)){ for(var k2 in v) if(typeof v[k2] === 'number') return v[k2]; } return parseFloat(v) || 0; }
+    return v;
+  }
+  /* ---------- окружение C#: Data, секреты, сеть, Excel с рабочего стола ---------- */
+  function csIO(){
+    var XL = function(f, idx){ var vals = sheetValues(f, idx); return vals; };
+    var cellObj = function(v){ return { __t:'XLCell', v:v, GetString:function(){ return v === null || v === undefined ? '' : String(v); }, GetDouble:function(){ return typeof v === 'number' ? v : parseFloat(v) || 0; }, Value:v }; };
+    var rowObj = function(vals, r){ var row = vals[r] || []; return { __t:'XLRow', RowNumber:function(){ return r + 1; }, Cell:function(c){ return cellObj(row[(typeof c === 'number' ? c : 1) - 1]); }, CellsUsed:function(){ return row.filter(function(x){ return x !== '' && x !== null && x !== undefined; }).map(cellObj); } }; };
+    return {
+      global:function(n){ if(/^(Data|Secrets|Triosteum|IBlock|Block|XLWorkbook|HttpClient|Task|File|Path|Encoding|JsonSerializer)$/.test(n)) return { __type:n }; },
+      staticCall:function(cls, n, a, vm){
+        if(cls === 'Data'){ if(n === 'From' || n === 'Of') return a[0]; if(n === 'Empty') return {}; }
+        if(cls === 'Secrets' && /^(Get|get)$/.test(n)){ throw CfErr('Секрет «' + a[0] + '» не задан: в браузере ключи и пароли не хранятся. Блок с секретами выполняйте на сервере Triosteum'); }
+        if(cls === 'Task'){ if(n === 'FromResult') return a[0]; if(n === 'Delay' || n === 'WhenAll') return null; }
+        if(cls === 'JsonSerializer'){ if(n === 'Serialize') return JSON.stringify(cfToJson(a[0])); if(n === 'Deserialize') return JSON.parse(a[0]); }
+      },
+      staticMember:function(cls, n){ if(cls === 'Task' && n === 'CompletedTask') return null; },
+      newObj:function(n, a, vm){
+        if(n === 'HttpClient') return { __t:'HttpClient' };
+        if(n === 'FormUrlEncodedContent' || n === 'StringContent') return { __t:'Content', body:a[0] instanceof CfMap ? a[0].pairs().map(function(p){ return encodeURIComponent(p.k) + '=' + encodeURIComponent(p.v); }).join('&') : String(a[0]), type:n === 'StringContent' ? (a[2] || 'text/plain') : 'application/x-www-form-urlencoded' };
+        if(n === 'XLWorkbook'){
+          var nm = String(a[0] || '').replace(/^.*[\\\/]/, '').replace(/\.(xlsx|xls|csv)$/i, ''), f = typeof ofByName === 'function' ? ofByName(nm, 'sheet') : null;
+          if(!f) throw CfErr('Таблица «' + nm + '» не найдена на рабочем столе Triosteum — откройте или импортируйте её как файл «Таблица»');
+          return { __t:'XLWorkbook', Worksheet:function(i){ var idx = typeof i === 'number' ? i - 1 : f.data.sheets.map(function(s){ return s.name; }).indexOf(i); var vals = XL(f, Math.max(0, idx)); return { __t:'XLSheet', Row:function(r){ return rowObj(vals, r - 1); }, RowsUsed:function(){ var out = []; vals.forEach(function(row, r){ if(row.some(function(x){ return x !== '' && x !== null && x !== undefined; })) out.push(rowObj(vals, r)); }); return out; }, Cell:function(r, c){ return cellObj((vals[r - 1] || [])[c - 1]); } }; }, Dispose:function(){} };
+        }
+        if(n === 'SmtpClient' || n === 'MailMessage' || n === 'NetworkCredential') return { __t:n, Send:function(){ throw CfErr('Отправка почты из браузера невозможна — почту отправляет сервер Triosteum (SMTP)'); } };
+      },
+      method:function(o, n, a, vm, f){
+        if(o && o.__t === 'HttpClient' && /^(GetStringAsync|GetAsync|PostAsync|PutAsync|DeleteAsync)$/.test(n)){
+          var xhr = new XMLHttpRequest(), method = /^Post/.test(n) ? 'POST' : /^Put/.test(n) ? 'PUT' : /^Delete/.test(n) ? 'DELETE' : 'GET';
+          try { xhr.open(method, String(a[0]), false); if(a[1] && a[1].type) xhr.setRequestHeader('Content-Type', a[1].type); xhr.send(a[1] ? a[1].body : null); }
+          catch(e){ throw CfErr('Запрос к ' + String(a[0]).replace(/^(https?:\/\/[^\/]+).*/, '$1') + ' из браузера не выполнен (сайт не разрешает запросы из браузера). Такой блок выполняйте на сервере Triosteum'); }
+          if(n === 'GetStringAsync') return xhr.responseText;
+          return { __t:'HttpResponse', StatusCode:xhr.status, IsSuccessStatusCode:xhr.status >= 200 && xhr.status < 300, Content:{ __t:'HttpContent', ReadAsStringAsync:function(){ return xhr.responseText; } }, EnsureSuccessStatusCode:function(){ if(xhr.status >= 300) throw CfErr('HTTP ' + xhr.status); } };
+        }
+        if(o && o.__t === 'XLWorkbook' && n === 'Worksheet') return o.Worksheet(a[0]);
+        if(o && o.__t && typeof o[n] === 'function') return o[n].apply(o, a);
+        // Data: input.Get<T>("ключ") и input.Set("ключ", значение)
+        if(o && typeof o === 'object' && !o.__t && /^(Get|get|GetValue|Value)$/.test(n) && typeof a[0] === 'string'){
+          var key = cfFindKey(o, a[0]), v = key !== null ? o[key] : undefined, T = f && f.targs && f.targs[0] && f.targs[0].name;
+          if(v === undefined) throw CfErr('Во входных данных нет поля «' + a[0] + '»', f && f.line);
+          if(T && /^(double|decimal|float|int|long)$/.test(T)) return typeof v === 'number' ? v : (parseFloat(String(v).replace(/\s/g, '').replace(',', '.')) || 0);
+          if(T === 'string') return v == null ? '' : String(v);
+          return v;
+        }
+        if(o && typeof o === 'object' && !o.__t && /^(Set|set)$/.test(n)){ o[a[0]] = a[1]; return o; }
+        if(o && typeof o === 'object' && !o.__t && /^(Has|Contains|ContainsKey)$/.test(n) && !Array.isArray(o)) return cfFindKey(o, a[0]) !== null;
+        if(o && o.__t === 'HttpContent' && n === 'ReadAsStringAsync') return o.ReadAsStringAsync();
+      },
+      member:function(o, n){ if(o && o.__t === 'HttpResponse' && n in o) return o[n]; }
+    };
+  }
+  /* ---------- общий запуск ---------- */
+  function runForeign(lang, code, input, opts){
+    opts = opts || {};
+    var res = { ok:false, output:null, stdout:[], notes:[], error:null, demo:input === null || input === undefined };
+    try {
+      if(lang === '1c'){
+        var mod = new BslParser(code).module(), data;
+        if(res.demo){ var d = demoRows1c(), t = bslFromJson(d.rows); Object.keys(d.props).forEach(function(k){ t.props.set(k, bslFromJson(d.props[k])); }); data = t; }
+        else { data = bslFromJson(input); if(Array.isArray(input) && !(data instanceof BTable)){ var t0 = new BTable(); data = t0; } if(data instanceof BStruct){ var tt = new BTable(); tt.props = data; data = tt; } }
+        var vm = new BslVM(mod, { input:data });
+        var entry = mod.procs['выполнить'] || mod.procs['execute'] || mod.procs['run'] || mod.procs['обработать'];
+        var out;
+        if(entry) out = vm.callProc(entry, [data]); else { var sc = new Map(); sc.set('входныеданные', data); try { vm.block(mod.body, sc); } catch(e){ if(!(e instanceof BslRet)) throw e; out = e.v; } }
+        res.output = bslToJson(out); res.stdout = vm.out; res.notes = vm.notes; res.ok = true;
+        return res;
+      }
+      if(lang === 'cpp' || lang === 'csharp'){
+        var P = new CfParser(code, lang), prog = P.program(), cvm = new CfVM(prog, lang, lang === 'csharp' ? csIO() : { global:function(n){ if(n === 'Data') return { __type:'Data' }; }, method:csIO().method });
+        var fn = null, self = null, td = null;
+        if(lang === 'csharp'){
+          Object.keys(cvm.types).some(function(k){ var x = cvm.types[k]; if(x.k === 'type' && x.methods && (x.methods.Run || x.methods.Execute)){ td = x; fn = x.methods.Run || x.methods.Execute; return true; } return false; });
+          if(!fn) Object.keys(cvm.types).some(function(k){ var x = cvm.types[k]; if(x.k === 'type' && x.methods && x.methods.Main){ td = x; fn = x.methods.Main; return true; } return false; });
+          if(!fn) throw CfErr('Не найден метод Run(…) — блок C# должен содержать класс с методом Run');
+          if(!fn.static) self = cvm.construct(td, [], null, { vars:new Map(), up:{ vars:cvm.globals, up:null } });
+        } else {
+          var f0 = cvm.funcs.run || cvm.funcs.Run || cvm.funcs.main; if(!f0) throw CfErr('Не найдена функция run(…) — блок C++ должен содержать функцию run');
+          fn = f0.filter(function(x){ return x.body; })[0];
+        }
+        var p0 = fn.params[0], perRow = false;
+        var arg0 = null;
+        if(p0){
+          if(res.demo) arg0 = cfSample(p0.type, cvm, 0, p0.name);
+          else {
+            var isStruct = cvm.types[p0.type.name] && cvm.types[p0.type.name].k === 'type';
+            if(isStruct && Array.isArray(input)) perRow = true;
+            else arg0 = cfBind(p0.type, input, cvm);
+          }
+        }
+        cvm.curFunc = fn;
+        var call = function(a0){ return fn.name === 'Main' ? cvm.callFunc(fn, [[]], self, td) : cvm.callFunc(fn, p0 ? [a0] : [], self, td); };
+        var outv;
+        if(perRow){
+          outv = input.map(function(row){ var r = call(cfBind(p0.type, row, cvm)), js = cfToJson(r), o = {}; for(var k in row) if(k.indexOf('__') !== 0) o[k] = row[k]; if(js && typeof js === 'object' && !Array.isArray(js)){ for(var k2 in js) o[k2] = js[k2]; } else o[opts.resultName || 'Результат'] = js; return o; });
+        } else outv = cfToJson(call(arg0));
+        res.output = outv; res.stdout = cvm.out.join('').split('\n').filter(function(x, i, a){ return x !== '' || i < a.length - 1; }); res.ok = true;
+        return res;
+      }
+      throw new Error('Язык «' + lang + '» не поддерживается встроенным исполнителем');
+    } catch(e){
+      if(e instanceof CfRet || e instanceof BslRet){ res.ok = true; res.output = cfToJson(e.v); return res; }
+      res.error = String(e && e.message || e).replace(/^Error:\s*/, '');
+      if(!e.cf && !e.bsl && !/строка/.test(res.error)) res.error = 'Ошибка исполнителя: ' + res.error;
+      return res;
+    }
+  }
+  var FOREIGN_LANGS = { cpp:1, csharp:1, '1c':1 };
+  function foreignLabel(lang){ return lang === 'cpp' ? 'C++' : lang === 'csharp' ? 'C#' : '1С'; }
+  function fmtOut(v){ var s = JSON.stringify(v); return s && s.length > 200 ? s.slice(0, 200) + '…' : s; }
 
   /* ---------- подсказки у кнопок панели ---------- */
   var tipEl = $('tip'), tipTimer = null;
@@ -7133,10 +9088,18 @@ public class MovingAverage : IBlock
             } else if(n.lang === 'html'){
               RES.items.push({ type:'html', title:n.name, html:nodeCode(n), node:n.id });
               rlog('▶ ' + n.name + ' — HTML-виджет добавлен в результаты, записи идут дальше: ' + rows.length, 'ok'); setRun(n, 'ok', 'HTML-виджет в результатах');
+            } else if(FOREIGN_LANGS[n.lang]){
+              var fr = runForeign(n.lang, nodeCode(n), hasIn ? rows.map(plainRow) : null, { resultName:n.name });
+              rlog('▶ ' + n.name + ' — ' + foreignLabel(n.lang) + (fr.demo ? ' (входа нет — демо-данные блока)' : ''));
+              fr.stdout.forEach(function(t){ rlog('   ' + t); }); fr.notes.forEach(function(t){ rlog('   ℹ ' + t, 'dim'); });
+              if(!fr.ok) throw new Error(fr.error);
+              out = toRows(fr.output); out.forEach(function(x, k){ if(rows[k] && rows[k].__doc) x.__doc = rows[k].__doc; });
+              if(out.length && Object.keys(out[0]).length > 1) RES.items.push({ type:'table', title:n.name, rows:out.map(plainRow), node:n.id });
+              rlog('  ✓ записей на выходе: ' + out.length, 'ok'); setRun(n, 'ok', 'Записей на выходе: ' + out.length);
             } else if(n.lang !== 'python' && !(langById(n.lang) && langById(n.lang).real)){
               var fl = langById(n.lang);
-              rlog('▶ ' + n.name + ' — пропущен: для ' + (fl ? shortName(fl) : n.lang) + ' нужен серверный компилятор, записи переданы дальше без изменений', 'warn');
-              stat.skip++; setRun(n, 'skip', 'Пропущен: нужен серверный компилятор');
+              rlog('▶ ' + n.name + ' — пропущен: для ' + (fl ? shortName(fl) : n.lang) + ' нет исполнителя, записи переданы дальше без изменений', 'warn');
+              stat.skip++; setRun(n, 'skip', 'Пропущен: нет исполнителя');
             } else if(n.lang === 'python'){
               if(!py){ rlog('▶ ' + n.name + ' — пропущен: Python не загрузился', 'warn'); stat.skip++; setRun(n, 'skip', 'Python не загрузился'); out = rows; }
               else {
@@ -8468,11 +10431,32 @@ public class MovingAverage : IBlock
      Работают на рабочем столе файлов, как «Офис»; файлы можно связывать
      в схеме файлов (картинка → векторный рисунок и обратно).
      ===================================================================== */
+  // «Картинка из данных»: записи схемы → диаграмма → готовый файл на рабочем столе
+  var OP_GFX = opKind('gfxpic', 'Картинка из данных', 'Рисует диаграмму по записям и кладёт её файлом на рабочий стол',
+    { label:'Категория', value:'Сумма', type:'bar', name:'Диаграмма из схемы' },
+    [['label', 'Подписи (поле)', 'f'], ['value', 'Значения (поле)', 'f'], ['type', 'Вид', 's', [['bar', 'столбцы'], ['line', 'линия'], ['pie', 'круговая']]], ['name', 'Имя файла', 't']],
+    function(rows, p, ctx){
+      var list = rows.slice(0, 30), aoa = [[p.label || 'Категория', p.value || 'Значение']].concat(list.map(function(r){ return [sv(r, p.label), nv(r, p.value)]; }));
+      var W = 760, H = 420, svg = chartSvg(aoa, p.type || 'bar', p.name || ctx.name, W, H, false);
+      if(svg.indexOf('xmlns=') < 0) svg = svg.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
+      var nm = (p.name || ctx.name) + ' ' + new Date().toLocaleTimeString('ru-RU', { hour:'2-digit', minute:'2-digit' });
+      if(ENV.id === 'photo' || (ENV.office && ENV.office.types[0] === 'image')){
+        svgToPng(svg.replace(/(<svg[^>]*>)/, '$1<rect width="100%" height="100%" fill="#fff"/>'), W, H, function(u){ if(!u) return; var c = document.createElement('canvas'); c.width = W; c.height = H; var im = new Image(); im.onload = function(){ c.getContext('2d').drawImage(im, 0, 0, W, H); newFile('image', nm, { w:W, h:H, layers:[{ id:'l' + Date.now().toString(36), name:'Диаграмма', vis:true, op:1, blend:'source-over', src:c.toDataURL('image/png') }] }, null, { silent:true }); saveGraph(); }; im.src = u; });
+      } else {
+        var san = veSanitizeSvg(svg) || { vb:'0 0 ' + W + ' ' + H, markup:'' };
+        newFile('vector', nm, { w:W, h:H, bg:'#ffffff', items:[{ id:'v' + Date.now().toString(36), t:'svg', name:'Диаграмма', vb:san.vb, markup:san.markup, x:0, y:0, w:W, h:H, r:0, op:1 }] }, null, { silent:true });
+      }
+      ctx.chart({ title:p.name || ctx.name, kind:p.type === 'line' ? 'line' : 'bar', labels:list.map(function(r){ return sv(r, p.label); }), values:list.map(function(r){ return nv(r, p.value); }), unit:p.value });
+      ctx.info = 'Файл «' + nm + '» на рабочем столе'; return rows;
+    }, function(p){ return 'диаграмма «' + (p.value || '?') + '» по «' + (p.label || '?') + '» → файл'; });
   function gfxEnv(id, o){
-    ENVS[id] = { id:id, name:o.name, short:o.short, color:o.color, ic:o.ic, theme:o.theme, desc:o.desc, newName:o.newName, seed:o.seed,
-      office:{ types:o.types, tabs:['desk', 'map'], noAi:true, noTpl:true },
-      defLang:'doc', langs:DOC_KINDS.slice(0, 2), colors:DOC_COLORS, plugins:[],
-      word:{ lang:'Тип', plugin:'файл', plugins:'файлов', lib:'Файлы', create:'Создать', newTitle:'Новый файл', kindLabel:'Тип', run:'Скачать', runSub:'Сохранить на компьютер', scheme:'Схема файлов', schemeSub:'Связи файлов', open:'Открыть', libOpen:'Открыть' } };
+    var colors = {}, k; for(k in DOC_COLORS) colors[k] = DOC_COLORS[k]; for(k in CODE_COLORS) colors[k] = CODE_COLORS[k]; for(k in GEN_COLORS) colors[k] = GEN_COLORS[k]; colors.gfxpic = [o.color, '#F472B6'];
+    var code = CODE_LANGS.filter(function(l){ return l.id !== 'python'; });
+    ENVS[id] = { id:id, name:o.name, short:o.short, color:o.color, ic:o.ic, theme:o.theme, desc:o.desc, newName:o.newName, seed:o.seed, route:true,
+      hint:'Соберите обработку на доске: таблица → расчёты → «Картинка из данных» — готовый рисунок появится на рабочем столе. Блоки Python, C++, C# и 1С выполняются вместе со схемой.',
+      office:{ types:o.types, tabs:['desk', 'map', 'auto'], noAi:true, noTpl:true },
+      defLang:'sheet', langs:[OP_GFX].concat(DOC_KINDS, code, GEN_OPS), colors:colors, plugins:CODE_PLUGINS.filter(function(p){ return p.lang !== 'python' || p.family; }).concat(DOC_PLUGINS.filter(function(p){ return p.lang === 'sheet'; })),
+      word:{ lang:'Тип', plugin:'блок', plugins:'блоков', lib:'Библиотека', create:'Создать', newTitle:'Новый блок', kindLabel:'Тип', run:'Запустить схему', runSub:'Выполнить блоки на доске «Автоматизация»', scheme:'Схема файлов', schemeSub:'Связи файлов', open:'Открыть', libOpen:'На доску' } };
   }
   function gfxSeedPhoto(){
     newProj('Фото — пример', null, 'photo');
@@ -12897,23 +14881,35 @@ public class MovingAverage : IBlock
     if(home === ENV.id){ openNode(n.id); return; }
     bridgeOpen(n, home);
   }
-  // мост: копия блока открывается в родной среде, правки возвращаются в исходное пространство
+  // мост: то же пространство открывается в родной среде блока — без копий и лишних пространств;
+  // правки сохраняются сразу, «Вернуться» возвращает прежнюю среду
   function bridgeOpen(n, home){
-    var back = { proj:PROJ.cur, node:n.id, env:ENV.id, envName:ENV.name, projName:curProj().name, office:!!ENV.office };
-    var copy = JSON.parse(JSON.stringify(n)); copy.bridge = back;
-    if(copy.kind !== 'hub'){ copy.codes = copy.codes || {}; copy.codes[copy.lang] = nodeCode(n); }
+    if(S.visit && S.visit.proj === PROJ.cur && home === S.visit.env){ var id = n.id; visitReturn(); var back = nodeById(id); if(back) openBlock(back); return; }
     if(ENV.office && typeof ofCommit === 'function') ofCommit();
-    var bp = PROJ.list.filter(function(p){ return p.env === home && p.bridge; })[0];
-    if(bp) switchProj(bp.id);
-    else { newProj('Правки блоков из других пространств', null, home); curProj().bridge = true; saveProj(); }
-    G.nodes = G.nodes.filter(function(x){ return !(x.bridge && x.bridge.proj === back.proj && x.bridge.node === back.node); });
-    var c = viewCenter(); copy.id = newId('n'); copy.x = Math.round(c.x - NW / 2); copy.y = Math.round(c.y - NH / 2);
-    G.nodes.push(copy); S.sel = { type:'node', id:copy.id }; S.multi = [];
-    saveGraph(); renderGraph();
-    toast('Блок «' + n.name + '» открыт в среде «' + ENVS[home].name + '» — после правок нажмите «Вернуть в ' + back.projName + '»');
-    openNode(copy.id);
+    flushSave();
+    var back = { env:ENV.id, envName:ENV.name, node:n.id, tab:ENV.office ? OF.tab : null, proj:PROJ.cur };
+    setEnv(home);
+    S.visit = back;
+    if(typeof ofRender === 'function') ofRender();
+    S.view = 'canvas'; hidePop(); render(); renderGraph();
+    S.sel = { type:'node', id:n.id }; S.multi = []; updateSel();
+    openNode(n.id);
     bridgeBar();
+    toast('«' + n.name + '» открыт в среде «' + ENVS[home].name + '» — правки сохраняются сразу');
   }
+  function visitReturn(){
+    var v = S.visit; if(!v) return;
+    flushSave(); S.visit = null;
+    if(PROJ.cur !== v.proj){ bridgeBar(); return; }
+    setEnv(v.env);
+    S.view = 'canvas'; render();
+    if(ENV.office && typeof ofSetTab === 'function') ofSetTab(v.tab === 'auto' || !v.tab ? 'auto' : v.tab); else renderGraph();
+    var n = nodeById(v.node); if(n){ S.sel = { type:'node', id:n.id }; updateSel(); }
+    bridgeBar();
+    toast('Вы снова в среде «' + v.envName + '»' + (n ? ' — блок «' + n.name + '» обновлён' : ''));
+  }
+  var _switchProjU = switchProj;
+  switchProj = function(id){ if(S.visit && id !== S.visit.proj) S.visit = null; return _switchProjU.apply(this, arguments); };
   function bridgeReturn(copy){
     if(!copy || !copy.bridge) return;
     flushSave();
@@ -12933,6 +14929,14 @@ public class MovingAverage : IBlock
   }
   function bridgeBar(){
     var bar = $('bridgeBar'), list = G.nodes.filter(function(n){ return n.bridge; });
+    if(S.visit && S.visit.proj === PROJ.cur){
+      var vn = nodeById(S.visit.node);
+      if(!bar){ bar = h('div', { 'class':'bridge-bar', id:'bridgeBar', role:'status' }); document.body.appendChild(bar); }
+      bar.innerHTML = '';
+      bar.appendChild(h('span', { 'class':'bb-t', text:(vn ? 'Блок «' + vn.name + '»' : 'Пространство') + ' открыт в среде «' + ENV.name + '» · правки сохраняются сразу' }));
+      bar.appendChild(h('button', { type:'button', 'class':'btn sm primary', text:'Вернуться в «' + S.visit.envName + '»', on:{ click:visitReturn } }));
+      return;
+    }
     if(!list.length){ if(bar) bar.remove(); return; }
     var dn = typeof docNode === 'function' ? docNode() : null, cur = (dn && dn.bridge) ? dn : list[list.length - 1];
     if(!bar){ bar = h('div', { 'class':'bridge-bar', id:'bridgeBar', role:'status' }); document.body.appendChild(bar); }
@@ -12951,7 +14955,8 @@ public class MovingAverage : IBlock
     if(!n) return;
     var acts = p.querySelector('.acts'); if(!acts) return;
     var home = blockHome(n);
-    if(home !== ENV.id && ENVS[home]) acts.insertBefore(h('button', { type:'button', 'class':'btn sm primary', text:'Открыть в среде «' + ENVS[home].name + '»', title:'Исходник блока откроется в его родной среде; правки вернутся сюда', on:{ click:function(){ hidePop(); bridgeOpen(n, home); } } }), acts.firstChild);
+    if(home !== ENV.id && ENVS[home]) acts.insertBefore(h('button', { type:'button', 'class':'btn sm primary', text:'Открыть в среде «' + ENVS[home].name + '»', title:'Исходник блока откроется в его родной среде, в этом же пространстве', on:{ click:function(){ hidePop(); bridgeOpen(n, home); } } }), acts.firstChild);
+    if(S.visit && S.visit.proj === PROJ.cur) acts.insertBefore(h('button', { type:'button', 'class':'btn sm primary', text:'Вернуться в «' + S.visit.envName + '»', on:{ click:function(){ hidePop(); visitReturn(); } } }), acts.firstChild);
     if(n.bridge) acts.insertBefore(h('button', { type:'button', 'class':'btn sm primary', text:'Вернуть в «' + n.bridge.projName + '»', on:{ click:function(){ hidePop(); bridgeReturn(n); } } }), acts.firstChild);
     acts.appendChild(h('button', { type:'button', 'class':'btn sm', text:'Копировать (в любое пространство)', on:{ click:function(){ S.multi = []; S.sel = { type:'node', id:n.id }; copySel(); } } }));
   };

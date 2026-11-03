@@ -3,11 +3,11 @@
       tpl:'<!-- Плагин Triosteum: новый виджет -->\n<div style="font-family:sans-serif;padding:24px">\n  <h3 style="margin:0;color:#7F1D1D">Маржа</h3>\n  <p style="font-size:40px;margin:8px 0">21,4%</p>\n</div>\n' },
     { id:'python', name:'Python', tool:'Python в браузере (Pyodide)', ext:'py', real:true,
       tpl:'# Плагин Triosteum: новый блок\nfrom triosteum import block\n\n\n@block(name="Мой блок")\ndef run(data):\n    # data — входные данные из схемы\n    total = sum(data["values"])\n    print("Сумма:", total)\n    return {"total": total}\n' },
-    { id:'cpp', name:'C++', tool:'Компилятор GCC / Clang (будет на сервере)', ext:'cpp', real:false,
+    { id:'cpp', name:'C++', tool:'Встроенный исполнитель C++ — работает в браузере', ext:'cpp', real:true,
       tpl:'// Плагин Triosteum: новый блок\n#include "triosteum/block.h"\n\nTRIOSTEUM_BLOCK("Мой блок")\nData run(const Data& input) {\n    // input — входные данные из схемы\n    return input;\n}\n' },
-    { id:'csharp', name:'C# (C Sharp)', tool:'Компилятор .NET Roslyn (будет на сервере)', ext:'cs', real:false,
+    { id:'csharp', name:'C# (C Sharp)', tool:'Встроенный исполнитель C# (с LINQ) — работает в браузере', ext:'cs', real:true,
       tpl:'// Плагин Triosteum: новый блок\nusing Triosteum;\n\n[Block("Мой блок")]\npublic class MyBlock : IBlock\n{\n    public Data Run(Data input)\n    {\n        // input — входные данные из схемы\n        return input;\n    }\n}\n' },
-    { id:'1c', name:'1С', tool:'Платформа 1С:Предприятие 8.3 (будет на сервере)', ext:'bsl', real:false,
+    { id:'1c', name:'1С', tool:'Встроенный исполнитель 1С и языка запросов — работает в браузере', ext:'bsl', real:true,
       tpl:'// Плагин Triosteum: новый блок\nФункция Выполнить(ВходныеДанные) Экспорт\n    // ВходныеДанные — данные из схемы\n    Возврат ВходныеДанные;\nКонецФункции\n' }
   ];
 
