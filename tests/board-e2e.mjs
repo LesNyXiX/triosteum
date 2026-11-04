@@ -180,6 +180,7 @@ console.log('Желе мышью на компьютере');
     localStorage.setItem('triosteum.projects', JSON.stringify({ cur: 'p1', list: [{ id: 'p1', name: 'Доска', t: Date.now() }] }));
     localStorage.setItem('triosteum.proj.p1', JSON.stringify(g));
     localStorage.setItem('triosteum.profile', JSON.stringify({ name: 'Тест', org: 'Завод' }));
+    localStorage.setItem('triosteum.ui', JSON.stringify({ snap: true }));   // привязка к сетке включена
   }, g2);
   const mp = await mc.newPage(); await mp.goto(URL); await mp.waitForTimeout(900);
   const nb = await mp.locator('#nodes .node[data-id="m1"]').boundingBox();
@@ -200,7 +201,9 @@ console.log('Желе мышью на компьютере');
   }
   await mp.mouse.up();
   for (let i = 0; i < 12; i++) { await mp.waitForTimeout(50); const r = await probe(); gap = Math.max(gap, Math.abs(r.right - 1 - r.sx)); }
-  check(lag < 1, 'мышью блок идёт строго за курсором (отставание ' + lag.toFixed(1) + ' px)');
+  check(lag < 1, 'мышью блок идёт строго и плавно за курсором, даже с привязкой к сетке (отставание ' + lag.toFixed(1) + ' px)');
+  const fin = await mp.$eval('#nodes .node[data-id="m1"]', (d) => ({ l: parseFloat(d.style.left), t: parseFloat(d.style.top) }));
+  check(fin.l % 24 === 0 && fin.t % 24 === 0, 'после отпускания блок мягко встал на сетку');
   check(stretched > 5, 'желе при перетаскивании мышью работает');
   check(gap < 1.5, 'линия связи не отрывается от растянутого блока ни при движении, ни при пружинке (зазор ' + gap.toFixed(2) + ' px)');
   await mp.waitForTimeout(1500);

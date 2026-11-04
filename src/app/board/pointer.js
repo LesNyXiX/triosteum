@@ -257,7 +257,8 @@
       if(drag.lp){ clearTimeout(drag.lp); drag.lp = null; }
       var w = toWorld(e.clientX, e.clientY);
       drag.tx = Math.round(w.x - drag.dx); drag.ty = Math.round(w.y - drag.dy); drag.moved = true;
-      if(UI.snap && !e.altKey){ drag.tx = Math.round(drag.tx / GRID) * GRID; drag.ty = Math.round(drag.ty / GRID) * GRID; }
+      // привязка к сетке: блок плавно идёт за курсором, а на сетку мягко встаёт после отпускания
+      drag.snap = !!(UI.snap && !e.altKey);
       smoothMove(drag);
       if(drag.type === 'node') shakeTrack(drag, e);
       jellyMove(drag, e, drag.el);
@@ -322,6 +323,7 @@
   function finishSmooth(){
     if(moveRaf){ cancelAnimationFrame(moveRaf); moveRaf = 0; }
     var o = moveDg; moveDg = null;
+    if(o && o.glide){ o.glide = false; placeDragged(o, o.tx, o.ty); saveGraph(); return; }
     if(o && o.vx != null && (o.vx !== o.tx || o.vy !== o.ty)){ o.tx = o.vx = Math.round(o.vx); o.ty = o.vy = Math.round(o.vy); placeDragged(o, o.tx, o.ty); if(o.finishing){ o.finishing = false; saveGraph(); } }
   }
   function smoothMove(dg){
@@ -346,6 +348,20 @@
       else { if(moveDg === dg) moveDg = null; if(dg.finishing){ dg.finishing = false; saveGraph(); } }
     });
   }
+  // мягкая посадка на сетку после отпускания
+  function snapGlide(dg, x, y){
+    var fx = dg.item.x, fy = dg.item.y;
+    if(fx === x && fy === y){ saveGraph(); return; }
+    if(document.body.classList.contains('noanim')){ placeDragged(dg, x, y); saveGraph(); return; }
+    var t0 = performance.now(), D = 160;
+    moveDg = dg; dg.glide = true; dg.vx = x; dg.vy = y; dg.tx = x; dg.ty = y;
+    moveRaf = requestAnimationFrame(function step(now){
+      moveRaf = 0;
+      var k = Math.min(1, (now - t0) / D), q = 1 - Math.pow(1 - k, 3);
+      placeDragged(dg, k < 1 ? fx + (x - fx) * q : x, k < 1 ? fy + (y - fy) * q : y);
+      if(k < 1) moveRaf = requestAnimationFrame(step); else { dg.glide = false; if(moveDg === dg) moveDg = null; saveGraph(); }
+    });
+  }
   function endDrag(e, cancel){
     if(!drag) return;
     var dd = drag; drag = null;
@@ -360,7 +376,8 @@
         lastTap = { key:null, t:0 };
         if(dd.pr){ cancelAnimationFrame(dd.pr); dd.pr = 0; }
         if(dd.tx != null){ dd.vx = dd.tx; dd.vy = dd.ty; placeDragged(dd, dd.tx, dd.ty); }
-        saveGraph();
+        if(dd.snap && dd.tx != null){ snapGlide(dd, Math.round(dd.tx / GRID) * GRID, Math.round(dd.ty / GRID) * GRID); }
+        else saveGraph();
       }
       else { lastTap = { key:(dd.type === 'node' ? 'n:' : 't:') + dd.item.id, t:Date.now(), quick:!dd.t0 || Date.now() - dd.t0 < 350, x:dd.sx, y:dd.sy }; }
     } else if(dd.mode === 'link'){
