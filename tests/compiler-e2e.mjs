@@ -43,6 +43,12 @@ await ctx.route('https://api.anthropic.com/v1/messages', async (route) => {
     ev('message_delta', { type: 'message_delta', delta: { stop_reason: 'end_turn' } }) + ev('message_stop', { type: 'message_stop' });
   return route.fulfill({ status: 200, headers: { 'content-type': 'text/event-stream', 'access-control-allow-origin': '*' }, body });
 });
+// Ollama на «этом компьютере» и сторонний сервис, совместимый с OpenAI
+let oaiAuth = null, oaiModel = null;
+const oaiSse = (txt) => txt.split(' ').map((w, i) => 'data: ' + JSON.stringify({ choices: [{ delta: { content: (i ? ' ' : '') + w } }] }) + '\n\n').join('') + 'data: ' + JSON.stringify({ choices: [{ delta: {}, finish_reason: 'stop' }] }) + '\n\ndata: [DONE]\n\n';
+await ctx.route('http://localhost:11434/v1/models', (r) => r.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ data: [{ id: 'qwen2.5-coder:7b' }, { id: 'llama3.1:8b' }] }) }));
+await ctx.route('http://localhost:11434/v1/chat/completions', (r) => { oaiModel = JSON.parse(r.request().postData()).model; return r.fulfill({ status: 200, headers: { 'content-type': 'text/event-stream', 'access-control-allow-origin': '*' }, body: oaiSse('ответ от Ollama') }); });
+await ctx.route('https://llm.example.ru/v1/chat/completions', (r) => { oaiAuth = r.request().headers().authorization; oaiModel = JSON.parse(r.request().postData()).model; return r.fulfill({ status: 200, headers: { 'content-type': 'text/event-stream', 'access-control-allow-origin': '*' }, body: oaiSse('ответ своего ИИ') }); });
 const page = await ctx.newPage();
 const errors = [];
 page.on('pageerror', (e) => { if (!/sandboxed/.test(e.message)) errors.push(e.message); });
@@ -87,7 +93,7 @@ const tog = await page.locator('#claudeBtn').boundingBox(), gear = await page.lo
 check(tog && gear && tog.x + tog.width <= gear.x + 1, 'переключатель стоит в шапке слева от настроек');
 const pickB = async () => { await page.keyboard.press('Escape'); const nb = await page.locator('#nodes .node[data-id="b"]').boundingBox(); await page.mouse.click(nb.x + nb.width / 2, nb.y + 14, { button: 'right' }); await page.waitForTimeout(300); };
 await pickB();
-check(/переключатель «Claude»/.test(await page.$eval('#pop .ai-note', (x) => x.textContent)), 'без сервера и claude.ai ИИ нет — подсказка предлагает переключатель «Claude»');
+check(/переключатель ИИ/.test(await page.$eval('#pop .ai-note', (x) => x.textContent)), 'без сервера и claude.ai ИИ нет — подсказка предлагает переключатель «Claude»');
 await page.click('#claudeBtn'); await page.waitForTimeout(200);
 check(!(await page.$eval('#claudeP', (x) => x.hidden)), 'без ключа открываются настройки подключения');
 await page.fill('#claudeP input[type=password]', 'bad-key');
@@ -109,7 +115,33 @@ await page.reload(); await page.waitForTimeout(900);
 check(await page.$eval('#claudeBtn', (x) => x.getAttribute('aria-checked')) === 'true', 'после перезагрузки вкладки Claude по-прежнему подключён');
 await page.click('#claudeBtn'); await page.waitForTimeout(200);
 await pickB();
-check(await page.$eval('#claudeBtn', (x) => x.getAttribute('aria-checked')) === 'false' && /переключатель «Claude»/.test(await page.$eval('#pop .ai-note', (x) => x.textContent)), 'выключение возвращает прежнее состояние ИИ');
+check(await page.$eval('#claudeBtn', (x) => x.getAttribute('aria-checked')) === 'false' && /переключатель ИИ/.test(await page.$eval('#pop .ai-note', (x) => x.textContent)), 'выключение возвращает прежнее состояние ИИ');
+
+console.log('Выбор ИИ: Ollama и свой сервис');
+const askB = async (q) => { await pickB(); await page.fill('#pop .ai-row textarea', q); await page.click('#pop .ai-row button'); await page.waitForTimeout(700); return page.$eval('#pop', (x) => x.textContent); };
+await page.keyboard.press('Escape');
+await page.click('#claudeMore'); await page.waitForTimeout(150);
+await page.click('#claudeP .clp-seg [data-prov="ollama"]'); await page.waitForTimeout(100);
+await page.click('#claudeP button:has-text("Найти модели")'); await page.waitForTimeout(400);
+check((await page.$$eval('#claudeP select option', (o) => o.map((x) => x.value))).join() === 'llama3.1:8b,qwen2.5-coder:7b', 'Ollama: найдены модели, установленные на компьютере');
+await page.selectOption('#claudeP select', 'qwen2.5-coder:7b');
+await page.click('#claudeP button:has-text("Сохранить и включить")'); await page.waitForTimeout(300);
+check(await page.$eval('#claudeBtn', (x) => x.getAttribute('aria-checked') === 'true' && x.textContent.includes('Ollama')), 'переключатель включён и показывает «Ollama»');
+check(/ответ от Ollama/.test(await askB('Объясни блок')) && oaiModel === 'qwen2.5-coder:7b', 'помощник блока отвечает через Ollama выбранной моделью');
+await page.keyboard.press('Escape');
+await page.click('#claudeMore'); await page.waitForTimeout(150);
+await page.click('#claudeP .clp-seg [data-prov="openai"]'); await page.waitForTimeout(150);
+check(await page.$eval('#claudeBtn', (x) => x.getAttribute('aria-checked')) === 'false', 'новый поставщик без настроек — переключатель честно выключился');
+await page.fill('#claudeP input[aria-label="Название на переключателе"]', 'GigaChat');
+await page.fill('#claudeP input[aria-label="Адрес сервиса"]', 'https://llm.example.ru/v1');
+await page.fill('#claudeP input[aria-label="Ключ API"]', 'tok-123');
+await page.fill('#claudeP input[aria-label="Модель"]', 'GigaChat-Pro');
+await page.click('#claudeP button:has-text("Сохранить и включить")'); await page.waitForTimeout(300);
+check(await page.$eval('#claudeBtn', (x) => x.getAttribute('aria-checked') === 'true' && x.textContent.includes('GigaChat')), 'свой сервис подключён под своим названием');
+check(/ответ своего ИИ/.test(await askB('Найди ошибки')) && oaiAuth === 'Bearer tok-123' && oaiModel === 'GigaChat-Pro', 'запрос идёт на указанный адрес с ключом и моделью');
+await page.keyboard.press('Escape');
+await page.click('#claudeBtn'); await page.waitForTimeout(150);
+check(await page.$eval('#claudeBtn', (x) => x.getAttribute('aria-checked')) === 'false', 'выключение работает для любого поставщика');
 
 console.log('Секреты для блоков');
 await page.keyboard.press('Escape');
