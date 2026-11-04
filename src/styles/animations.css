@@ -110,6 +110,6 @@
   body:not(.noanim) .node.shaken,body:not(.noanim) .fm-node.shaken{animation:tShake .45s ease}
 
   /* желе: элемент тянется за курсором и пружинит, когда его отпускают */
-  body:not(.noanim) .jelly-on{transition:transform .1s ease-out;will-change:transform}
-  body:not(.noanim) .jelly-end{animation:tJelly .6s ease-out}
-  @keyframes tJelly{0%{transform:scale(1.08,.92)}22%{transform:scale(.94,1.06)}44%{transform:scale(1.04,.96)}66%{transform:scale(.985,1.015)}84%{transform:scale(1.005,.995)}100%{transform:none}}
+  body:not(.noanim) .jelly-on{transition:transform .14s ease-out}
+  body:not(.noanim) .jelly-end{animation:tJelly .5s ease-out}
+  @keyframes tJelly{0%{transform:scale(1.035,.965)}30%{transform:scale(.98,1.02)}60%{transform:scale(1.01,.99)}100%{transform:none}}

@@ -1,21 +1,27 @@
   /* ---------- встряхивание: зажать блок и потрясти ----------
      Блок: все его связи переходят на новую связующую точку на его месте —
      ничего не теряется, блок свободен. Точка: все её связи отцепляются. */
-  var SHAKE = { flips:3, minRun:16, window:1100 };
-  // распознавание встряхивания: смены направления по каждой оси отдельно — работает и для
-  // диагональной тряски, и для коротких быстрых движений мышью или пальцем
+  var SHAKE = { flips:4, minRun:25, window:800, minPath:260, maxNet:0.3 };
+  // встряхивание — это частые смены направления на месте: за последние 0,8 с не меньше 4 разворотов
+  // по основной оси, путь не меньше 260 px, а сам блок почти не сдвинулся. Обычное перетаскивание
+  // с поправками (даже туда-обратно) под эти условия не попадает.
   function shakeDetect(sh, e){
     var now = performance.now();
-    if(sh.x === undefined){ sh.x = e.clientX; sh.y = e.clientY; sh.ax = { dir:0, run:0 }; sh.ay = { dir:0, run:0 }; sh.flips = []; return false; }
-    var dx = e.clientX - sh.x, dy = e.clientY - sh.y; sh.x = e.clientX; sh.y = e.clientY;
-    [[sh.ax, dx], [sh.ay, dy]].forEach(function(p){
-      var a = p[0], d = p[1]; if(Math.abs(d) < 1) return;
-      var dir = Math.sign(d);
-      if(a.dir && dir !== a.dir){ if(a.run >= SHAKE.minRun) sh.flips.push(now); a.run = 0; }
-      a.dir = dir; a.run += Math.abs(d);
-    });
-    sh.flips = sh.flips.filter(function(t){ return now - t < SHAKE.window; });
-    if(sh.flips.length >= SHAKE.flips){ sh.flips = []; return true; }
+    sh.pts = (sh.pts || []).filter(function(p){ return now - p.t < SHAKE.window; });
+    sh.pts.push({ x:e.clientX, y:e.clientY, t:now });
+    var P = sh.pts; if(P.length < 6) return false;
+    var x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity, L = 0;
+    P.forEach(function(p, i){ x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y); if(i) L += Math.hypot(p.x - P[i - 1].x, p.y - P[i - 1].y); });
+    var net = Math.hypot(P[P.length - 1].x - P[0].x, P[P.length - 1].y - P[0].y);
+    if(L < SHAKE.minPath || net > L * SHAKE.maxNet) return false;
+    var ax = (x1 - x0) >= (y1 - y0) ? 'x' : 'y', dir = 0, run = 0, flips = 0;
+    for(var i = 1; i < P.length; i++){
+      var d = P[i][ax] - P[i - 1][ax]; if(Math.abs(d) < 1) continue;
+      var s2 = Math.sign(d);
+      if(dir && s2 !== dir){ if(run >= SHAKE.minRun) flips++; run = 0; }
+      dir = s2; run += Math.abs(d);
+    }
+    if(flips >= SHAKE.flips){ sh.pts = []; return true; }
     return false;
   }
   function shakeTrack(dg, e){

@@ -53,6 +53,7 @@
         return;
       }
     }
+    finishSmooth();
     var dot = e.target.closest('.port-dot');
     var ne = e.target.closest('.node');
     var hit = e.target.closest('.edge-hit');
@@ -316,10 +317,18 @@
       }
     renderEdges();
   }
-  var moveRaf = 0, moveT = 0;
+  var moveRaf = 0, moveT = 0, moveDg = null;
+  // прежнее перетаскивание ещё «доезжает» — сразу ставим его на место, чтобы новое не боролось с ним
+  function finishSmooth(){
+    if(moveRaf){ cancelAnimationFrame(moveRaf); moveRaf = 0; }
+    var o = moveDg; moveDg = null;
+    if(o && o.vx != null && (o.vx !== o.tx || o.vy !== o.ty)){ o.tx = o.vx = Math.round(o.vx); o.ty = o.vy = Math.round(o.vy); placeDragged(o, o.tx, o.ty); if(o.finishing){ o.finishing = false; saveGraph(); } }
+  }
   function smoothMove(dg){
+    if(moveRaf && moveDg !== dg) finishSmooth();
     if(dg.vx == null){ dg.vx = dg.item.x; dg.vy = dg.item.y; }
     if(document.body.classList.contains('noanim')){ dg.vx = dg.tx; dg.vy = dg.ty; placeDragged(dg, dg.tx, dg.ty); return; }
+    moveDg = dg;
     if(moveRaf) return;
     moveT = performance.now();
     moveRaf = requestAnimationFrame(function step(now){
@@ -332,7 +341,7 @@
       if(done){ dg.vx = dg.tx; dg.vy = dg.ty; }
       placeDragged(dg, Math.round(dg.vx * 10) / 10, Math.round(dg.vy * 10) / 10);
       if(!done) moveRaf = requestAnimationFrame(step);
-      else if(dg.finishing){ dg.finishing = false; saveGraph(); }
+      else { if(moveDg === dg) moveDg = null; if(dg.finishing){ dg.finishing = false; saveGraph(); } }
     });
   }
   function endDrag(e, cancel){

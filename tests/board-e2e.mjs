@@ -60,6 +60,28 @@ await page.mouse.up(); await page.waitForTimeout(300);
 check(await page.$$eval('#nodes .node.hub', (x) => x.length) >= 1 && await page.$$eval('.edge-g', (x) => x.length) === before2, 'диагональная тряска блока — связи перешли на узел');
 await page.keyboard.press('Control+z'); await page.waitForTimeout(300);
 
+console.log('Обычное перетаскивание (как на видео)');
+const hubsZ = await page.$$eval('#nodes .node.hub', (x) => x.length);
+for (let round = 0; round < 3; round++) {
+  const b0 = await page.locator('#nodes .node', { hasText: 'HTML' }).boundingBox();
+  let mx = b0.x + 60, my = b0.y + 25; await page.mouse.move(mx, my); await page.mouse.down();
+  for (const [dx, dy] of [[120, 30], [-70, 20], [110, -15], [-50, 35], [90, 10]]) { mx += dx; my += dy; await page.mouse.move(mx, my, { steps: 6 }); }
+  await page.mouse.up(); await page.waitForTimeout(30);
+}
+check(await page.$$eval('#nodes .node.hub', (x) => x.length) === hubsZ, 'перетаскивание с поправками туда-обратно не создаёт узлов');
+// схватить блок, пока он ещё «доезжает»: он остаётся под курсором, без рывка
+const b0g = await page.locator('#nodes .node', { hasText: 'HTML' }).boundingBox();
+await page.mouse.move(b0g.x + 50, b0g.y + 20); await page.mouse.down();
+const b1 = await page.locator('#nodes .node', { hasText: 'HTML' }).boundingBox();
+await page.waitForTimeout(200);
+const b1s = await page.locator('#nodes .node', { hasText: 'HTML' }).boundingBox();
+check(Math.abs(b1s.x - b1.x) < 2 && Math.abs(b1s.y - b1.y) < 2, 'схватили на ходу — блок сразу остановился под курсором');
+await page.mouse.move(b0g.x + 60, b0g.y + 24, { steps: 2 }); await page.waitForTimeout(250);
+const b2 = await page.locator('#nodes .node', { hasText: 'HTML' }).boundingBox();
+check(Math.abs((b2.x - b1.x) - 10) < 6 && Math.abs((b2.y - b1.y) - 4) < 6, 'блок, схваченный на ходу, не прыгает (сдвиг ' + Math.round(b2.x - b1.x) + ', ' + Math.round(b2.y - b1.y) + ')');
+await page.mouse.up(); await page.waitForTimeout(700);
+check(await page.$$eval('#nodes .node', (x) => x.every((d) => !d.style.transform)), 'после отпускания блоки без деформации');
+
 console.log('Желе');
 const nb = await page.locator('#nodes .node', { hasText: 'C#' }).boundingBox();
 await page.mouse.move(nb.x + 100, nb.y + 30); await page.mouse.down();
