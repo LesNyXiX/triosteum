@@ -95,7 +95,7 @@
     var out = ['<svg xmlns="http://www.w3.org/2000/svg" width="' + Math.round(W) + '" height="' + Math.round(H) + '" viewBox="' + x0 + ' ' + y0 + ' ' + W + ' ' + H + '" font-family="Inter,Segoe UI,Arial,sans-serif">',
       '<rect x="' + x0 + '" y="' + y0 + '" width="' + W + '" height="' + H + '" fill="' + v('--bg') + '"/>'];
     // связи берём прямо из слоя доски — так картинка совпадает с экраном
-    Array.prototype.forEach.call(el.edgeLayer.querySelectorAll('path'), function(p){
+    Array.prototype.forEach.call(el.world.querySelectorAll('#edgeLayer path, #edgeLive path'), function(p){
       var st = getComputedStyle(p);
       if(p.classList.contains('edge-hit') || st.display === 'none' || st.stroke === 'none' || +st.strokeOpacity === 0 || st.visibility === 'hidden') return;
       out.push('<path d="' + p.getAttribute('d') + '" fill="none" stroke="' + st.stroke + '" stroke-width="' + st.strokeWidth + '" stroke-linecap="round"' + (st.strokeDasharray && st.strokeDasharray !== 'none' ? ' stroke-dasharray="' + st.strokeDasharray + '"' : '') + '/>');

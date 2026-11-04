@@ -22,6 +22,13 @@ await page.goto(URL); await page.waitForTimeout(900);
 const dockOf = (sel) => page.$eval(sel, (b) => { const d = b.closest('.dock'); return d ? d.dataset.side : null; });
 const drag = async (sel, x, y) => { const r = await page.locator(sel).boundingBox(); await page.mouse.move(r.x + r.width / 2, r.y + r.height / 2); await page.mouse.down(); await page.mouse.move(r.x + 40, r.y + 20, { steps: 4 }); await page.mouse.move(x, y, { steps: 12 }); await page.mouse.up(); await page.waitForTimeout(250); };
 const row = await page.locator('.row').boundingBox();
+// file:// в Chromium иногда теряет localStorage при перезагрузке — переносим его вручную, проверяем само приложение
+const reloadKeep = async () => {
+  const snap = await page.evaluate(() => JSON.stringify(Object.assign({}, localStorage)));
+  await page.reload(); await page.waitForTimeout(300);
+  const lost = await page.evaluate((s) => { const o = JSON.parse(s), cur = JSON.parse(localStorage.getItem('triosteum.ui') || '{}'), was = JSON.parse(o['triosteum.ui'] || '{}'); if (Object.keys(cur).length >= Object.keys(was).length) return false; localStorage.clear(); Object.keys(o).forEach((k) => localStorage.setItem(k, o[k])); return true; }, snap);
+  if (lost) { await page.reload(); await page.waitForTimeout(300); }
+};
 
 console.log('Кнопки у любого края');
 check(await dockOf('#bLib') === 'left', 'сначала все кнопки на панели слева');
@@ -45,7 +52,7 @@ const tp = await page.locator('#tip').boundingBox(), lb = await page.locator('#b
 check(await page.$eval('#tip', (t) => t.classList.contains('s-top')) && tp.y > lb.y + lb.height, 'подсказка у верхней панели — под кнопкой');
 await page.mouse.move(700, 600);
 // после перезагрузки
-await page.reload(); await page.waitForTimeout(900);
+await reloadKeep(); await page.waitForTimeout(900);
 check(await dockOf('#bLib') === 'top' && await dockOf('#bAdd') === 'right' && await dockOf('#bTextSize') === 'bottom', 'расположение кнопок сохраняется');
 // вернуть перетаскиванием
 await drag('#bTextSize', row.x + 20, row.y + row.height / 2);
@@ -57,7 +64,67 @@ check(await dockOf('#bBuild') === 'bottom', 'в Персонализации у 
 await page.click('#persBody button:has-text("Вернуть все кнопки на панель слева")'); await page.waitForTimeout(200);
 check(await dockOf('#bBuild') === 'left' && await dockOf('#bLib') === 'left' && await page.isHidden('.dock-top') && await page.isHidden('.dock-right'), '«Вернуть все кнопки» — всё снова слева');
 
+console.log('Порядок кнопок внутри панели');
+await page.click('#persClose'); await page.waitForTimeout(200);
+const leftIds = () => page.$$eval('nav.tools.dock[data-side="left"] > .tool', (x) => x.filter((b) => b.offsetWidth > 0).map((b) => b.id || b.dataset.tool));
+const l0 = await leftIds();
+// «Создать плагин» перетащить выше «Библиотеки»
+const lib0 = await page.locator('#bLib').boundingBox();
+await drag('#bCreate', lib0.x + lib0.width / 2, lib0.y + 4);
+const l1 = await leftIds();
+check(l1.indexOf('bCreate') < l1.indexOf('bLib'), 'кнопки меняются местами на левой панели (' + l1.slice(0, 3).join(',') + ')');
+await drag('#bLib', row.x + row.width / 2, row.y + 30);
+await drag('#bScheme', row.x + row.width / 2 + 40, row.y + 30);
+const lb1 = await page.locator('.dock-top #bLib').boundingBox();
+await drag('#bScheme', lb1.x + 3, lb1.y + lb1.height / 2);
+check((await page.$$eval('.dock-top > .tool', (x) => x.map((b) => b.id))).join() === 'bScheme,bLib', 'и на верхней панели тоже');
+await reloadKeep(); await page.waitForTimeout(900);
+const l2 = await leftIds();
+check(l2.indexOf('bCreate') < l2.indexOf('bAdd') && (await page.$$eval('.dock-top > .tool', (x) => x.map((b) => b.id))).join() === 'bScheme,bLib', 'новый порядок сохраняется после перезагрузки');
+await page.click('#setBtn'); await page.waitForTimeout(300);
+const before = await leftIds();
+await page.click('#persBody button[aria-label="«Добавление элементов» — на место раньше"]'); await page.waitForTimeout(150);
+const after = await leftIds();
+check(after.indexOf('bAdd') === before.indexOf('bAdd') - 1, 'стрелки в Персонализации двигают кнопку на место раньше');
+await page.click('#persBody button:has-text("Вернуть все кнопки на панель слева")'); await page.waitForTimeout(200);
+check((await leftIds()).join() === l0.join(), '«Вернуть все кнопки» восстанавливает исходный порядок');
+
+console.log('Закреплённые шапки окон');
+const pinned = async (scroller, head) => { const h0 = await page.locator(head).boundingBox(); await page.$eval(scroller, (x) => { x.scrollTop = 400; }); await page.waitForTimeout(100); const h1 = await page.locator(head).boundingBox(); const moved = await page.$eval(scroller, (x) => x.scrollTop); return moved > 0 && Math.abs(h1.y - h0.y) < 1; };
+await page.click('#persClose'); await page.waitForTimeout(200);
+await page.setViewportSize({ width: 1440, height: 560 });
+await page.click('#claudeMore'); await page.click('#claudeP [data-prov="ollama"]'); await page.waitForTimeout(200);
+check(await pinned('#claudeP .clp-b', '#claudeP .clp-h'), 'окно «ИИ в Triosteum»: шапка на месте при прокрутке');
+await page.click('#claudePClose');
+const nb = await page.locator('#nodes .node').first().boundingBox();
+await page.mouse.click(nb.x + nb.width / 2, nb.y + 14, { button: 'right' }); await page.waitForTimeout(300);
+check(await pinned('#pop', '#pop .pop-head'), 'карточка блока: шапка на месте при прокрутке');
+await page.keyboard.press('Escape');
+await page.setViewportSize({ width: 1440, height: 900 });
+
+console.log('Очистка');
+const menuClick = async (label) => { await page.click('#projBtn'); await page.waitForTimeout(150); await page.hover('#ctx [role=menuitem]:has-text("Очистка")'); await page.waitForTimeout(250); await page.click('[role=menuitem]:has-text("' + label + '")'); await page.waitForTimeout(250); };
+const count = () => page.$$eval('#nodes .node', (x) => x.length);
+check(await count() === 1, 'на доске есть блок');
+await menuClick('Очистить это пространство целиком');
+check(await count() === 1 && await page.isVisible('#askModal'), 'сначала спрашивается подтверждение');
+await page.click('#askNo'); await page.waitForTimeout(350);
+check(await count() === 1 && await page.isHidden('#askModal'), '«Отмена» ничего не трогает');
+await menuClick('Очистить это пространство целиком');
+await page.click('#askYes'); await page.waitForTimeout(250);
+check(await count() === 0, 'подтвердили — пространство очищено');
+await menuClick('Вернуть');
+check(await count() === 1, '«Вернуть» возвращает очищенное');
+await page.click('#setBtn'); await page.waitForTimeout(300);
+check(await page.$$eval('#persBody .clr-grid button', (x) => x.length) >= 6, 'те же кнопки очистки — в настройках');
+await page.click('#persBody .clr-grid button:has-text("Очистить доску")'); await page.waitForTimeout(200);
+await page.click('#askYes'); await page.waitForTimeout(250);
+check(await count() === 0, 'очистка доски из настроек');
+await page.click('#persClose'); await page.waitForTimeout(200);
+await menuClick('Вернуть'); check(await count() === 1, 'и её тоже можно вернуть');
+
 console.log('Редактор тем');
+if (await page.isHidden('#pers')) { await page.keyboard.press('Escape'); await page.click('#setBtn'); await page.waitForTimeout(300); }
 const cssv = (n) => page.evaluate((x) => getComputedStyle(document.documentElement).getPropertyValue(x).trim(), n);
 const setColor = (sel, v) => page.$eval(sel, (i, v) => { i.value = v; i.dispatchEvent(new Event('input', { bubbles: true })); }, v);
 const red0 = await cssv('--red');
@@ -80,7 +147,7 @@ await page.click('#themeEdBody button[aria-label="Акцент #3B82F6"]'); awai
 check(await cssv('--bg') === '#F4F7FB' && (await cssv('--ink')).toLowerCase() !== '#e7e9ee', 'готовый фон подбирает остальные цвета (светлая тема)');
 await page.click('#themeEdBody button:has-text("Сохранить")'); await page.waitForTimeout(250);
 check(await page.$$eval('#persBody .theme-w', (x) => x.length) === tiles0 + 1 && /Утро/.test(await page.$eval('#persBody .themes', (x) => x.textContent)), 'своя тема появилась в списке');
-await page.reload(); await page.waitForTimeout(1200);
+await reloadKeep(); await page.waitForTimeout(1200);
 check(await cssv('--bg') === '#F4F7FB', 'своя тема сохраняется после перезагрузки');
 // вернуть исходную «Графит»
 await page.click('#setBtn'); await page.waitForTimeout(300);

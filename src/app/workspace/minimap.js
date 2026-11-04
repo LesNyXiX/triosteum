@@ -17,8 +17,8 @@
     var pad = 60; x0 -= pad; y0 -= pad; x1 += pad; y1 += pad;
     var s = Math.min(W / (x1 - x0), H / (y1 - y0)), ox = (W - (x1 - x0) * s) / 2 - x0 * s, oy = (H - (y1 - y0) * s) / 2 - y0 * s;
     miniGeo = { s:s, ox:ox, oy:oy };
-    var cs = getComputedStyle(document.documentElement);
-    cx.strokeStyle = cs.getPropertyValue('--line2').trim() || '#555'; cx.lineWidth = 1;
+    // цвет линий берём из темы, а не пересчитываем стили страницы каждый кадр
+    cx.strokeStyle = (typeof themeOf === 'function' && themeOf(UI.theme || 'burgundy').line2) || '#555'; cx.lineWidth = 1;
     G.edges.forEach(function(e){ var a = nodeById(e.from), b = nodeById(e.to); if(!a || !b) return; var p = portOut(a), q = portIn(b);
       cx.beginPath(); cx.moveTo(p.x * s + ox, p.y * s + oy); cx.lineTo(q.x * s + ox, q.y * s + oy); cx.stroke(); });
     boxes.forEach(function(b){
@@ -27,7 +27,7 @@
       if(b.hub){ cx.beginPath(); cx.arc(bx + bw / 2, by + bh / 2, Math.max(2, bw / 2), 0, Math.PI * 2); cx.fill(); }
       else cx.fillRect(bx, by, bw, bh);
     });
-    var acc = cs.getPropertyValue('--red').trim() || '#DC2626';
+    var acc = document.documentElement.style.getPropertyValue('--red').trim() || '#DC2626';
     cx.fillStyle = acc; cx.globalAlpha = 0.12; cx.fillRect(vx * s + ox, vy * s + oy, vw * s, vh * s);
     cx.globalAlpha = 1; cx.strokeStyle = acc; cx.lineWidth = 1.5; cx.strokeRect(vx * s + ox + 0.5, vy * s + oy + 0.5, vw * s - 1, vh * s - 1);
   }

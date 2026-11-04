@@ -78,7 +78,8 @@
   button.badge-ico:active{transform:scale(.95)}
   .addmenu.below::before{left:calc(50% - 5px);top:-6px;transform:rotate(135deg)}
 
-  .canvas{flex:1;min-width:0;position:relative;overflow:hidden;background-color:var(--bg);background-image:radial-gradient(var(--dot) 1px,transparent 1px);background-size:24px 24px}
+  .canvas{flex:1;min-width:0;position:relative;overflow:hidden;background-color:var(--bg)}
+  .grid-bg{position:absolute;left:-24px;top:-24px;width:calc(100% + 48px);height:calc(100% + 48px);pointer-events:none;will-change:transform;background-image:radial-gradient(var(--dot) 1px,transparent 1px);background-size:24px 24px}
   .hint{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(420px,86%);padding:28px;border:1px dashed var(--line2);border-radius:16px;background:color-mix(in srgb,var(--panel) 90%,transparent);text-align:center}
   .hint h1{margin:16px 0 0;font-size:18px;font-weight:600;color:var(--ink-strong)}
   .hint p{margin:8px 0 0;font-size:14px;line-height:1.5;color:var(--muted)}

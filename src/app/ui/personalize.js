@@ -141,11 +141,15 @@
         var sel = h('select', { 'class':'dock-sel', 'aria-label':'Где кнопка «' + t.name + '»', on:{ change:function(){ dockSet(key, sel.value); } } });
         Object.keys(DOCK_SIDES).forEach(function(s){ var o = h('option', { value:s, text:DOCK_SIDES[s] }); if(dockSideOf(btn) === s) o.selected = true; sel.appendChild(o); });
         if(!on) sel.disabled = true;
-        row.insertBefore(sel, row.lastChild);
+        var mv = h('span', { 'class':'dock-mv' }, [
+          h('button', { type:'button', 'class':'icon-btn', 'aria-label':'«' + t.name + '» — на место раньше', title:'Раньше в панели', disabled:on ? null : 'disabled', html:'<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg>', on:{ click:function(){ dockShift(key, -1); renderPers(); } } }),
+          h('button', { type:'button', 'class':'icon-btn', 'aria-label':'«' + t.name + '» — на место позже', title:'Позже в панели', disabled:on ? null : 'disabled', html:'<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>', on:{ click:function(){ dockShift(key, 1); renderPers(); } } })
+        ]);
+        row.insertBefore(sel, row.lastChild); row.insertBefore(mv, row.lastChild);
       }
       tgrid.appendChild(row);
     });
-    b.appendChild(section('Кнопки панелей инструментов — включите и выберите край (или перетащите кнопку мышью к любому краю)', h('div', null, [ tgrid,
+    b.appendChild(section('Кнопки панелей инструментов — включите, выберите край и место стрелками (или просто перетащите кнопку: к любому краю или между другими кнопками)', h('div', null, [ tgrid,
       h('button', { type:'button', 'class':'btn sm', style:'margin-top:8px', text:'Вернуть все кнопки на панель слева', on:{ click:function(){ dockReset(); renderPers(); } } }) ])));
     var txt = h('div', null, [
       fsRow('Окна и меню', fsControl(UI.scale, 80, 160, function(v){ UI.scale = v; applyUI(); }, 'масштаб окон', '%')),
@@ -154,6 +158,10 @@
     ]);
     b.appendChild(section('Размер текста', txt));
     b.appendChild(section('Секреты для блоков', secretsBox()));
+    // очистка: те же действия, что в меню «Пространство → Очистка»
+    var clr = h('div', { 'class':'clr-grid' });
+    clearItems().forEach(function(it){ if(it.sep) return; clr.appendChild(h('button', { type:'button', 'class':'btn sm' + (it.danger ? ' danger' : ''), text:it.label, on:{ click:function(){ it.act(); setTimeout(function(){ if(!$('pers').hidden) renderPers(); }, 400); } } })); });
+    b.appendChild(section('Очистка', clr));
     b.appendChild(h('button', { type:'button', 'class':'btn', text:'Вернуть всё по умолчанию', on:{ click:function(){
       UI = { scale:100, code:14, note:14 }; applyUI(); applyTheme(); updateGutter(); renderPers(); } } }));
   }

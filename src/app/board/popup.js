@@ -8,11 +8,11 @@
     if(popWin){ popWin.apply(); if(popWin.pinned()) return; }
     var rect;
     if(S.sel.type === 'tap'){
-      var th = el.edgeLayer.querySelector('.tap-handle[data-tap="' + S.sel.id + '"]');
+      var th = el.world.querySelector('.tap-handle[data-tap="' + S.sel.id + '"]');
       if(!th) return hidePop();
       rect = th.getBoundingClientRect();
     } else if(S.sel.type === 'edge'){
-      var hit = el.edgeLayer.querySelector('[data-edge="' + S.sel.id + '"].edge-hit');
+      var hit = el.world.querySelector('[data-edge="' + S.sel.id + '"].edge-hit');
       if(!hit) return hidePop();
       var len = hit.getTotalLength(), pt = hit.getPointAtLength(len / 2), m = hit.getScreenCTM();
       var x = pt.x * m.a + m.e, y = pt.y * m.d + m.f;

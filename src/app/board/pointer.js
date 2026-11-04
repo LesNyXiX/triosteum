@@ -316,7 +316,11 @@
       if(dg.type === 'node'){
         commentsOf(dg.item.id).forEach(function(t){ syncNote(t); var cd = domOf('note', t.id); if(cd){ cd.style.left = t.x + 'px'; cd.style.top = t.y + 'px'; } });
       }
-    renderEdges();
+    // только связи сдвинутых блоков; заметка со стрелкой к блоку — полная перерисовка
+    if(dg.type === 'node' && !(dg.group && dg.group.items.some(function(gi){ return gi.type === 'note'; }))){
+      var ids = [dg.item.id]; if(dg.group) dg.group.items.forEach(function(gi){ ids.push(gi.obj.id); });
+      edgesMoved(ids);
+    } else renderEdges();
   }
   var moveRaf = 0, moveT = 0, moveDg = null;
   // прежнее перетаскивание ещё «доезжает» — сразу ставим его на место, чтобы новое не боролось с ним

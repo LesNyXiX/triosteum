@@ -7,7 +7,8 @@
   var JELLY = { max:0.04, drag:{ stiffness:520, damping:30, mass:1 }, release:{ stiffness:380, damping:9, mass:1 } };
   function jellyOff(){ return document.body.classList.contains('noanim') || (window.matchMedia && matchMedia('(prefers-reduced-motion:reduce)').matches) || typeof Wobble === 'undefined'; }
   var JELLY_SCALE = new WeakMap(), jellyEdgeRaf = 0;
-  function jellyEdges(){ if(jellyEdgeRaf) return; jellyEdgeRaf = requestAnimationFrame(function(){ jellyEdgeRaf = 0; if(typeof renderEdges === 'function') renderEdges(); }); }
+  var jellyEdgeIds = {};
+  function jellyEdges(id){ if(id) jellyEdgeIds[id] = 1; if(jellyEdgeRaf) return; jellyEdgeRaf = requestAnimationFrame(function(){ jellyEdgeRaf = 0; var ids = Object.keys(jellyEdgeIds); jellyEdgeIds = {}; if(typeof edgesMoved === 'function' && ids.length) edgesMoved(ids); else if(typeof renderEdges === 'function') renderEdges(); }); }
   function jellySprings(st, el){
     if(st.jel === el && st.jsx) return;
     jellyStop(st);
@@ -17,7 +18,7 @@
       if(!st.jsx) return;
       var x = st.jsx.currentValue, y = st.jsy.currentValue, rest = Math.abs(x - 1) < 0.0008 && Math.abs(y - 1) < 0.0008;
       el.style.transform = rest ? '' : 'scale(' + x.toFixed(4) + ',' + y.toFixed(4) + ')';
-      if(node){ if(rest) JELLY_SCALE.delete(node); else JELLY_SCALE.set(node, { x:x, y:y }); jellyEdges(); }
+      if(node){ if(rest) JELLY_SCALE.delete(node); else JELLY_SCALE.set(node, { x:x, y:y }); jellyEdges(node.id); }
     };
     st.jsx = new Wobble.Spring(Object.assign({ fromValue:1, toValue:1, restDisplacementThreshold:0.00005, restVelocityThreshold:0.00002 }, JELLY.drag));
     st.jsy = new Wobble.Spring(Object.assign({ fromValue:1, toValue:1, restDisplacementThreshold:0.00005, restVelocityThreshold:0.00002 }, JELLY.drag));
@@ -31,7 +32,7 @@
       s.updateConfig(Object.assign({ toValue:p[1] }, cfg || {})).start();
     });
   }
-  function jellyStop(st){ if(st && st.item && JELLY_SCALE.has(st.item)){ JELLY_SCALE.delete(st.item); jellyEdges(); } if(st && st.jsx){ st.jsx.stop(); st.jsy.stop(); st.jsx.removeAllListeners && st.jsx.removeAllListeners(); st.jsy.removeAllListeners && st.jsy.removeAllListeners(); if(st.jel) st.jel.style.transform = ''; st.jsx = st.jsy = null; } }
+  function jellyStop(st){ if(st && st.item && JELLY_SCALE.has(st.item)){ JELLY_SCALE.delete(st.item); jellyEdges(st.item.id); } if(st && st.jsx){ st.jsx.stop(); st.jsy.stop(); st.jsx.removeAllListeners && st.jsx.removeAllListeners(); st.jsy.removeAllListeners && st.jsy.removeAllListeners(); if(st.jel) st.jel.style.transform = ''; st.jsx = st.jsy = null; } }
   function jellyMove(st, e, el){
     if(!el || jellyOff()) return;
     var now = performance.now();

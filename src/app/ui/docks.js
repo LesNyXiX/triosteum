@@ -18,7 +18,17 @@
   function dockSideOf(btn){ var d = btn && btn.closest && btn.closest('.dock'); return d ? d.dataset.side : 'left'; }
   function dockRefresh(){
     var map = UI.dock || {}, ord = UI.dockOrder || {};
-    DOCK_ORIG.forEach(function(c){ var k = c._dk; if(k && map[k] && map[k] !== 'left') return; dockNav.appendChild(c); });
+    // левая панель: свой порядок кнопок; разделители остаются на своих местах
+    var leftKeys = DOCK_ORIG.filter(function(c){ return c._dk && !(map[c._dk] && map[c._dk] !== 'left'); }).map(function(c){ return c._dk; });
+    if(ord.left && ord.left.length){ var want = ord.left.filter(function(k){ return leftKeys.indexOf(k) >= 0; }); leftKeys = want.concat(leftKeys.filter(function(k){ return want.indexOf(k) < 0; })); }
+    var qi = 0;
+    DOCK_ORIG.forEach(function(c){
+      if(!c._dk){ dockNav.appendChild(c); return; }
+      if(map[c._dk] && map[c._dk] !== 'left' && !(ord.left && ord.left.length)) return;
+      if(!ord.left || !ord.left.length){ dockNav.appendChild(c); return; }
+      if(qi < leftKeys.length) dockNav.appendChild(DOCK_BTN[leftKeys[qi++]]);
+    });
+    while(qi < leftKeys.length) dockNav.appendChild(DOCK_BTN[leftKeys[qi++]]);
     ['top', 'bottom', 'right'].forEach(function(s){
       var d = DOCKS[s], keys = (ord[s] || []).filter(function(k){ return map[k] === s; });
       Object.keys(map).forEach(function(k){ if(map[k] === s && keys.indexOf(k) < 0) keys.push(k); });
@@ -31,19 +41,27 @@
       if(s === 'left') d.classList.toggle('empty', !any && !document.body.classList.contains('docking')); else d.hidden = !any && !document.body.classList.contains('docking');
     });
   }
-  function dockSet(key, side, index){
+  // кнопку key — на край side, перед кнопкой before (или в конец); порядок каждой панели запоминается
+  function dockSet(key, side, index, before){
     UI.dock = UI.dock || {}; UI.dockOrder = UI.dockOrder || {};
-    Object.keys(UI.dockOrder).forEach(function(s){ UI.dockOrder[s] = UI.dockOrder[s].filter(function(k){ return k !== key; }); });
-    if(side === 'left') delete UI.dock[key];
-    else {
-      UI.dock[key] = side;
-      var list = (UI.dockOrder[side] = UI.dockOrder[side] || []);
-      // порядок — по фактическому расположению кнопок в панели
-      var cur = Array.prototype.filter.call(DOCKS[side].children, function(c){ return c._dk && c._dk !== key && UI.dock[c._dk] === side; }).map(function(c){ return c._dk; });
-      if(index === undefined || index < 0 || index > cur.length) index = cur.length;
-      cur.splice(index, 0, key); UI.dockOrder[side] = cur;
+    var btn = DOCK_BTN[key]; if(!btn) return;
+    if(side === 'left') delete UI.dock[key]; else UI.dock[key] = side;
+    if(before === undefined){
+      var kids = Array.prototype.filter.call(DOCKS[side].children, function(c){ return c._dk && c._dk !== key; });
+      before = index !== undefined && index >= 0 && index < kids.length ? kids[index] : null;
     }
+    if(before && before.parentNode === DOCKS[side]) DOCKS[side].insertBefore(btn, before);
+    else if(side === 'left' && !before){ var keys = $('bKeys'); if(keys && keys.parentNode === dockNav && keys !== btn && UI.dock.bKeys === undefined) dockNav.insertBefore(btn, keys); else dockNav.appendChild(btn); }
+    else DOCKS[side].appendChild(btn);
+    Object.keys(DOCKS).forEach(function(s){ UI.dockOrder[s] = Array.prototype.filter.call(DOCKS[s].children, function(c){ return c._dk && (s === 'left' ? !UI.dock[c._dk] : UI.dock[c._dk] === s); }).map(function(c){ return c._dk; }); });
     save('triosteum.ui', UI); dockRefresh();
+  }
+  // клавиатура и меню: сдвинуть кнопку на одно место
+  function dockShift(key, delta){
+    var btn = DOCK_BTN[key]; if(!btn) return;
+    var side = dockSideOf(btn), kids = Array.prototype.filter.call(DOCKS[side].children, function(c){ return c._dk && !c.hidden; }), i = kids.indexOf(btn), j = i + delta;
+    if(i < 0 || j < 0 || j >= kids.length) return;
+    dockSet(key, side, undefined, delta < 0 ? kids[j] : (kids[j + 1] || null));
   }
   function dockReset(){ UI.dock = {}; UI.dockOrder = {}; save('triosteum.ui', UI); dockRefresh(); }
   new MutationObserver(function(){ dockRefresh(); }).observe(document.body, { attributes:true, attributeFilter:['data-mode'] });
@@ -66,13 +84,13 @@
     if(!best) return null;
     // место среди кнопок панели
     var d2 = DOCKS[best], horiz = best === 'top' || best === 'bottom', idx = 0;
-    var kids = Array.prototype.filter.call(d2.children, function(c){ return c.classList.contains('tool') && c !== DG.b && c.offsetWidth > 0 && (best === 'left' || (UI.dock || {})[c._dk] === best); });
+    var kids = Array.prototype.filter.call(d2.children, function(c){ return c.classList.contains('tool') && c._dk && c !== DG.b && c.offsetWidth > 0; });
     kids.forEach(function(c, i){ var r = c.getBoundingClientRect(); if((horiz ? x : y) > (horiz ? r.left + r.width / 2 : r.top + r.height / 2)) idx = i + 1; });
     return { side:best, index:idx, before:kids[idx] || null };
   }
   function dockMark(t){
     var m = document.querySelector('.dock-mark');
-    if(!t || t.side === 'left'){ if(m) m.remove(); return; }
+    if(!t){ if(m) m.remove(); return; }
     if(!m){ m = document.createElement('i'); m.className = 'dock-mark'; }
     var d = DOCKS[t.side]; if(t.before) d.insertBefore(m, t.before); else d.appendChild(m);
   }
@@ -104,7 +122,7 @@
     dockNoClick = Date.now(); dockNoClickEl = g.b;
     g.ghost.remove(); g.b.classList.remove('dock-src'); dockMark(null);
     document.body.classList.remove('docking'); dockZonesShow(false);
-    if(!cancel && g.t){ var k = dockKeyOf(g.b); if(k){ var was = dockSideOf(g.b); dockSet(k, g.t.side, g.t.index); if(was !== g.t.side) toast('«' + (g.b.getAttribute('aria-label') || 'Кнопка') + '» — панель ' + DOCK_SIDES[g.t.side].toLowerCase()); return; } }
+    if(!cancel && g.t){ var k = dockKeyOf(g.b); if(k){ var was = dockSideOf(g.b); dockSet(k, g.t.side, undefined, g.t.before); if(was !== g.t.side) toast('«' + (g.b.getAttribute('aria-label') || 'Кнопка') + '» — панель ' + DOCK_SIDES[g.t.side].toLowerCase()); return; } }
     dockRefresh();
   }
   document.addEventListener('pointerup', function(e){ if(DG && e.pointerId === DG.id) dockEnd(false); }, true);

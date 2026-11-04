@@ -23,9 +23,39 @@
   var SVGNS = 'http://www.w3.org/2000/svg';
   function svg(tag, attrs){ var e = document.createElementNS(SVGNS, tag); for(var k in attrs) e.setAttribute(k, attrs[k]); return e; }
 
+  // быстрый путь при перетаскивании: двигаем только связи сдвинутых блоков, не пересобирая весь слой
+  var edgeEls = {};
+  function edgeFast(ids){
+    var moved = {}, any = false; ids.forEach(function(id){ moved[id] = 1; });
+    for(var i = 0; i < G.edges.length; i++){
+      var e = G.edges[i], hitTap = false;
+      (e.taps || []).forEach(function(tp){ if(tapIds(tp).some(function(x){ return moved[x]; })) hitTap = true; });
+      if(hitTap) return false;
+      if(!moved[e.from] && !moved[e.to]) continue;
+      if(e.taps && e.taps.length) return false;
+      if(!edgeEls[e.id]) return false;
+    }
+    for(var j = 0; j < G.notes.length; j++){ var t = G.notes[j]; if(t.attach && !t.hidden && moved[t.attach]) return false; }
+    G.edges.forEach(function(e){
+      if(!moved[e.from] && !moved[e.to]) return;
+      var a = nodeById(e.from), b = nodeById(e.to), r = edgeEls[e.id]; if(!a || !b) return;
+      var p = portOut(a), q = portIn(b), d = curve(p, q);
+      r.gr.setAttribute('x1', p.x); r.gr.setAttribute('y1', p.y); r.gr.setAttribute('x2', q.x + (q.x === p.x ? 1 : 0)); r.gr.setAttribute('y2', q.y);
+      // связь, которая сейчас двигается, — в отдельном лёгком слое: большой слой всех связей не перерисовывается каждый кадр
+      if(r.g.parentNode !== edgeLiveG) edgeLiveG.appendChild(r.g);
+      r.line.setAttribute('d', d); r.hit.setAttribute('d', d);
+      r.end.setAttribute('cx', q.x); r.end.setAttribute('cy', q.y); r.handle.setAttribute('cx', q.x); r.handle.setAttribute('cy', q.y);
+      any = true;
+    });
+    miniDraw();
+    return true;
+  }
+  var edgeLiveG = $('edgeLive');
+  function edgesMoved(ids){ if(!edgeFast(ids)) renderEdges(); }
   function renderEdges(){
     miniDraw();
-    el.edgeDefs.innerHTML = ''; el.edgeLayer.innerHTML = '';
+    edgeEls = {};
+    el.edgeDefs.innerHTML = ''; el.edgeLayer.innerHTML = ''; edgeLiveG.textContent = '';
     G.notes.forEach(function(t){
       if(!t.attach || t.hidden) return;
       var n = nodeById(t.attach), d = domOf('note', t.id);
@@ -52,9 +82,11 @@
       g.appendChild(svg('path', { 'class':'edge-hit', d:d, 'data-edge':e.id }));
       el.edgeLayer.appendChild(g);
       edgePaths[e.id] = line;
-      var len = line.getTotalLength();
-      g.appendChild(svg('circle', { 'class':'edge-end', cx:q.x, cy:q.y, r:5, fill:cb, stroke:'#12090B', 'stroke-width':2 }));
-      g.appendChild(svg('circle', { 'class':'edge-handle', cx:q.x, cy:q.y, r:12, 'data-edge':e.id, 'data-end':'to' }));
+      var endC = svg('circle', { 'class':'edge-end', cx:q.x, cy:q.y, r:5, fill:cb, stroke:'#12090B', 'stroke-width':2 });
+      var handleC = svg('circle', { 'class':'edge-handle', cx:q.x, cy:q.y, r:12, 'data-edge':e.id, 'data-end':'to' });
+      g.appendChild(endC); g.appendChild(handleC);
+      edgeEls[e.id] = { g:g, gr:gr, line:line, hit:g.querySelector('.edge-hit'), end:endC, handle:handleC };
+      var len = e.taps && e.taps.length ? line.getTotalLength() : 0;
       // точки на связи: блоки, подключённые в поток
       sortedTaps(e).forEach(function(tp, i){
         var pt = line.getPointAtLength(tp.t * len), srcs = tapNodes(tp);

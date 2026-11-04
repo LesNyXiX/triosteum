@@ -93,6 +93,81 @@
     setGraph(Repo.space(next.id)); showProjName();
     toast('Пространство «' + gone.name + '» удалено');
   }
+  /* ---------- очистка: доска, пространство, пространства среды, все пространства, настройки ----------
+     Опасные действия подтверждаются повторным выбором; последнее можно вернуть пунктом «Вернуть…» (до перезагрузки). */
+  var CLR = { undo:null };
+  // окно подтверждения: заголовок, пояснение, кнопка действия; Enter — да, Esc — нет
+  function askConfirm(title, text, yes, fn){
+    var m = $('askModal'), prev = document.activeElement;
+    $('askTitle').textContent = title; $('askText').textContent = text; $('askYes').textContent = yes || 'Да';
+    m.hidden = false; setTimeout(function(){ $('askNo').focus(); }, 30);
+    function close(ok){ m.hidden = true; $('askYes').onclick = $('askNo').onclick = null; m.onkeydown = m.onpointerdown = null; if(prev && prev.focus) try { prev.focus(); } catch(e){} if(ok) fn(); }
+    $('askYes').onclick = function(){ close(true); }; $('askNo').onclick = function(){ close(false); };
+    m.onkeydown = function(e){ if(e.key === 'Escape'){ e.stopPropagation(); close(false); } };
+    m.onpointerdown = function(e){ if(e.target === m) close(false); };
+  }
+  function clrConfirm(id, text, fn){ askConfirm(text + '?', 'Если передумаете — «Пространство → Очистка → Вернуть» (до перезагрузки страницы).', 'Очистить', fn); }
+  function emptyGraph(cam){ return { nodes:[], edges:[], notes:[], cam:cam || { x:0, y:0, k:1 }, seq:1 }; }
+  function clrBackup(label, ids, ui){
+    stashCur();
+    var b = { label:label, list:JSON.parse(JSON.stringify(PROJ.list)), cur:PROJ.cur, spaces:{}, ui:ui ? JSON.parse(JSON.stringify(UI)) : null };
+    (ids || []).forEach(function(id){ b.spaces[id] = Repo.space(id); });
+    CLR.undo = b;
+  }
+  function clrRestore(){
+    var b = CLR.undo; if(!b) return; CLR.undo = null;
+    if(b.ui){ UI = b.ui; save('triosteum.ui', UI); applyUI(); applyTheme(); if(typeof dockRefresh === 'function') dockRefresh(); toast('Настройки возвращены'); return; }
+    Object.keys(b.spaces).forEach(function(id){ if(b.spaces[id]) Repo.saveSpace(id, b.spaces[id]); });
+    PROJ.list = b.list; PROJ.cur = b.cur; saveProj();
+    setEnv(curProj().env || 'code'); setGraph(Repo.space(PROJ.cur)); showProjName();
+    toast('Возвращено: ' + b.label);
+  }
+  function clearSpaces(ids, label){
+    clrBackup(label, ids);
+    ids.forEach(function(id){ if(id !== PROJ.cur) Repo.saveSpace(id, emptyGraph()); });
+    if(ids.indexOf(PROJ.cur) >= 0) setGraph(emptyGraph(G.cam));
+    PROJ.list.forEach(function(p){ if(ids.indexOf(p.id) >= 0) p.t = Date.now(); }); saveProj();
+    toast(label + ' — готово. Передумали? Пространство → Очистка → «Вернуть»');
+  }
+  function clearCurSpace(){ var nm = curProj().name; clrConfirm('cur', 'Очистить всё в «' + nm + '»: доску, файлы и код схемы', function(){ clearSpaces([PROJ.cur], 'Очищено пространство «' + nm + '»'); }); }
+  function clearEnvSpaces(){ var ids = envProjects(ENV.id).map(function(p){ return p.id; }); clrConfirm('env', 'Очистить все пространства среды «' + ENV.name + '» (' + ids.length + ')', function(){ clearSpaces(ids, 'Очищены пространства среды «' + ENV.name + '»'); }); }
+  function clearAllSpaces(){ var ids = PROJ.list.map(function(p){ return p.id; }); clrConfirm('all', 'Очистить содержимое всех пространств (' + ids.length + '), названия останутся', function(){ clearSpaces(ids, 'Очищены все пространства'); }); }
+  function deleteAllSpaces(){ clrConfirm('del', 'Удалить все пространства (' + PROJ.list.length + ') и начать с одного пустого', deleteAllNow); }
+  function deleteAllNow(){
+    var ids = PROJ.list.map(function(p){ return p.id; });
+    clrBackup('Все пространства', ids);
+    ids.forEach(function(id){ Repo.removeSpace(id); });
+    var id = 'p' + Date.now().toString(36);
+    PROJ.list = [{ id:id, name:envNewName(ENV.id), t:Date.now(), env:ENV.id }]; PROJ.cur = id; saveProj();
+    setGraph(emptyGraph()); Repo.saveSpace(id, G); showProjName();
+    toast('Все пространства удалены. Передумали? Пространство → Очистка → «Вернуть»');
+  }
+  function resetUiSettings(){ clrConfirm('ui', 'Сбросить оформление: темы, свои темы, кнопки панелей, размеры текста', resetUiNow); }
+  function resetUiNow(){
+    clrBackup('Настройки', [], true);
+    UI = { scale:100, code:14, note:14 }; save('triosteum.ui', UI); applyUI(); applyTheme(); if(typeof dockReset === 'function') dockReset();
+    if(!$('pers').hidden) renderPers();
+    toast('Оформление сброшено. Передумали? Пространство → Очистка → «Вернуть»');
+  }
+  function clearSecretsKeys(){ askConfirm('Удалить секреты блоков и ключи ИИ?', 'Их нельзя будет вернуть — придётся ввести заново.', 'Удалить', clearKeysNow); }
+  function clearKeysNow(){
+    ['triosteum.secrets', 'triosteum.claude.key', 'triosteum.ai.key.openai', 'triosteum.claude.on'].forEach(function(k){ try { localStorage.removeItem(k); } catch(e){} try { sessionStorage.removeItem(k); } catch(e){} });
+    if(typeof CL !== 'undefined' && CL.on && typeof clDisable === 'function') clDisable(true);
+    toast('Секреты и ключи ИИ удалены из этого браузера');
+  }
+  function clearItems(){
+    var u = CLR.undo;
+    return (u ? [{ label:'Вернуть: ' + u.label, icon:'undo', act:clrRestore }, { sep:true }] : []).concat([
+      { label:'Очистить доску', icon:'trash', act:function(){ clrConfirm('board', 'Убрать с доски все блоки, связи и заметки', function(){ clrBackup('Доска', [PROJ.cur]); clearBoard(); }); } },
+      { label:'Очистить это пространство целиком', icon:'trash', act:clearCurSpace },
+      { label:'Очистить все пространства среды «' + ENV.name + '»', icon:'trash', act:clearEnvSpaces },
+      { label:'Очистить все пространства', icon:'trash', danger:true, act:clearAllSpaces },
+      { label:'Удалить все пространства', icon:'trash', danger:true, act:deleteAllSpaces },
+      { sep:true },
+      { label:'Сбросить оформление и панели', icon:'edit', act:resetUiSettings },
+      { label:'Удалить секреты и ключи ИИ', icon:'trash', act:clearSecretsKeys }
+    ]);
+  }
   function renameProj(){
     var btn = $('projBtn'), inp = h('input', { 'class':'proj-in', type:'text', 'aria-label':'Название пространства', maxlength:'80' });
     inp.value = curProj().name; btn.hidden = true; btn.parentNode.insertBefore(inp, btn); inp.focus(); inp.select();
@@ -120,6 +195,7 @@
       { label:'Переименовать…', icon:'edit', act:renameProj },
       { label:'Дублировать', icon:'copy', act:dupProj },
       { sep:true }].concat(shareItems()).concat([{ sep:true },
+      { label:'Очистка', icon:'trash', sub:clearItems() },
       { label:'Удалить пространство', icon:'trash', danger:true, act:delProj }]).concat(accountItems()));
   }
   // вход в облако: кто вошёл, перенос из браузера, выход
