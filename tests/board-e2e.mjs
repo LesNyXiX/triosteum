@@ -90,7 +90,10 @@ let tf = '';
 for (let i = 1; i <= 6; i++) { await page.mouse.move(nb.x + 100 + i * 30, nb.y + 30 + i * 6); tf = tf || await page.$eval('#nodes .node.dragging', (d) => d.style.transform); }
 check(/skew|scale/.test(tf), 'при перетаскивании блок тянется: ' + tf.slice(0, 50));
 await page.mouse.up(); await page.waitForTimeout(60);
-check(await page.locator('#nodes .node.jelly-end').count() === 1, 'после отпускания — пружинящая волна');
+const wob = []; for (let i = 0; i < 8; i++) { wob.push(await page.$eval('#nodes .node.sel', (d) => d.style.transform)); await page.waitForTimeout(40); }
+check(wob.filter(Boolean).length >= 2, 'после отпускания — затухающие колебания пружины (' + wob.filter(Boolean).length + ' кадров)');
+await page.waitForTimeout(1500);
+check(await page.$eval('#nodes .node.sel', (d) => d.style.transform) === '', 'колебания затухли, форма обычная');
 
 console.log('Встряхивание по диагонали и повторный захват');
 const hubs0 = await page.$$eval('#nodes .node.hub', (x) => x.length);
@@ -134,6 +137,39 @@ const kinds2 = await page.$$eval('.am-sub .am-kind b', (x) => x.map((e) => e.tex
 check(heads.some((h) => /Расчёты среды/.test(h)) && heads.some((h) => /Код/.test(h)) && kinds2.length > 10, '«Финансы»: свои расчёты + общие + код (' + heads.join(' / ') + ')');
 await page.locator('#addMenu .am-item[data-add="hub"]').hover(); await page.waitForTimeout(500);
 check(!(await page.isVisible('.am-sub')), 'на другом пункте варианты скрываются');
+
+console.log('Телефон: перетаскивание пальцем');
+{
+  const { devices } = await import('playwright');
+  const tctx = await browser.newContext({ ...devices['iPhone 13'] });
+  await tctx.addInitScript(() => { if (localStorage.getItem('triosteum.projects')) return;
+    localStorage.setItem('triosteum.projects', JSON.stringify({ cur:'p1', list:[{ id:'p1', name:'T', t:Date.now() }] }));
+    localStorage.setItem('triosteum.proj.p1', JSON.stringify({ nodes:[{ id:'a', name:'Новый блок 1', lang:'html', x:40, y:120, codes:{}, pluginId:null }], edges:[], notes:[], cam:{ x:0, y:0, k:1 }, seq:5 }));
+    localStorage.setItem('triosteum.profile', JSON.stringify({ name:'Т', org:'З' })); });
+  const tp = await tctx.newPage();
+  await tp.goto(URL); await tp.waitForTimeout(800);
+  const tb = await tp.locator('#nodes .node').boundingBox(), cdp = await tctx.newCDPSession(tp);
+  const touch = (type, x, y) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y }] });
+  let x = tb.x + 60, y = tb.y + 30; await touch('touchStart', x, y);
+  const p0 = await tp.$eval('#nodes .node', (d) => ({ l:parseFloat(d.style.left), t:parseFloat(d.style.top) })), x0 = x, y0 = y;
+  let lag = 0, jump = 0, prev = null, worst = 0;
+  for (let i = 0; i < 40; i++) {
+    x += (i % 12 < 6 ? 10 : -10); y += (i % 9 < 4 ? 7 : -5); await touch('touchMove', x, y); await tp.waitForTimeout(16);
+    const r = await tp.$eval('#nodes .node', (d) => ({ l:parseFloat(d.style.left), t:parseFloat(d.style.top), tf:d.style.transform }));
+    if (i > 3) lag = Math.max(lag, Math.abs((r.l - p0.l) - (x - x0)), Math.abs((r.t - p0.t) - (y - y0)));
+    const m = /scale\(([\d.]+),\s*([\d.]+)\)/.exec(r.tf), sc = m ? [+m[1], +m[2]] : [1, 1];
+    if (/skew|rotate/.test(r.tf)) worst = 1;
+    worst = Math.max(worst, Math.abs(sc[0] - 1), Math.abs(sc[1] - 1));
+    if (prev) jump = Math.max(jump, Math.abs(sc[0] - prev[0]), Math.abs(sc[1] - prev[1])); prev = sc;
+  }
+  await touch('touchEnd'); await tp.waitForTimeout(1600);
+  check(lag < 1, 'блок идёт строго за пальцем (отставание ' + lag.toFixed(1) + ' px)');
+  check(worst <= 0.041, 'деформация не больше 4%, без наклонов (' + (worst * 100).toFixed(1) + '%)');
+  check(jump < 0.015, 'форма меняется плавно, без скачков (' + (jump * 100).toFixed(2) + '% за кадр)');
+  check(await tp.$eval('#nodes .node', (d) => d.style.transform) === '', 'после отпускания форма возвращается');
+  check(!(await tp.textContent('#toast')).includes('нет связей'), 'нет ложного «нет связей»');
+  await tctx.close();
+}
 
 check(errors.length === 0, 'ошибок в консоли нет' + (errors.length ? ': ' + errors.slice(0, 3).join(' | ') : ''));
 await browser.close();

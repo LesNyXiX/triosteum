@@ -31,6 +31,7 @@
     "app/board/shake.js",
     "app/board/clipboard.js",
     "app/board/compile.js",
+    "app/vendor/wobble.js",
     "app/ui/jelly.js",
     "app/ui/text-style.js",
     "app/ui/windows.js",

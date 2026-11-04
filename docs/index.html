@@ -3590,7 +3590,7 @@ public class MovingAverage : IBlock
       if(!grp){ S.multi = []; S.sel = { type:'node', id:n.id }; }
       updateSel(); hidePop();
       ne.classList.add('dragging');
-      drag = { mode:'move', type:'node', item:n, el:ne, ox:n.x, oy:n.y, dx:w.x - n.x, dy:w.y - n.y, sx:e.clientX, sy:e.clientY, moved:false, sticky:false, group:grp, t0:Date.now() };
+      drag = { mode:'move', type:'node', touch:e.pointerType !== 'mouse', item:n, el:ne, ox:n.x, oy:n.y, dx:w.x - n.x, dy:w.y - n.y, sx:e.clientX, sy:e.clientY, moved:false, sticky:false, group:grp, t0:Date.now() };
       if(e.pointerType !== 'mouse'){        // на телефоне: удержание открывает код
         var dn = drag;
         dn.lp = setTimeout(function(){ if(drag === dn && !dn.moved){ drag = null; dn.el.classList.remove('dragging'); showPop(); } }, 600);
@@ -3604,7 +3604,7 @@ public class MovingAverage : IBlock
       var w2 = toWorld(e.clientX, e.clientY), grp2 = groupFor('note', t);
       if(!grp2){ S.multi = []; S.sel = { type:'note', id:t.id }; }
       updateSel(); hidePop();
-      drag = { mode:'move', type:'note', item:t, el:noteE, dx:w2.x - t.x, dy:w2.y - t.y, sx:e.clientX, sy:e.clientY, moved:false, sticky:stNo, group:grp2 };
+      drag = { mode:'move', type:'note', touch:e.pointerType !== 'mouse', item:t, el:noteE, dx:w2.x - t.x, dy:w2.y - t.y, sx:e.clientX, sy:e.clientY, moved:false, sticky:stNo, group:grp2 };
       if(stNo) carry(true);
       else if(e.pointerType !== 'mouse'){
         var dno = drag;
@@ -3799,7 +3799,8 @@ public class MovingAverage : IBlock
   function smoothMove(dg){
     if(moveRaf && moveDg !== dg) finishSmooth();
     if(dg.vx == null){ dg.vx = dg.item.x; dg.vy = dg.item.y; }
-    if(document.body.classList.contains('noanim')){ dg.vx = dg.tx; dg.vy = dg.ty; placeDragged(dg, dg.tx, dg.ty); return; }
+    // палец и выключенные анимации: блок строго под пальцем, без догоняющего сглаживания
+    if(dg.touch || document.body.classList.contains('noanim')){ if(dg.finishing){ dg.finishing = false; dg.vx = dg.tx; dg.vy = dg.ty; placeDragged(dg, dg.tx, dg.ty); saveGraph(); return; } dg.vx = dg.tx; dg.vy = dg.ty; if(!dg.pr){ dg.pr = requestAnimationFrame(function(){ dg.pr = 0; placeDragged(dg, dg.tx, dg.ty); }); } return; }
     moveDg = dg;
     if(moveRaf) return;
     moveT = performance.now();
@@ -4184,49 +4185,64 @@ public class MovingAverage : IBlock
     }, function(err){ running = false; rlog(err.message + '. Проверьте подключение к интернету.', 'err'); });
   }
 
-  /* ---------- «желе»: элемент мягко вытягивается по ходу движения и пружинит ----------
-     Без наклонов и поворотов — только растяжение вдоль направления движения.
-     Значения сглаживаются пружиной в requestAnimationFrame, поэтому на телефоне
-     (частые события касания) блок не дёргается и не «корёжится». */
-  var JELLY = { max:0.03, gain:0.012, stiff:0.18, damp:0.72 };
-  function jellyOff(){ return document.body.classList.contains('noanim') || (window.matchMedia && matchMedia('(prefers-reduced-motion:reduce)').matches); }
-  function jellyApply(el, s, hor){ el.style.transform = s < 0.002 ? '' : 'scale(' + (hor ? 1 + s : 1 - s * 0.6).toFixed(4) + ',' + (hor ? 1 - s * 0.6 : 1 + s).toFixed(4) + ')'; }
-  function jellyLoop(st, el){
-    if(st.jraf) return;
-    st.jraf = requestAnimationFrame(function step(){
-      st.jraf = 0;
-      if(!el.isConnected || !el.classList.contains('jelly-on')){ el.style.transform = ''; return; }
-      var idle = performance.now() - st.jt > 60;                       // курсор остановился — цель «ноль»
-      var target = idle ? 0 : Math.min(JELLY.max, st.speed * JELLY.gain);
-      st.jv = (st.jv + (target - st.js) * JELLY.stiff) * JELLY.damp;
-      st.js = Math.max(0, st.js + st.jv);
-      jellyApply(el, st.js, st.hor);
-      if(st.jlive || st.js > 0.001 || Math.abs(st.jv) > 0.0005) st.jraf = requestAnimationFrame(step);
-      else el.style.transform = '';
+  /* wobble 1.5.1 — физика пружин (аналитическое решение, не зависит от частоты кадров).
+     https://github.com/skevy/wobble · MIT License · Copyright (c) 2017 Adam Miskiewicz */
+var Wobble=function(t){"use strict";var i=Object.assign||function(t){for(var i,e=1,n=arguments.length;e<n;e++){i=arguments[e];for(var r in i)Object.prototype.hasOwnProperty.call(i,r)&&(t[r]=i[r])}return t};function e(t,i){if(!t)throw new Error(i)}function n(t,i){return void 0!==t&&null!==t?t:i}var r=function(){function t(t){void 0===t&&(t={}),this._listeners=[],this._currentAnimationStep=0,this._currentTime=0,this._springTime=0,this._currentValue=0,this._currentVelocity=0,this._isAnimating=!1,this._oscillationVelocityPairs=[],this._config={fromValue:n(t.fromValue,0),toValue:n(t.toValue,1),stiffness:n(t.stiffness,100),damping:n(t.damping,10),mass:n(t.mass,1),initialVelocity:n(t.initialVelocity,0),overshootClamping:n(t.overshootClamping,!1),allowsOverdamping:n(t.allowsOverdamping,!1),restVelocityThreshold:n(t.restVelocityThreshold,.001),restDisplacementThreshold:n(t.restDisplacementThreshold,.001)},this._currentValue=this._config.fromValue,this._currentVelocity=this._config.initialVelocity}return t.prototype.start=function(){var t=this,i=this._config,e=i.fromValue,n=i.toValue,r=i.initialVelocity;return e===n&&0===r||(this._reset(),this._isAnimating=!0,this._currentAnimationStep||(this._notifyListeners("onStart"),this._currentAnimationStep=requestAnimationFrame(function(i){t._step(Date.now())}))),this},t.prototype.stop=function(){return this._isAnimating?(this._isAnimating=!1,this._notifyListeners("onStop"),this._currentAnimationStep&&(cancelAnimationFrame(this._currentAnimationStep),this._currentAnimationStep=0),this):this},Object.defineProperty(t.prototype,"currentValue",{get:function(){return this._currentValue},enumerable:!0,configurable:!0}),Object.defineProperty(t.prototype,"currentVelocity",{get:function(){return this._currentVelocity},enumerable:!0,configurable:!0}),Object.defineProperty(t.prototype,"isAtRest",{get:function(){return this._isSpringAtRest()},enumerable:!0,configurable:!0}),Object.defineProperty(t.prototype,"isAnimating",{get:function(){return this._isAnimating},enumerable:!0,configurable:!0}),t.prototype.updateConfig=function(t){this._advanceSpringToTime(Date.now());var e={fromValue:this._currentValue,initialVelocity:this._currentVelocity};return this._config=i({},this._config,e,t),this._reset(),this},t.prototype.onStart=function(t){return this._listeners.push({onStart:t}),this},t.prototype.onUpdate=function(t){return this._listeners.push({onUpdate:t}),this},t.prototype.onStop=function(t){return this._listeners.push({onStop:t}),this},t.prototype.removeListener=function(t){return this._listeners=this._listeners.reduce(function(i,e){return-1!==Object.values(e).indexOf(t)||i.push(e),i},[]),this},t.prototype.removeAllListeners=function(){return this._listeners=[],this},t.prototype._reset=function(){this._currentTime=Date.now(),this._springTime=0,this._currentValue=this._config.fromValue,this._currentVelocity=this._config.initialVelocity},t.prototype._notifyListeners=function(t){var i=this;this._listeners.forEach(function(e){var n=e[t];"function"==typeof n&&n(i)})},t.prototype._step=function(t){var i=this;this._advanceSpringToTime(t,!0),this._isAnimating&&(this._currentAnimationStep=requestAnimationFrame(function(t){return i._step(Date.now())}))},t.prototype._advanceSpringToTime=function(i,n){if(void 0===n&&(n=!1),this._isAnimating){var r=i-this._currentTime;r>t.MAX_DELTA_TIME_MS&&(r=t.MAX_DELTA_TIME_MS),this._springTime+=r;var s=this._config.damping,o=this._config.mass,a=this._config.stiffness,h=this._config.fromValue,u=this._config.toValue,c=-this._config.initialVelocity;e(o>0,"Mass value must be greater than 0"),e(a>0,"Stiffness value must be greater than 0"),e(s>0,"Damping value must be greater than 0");var l=s/(2*Math.sqrt(a*o)),p=Math.sqrt(a/o)/1e3,_=p*Math.sqrt(1-l*l),f=p*Math.sqrt(l*l-1),m=u-h;l>1&&!this._config.allowsOverdamping&&(l=1);var g=0,y=0,V=this._springTime;if(l<1)g=u-(v=Math.exp(-l*p*V))*((c+l*p*m)/_*Math.sin(_*V)+m*Math.cos(_*V)),y=l*p*v*(Math.sin(_*V)*(c+l*p*m)/_+m*Math.cos(_*V))-v*(Math.cos(_*V)*(c+l*p*m)-_*m*Math.sin(_*V));else if(1===l){g=u-(v=Math.exp(-p*V))*(m+(c+p*m)*V),y=v*(c*(V*p-1)+V*m*(p*p))}else{var v;g=u-(v=Math.exp(-l*p*V))*((c+l*p*m)*Math.sinh(f*V)+f*m*Math.cosh(f*V))/f,y=v*l*p*(Math.sinh(f*V)*(c+l*p*m)+m*f*Math.cosh(f*V))/f-v*(f*Math.cosh(f*V)*(c+l*p*m)+f*f*m*Math.sinh(f*V))/f}if(this._currentTime=i,this._currentValue=g,this._currentVelocity=y,n&&(this._notifyListeners("onUpdate"),this._isAnimating))return this._isSpringOvershooting()||this._isSpringAtRest()?(0!==a&&(this._currentValue=u,this._currentVelocity=0,this._notifyListeners("onUpdate")),void this.stop()):void 0}},t.prototype._isSpringOvershooting=function(){var t=this._config,i=t.stiffness,e=t.fromValue,n=t.toValue,r=!1;return t.overshootClamping&&0!==i&&(r=e<n?this._currentValue>n:this._currentValue<n),r},t.prototype._isSpringAtRest=function(){var t=this._config,i=t.stiffness,e=t.toValue,n=t.restDisplacementThreshold,r=t.restVelocityThreshold,s=Math.abs(this._currentVelocity)<=r;return 0!==i&&Math.abs(e-this._currentValue)<=n&&s},t.MAX_DELTA_TIME_MS=1/60*1e3*4,t}();return t.Spring=r,t}({});
+
+
+  /* ---------- «желе» на настоящей физике пружин (библиотека wobble) ----------
+     Две независимые пружины — ширина и высота. Цель каждой зависит от скорости
+     по своей оси, поэтому форма меняется плавно и не «перескакивает» при смене
+     направления. Пружины решаются аналитически: на телефоне с частыми касаниями
+     и на мониторах 60/120 Гц движение одинаково ровное. После отпускания пружины
+     сами доигрывают затухающее колебание — это и есть «желе». */
+  var JELLY = { max:0.04, drag:{ stiffness:520, damping:30, mass:1 }, release:{ stiffness:380, damping:9, mass:1 } };
+  function jellyOff(){ return document.body.classList.contains('noanim') || (window.matchMedia && matchMedia('(prefers-reduced-motion:reduce)').matches) || typeof Wobble === 'undefined'; }
+  function jellySprings(st, el){
+    if(st.jel === el && st.jsx) return;
+    jellyStop(st);
+    st.jel = el;
+    var paint = function(){ var x = st.jsx.currentValue, y = st.jsy.currentValue; el.style.transform = Math.abs(x - 1) < 0.0008 && Math.abs(y - 1) < 0.0008 ? '' : 'scale(' + x.toFixed(4) + ',' + y.toFixed(4) + ')'; };
+    st.jsx = new Wobble.Spring(Object.assign({ fromValue:1, toValue:1, restDisplacementThreshold:0.00005, restVelocityThreshold:0.00002 }, JELLY.drag));
+    st.jsy = new Wobble.Spring(Object.assign({ fromValue:1, toValue:1, restDisplacementThreshold:0.00005, restVelocityThreshold:0.00002 }, JELLY.drag));
+    st.jsx.onUpdate(paint); st.jsy.onUpdate(paint);
+    st.jsx.onStop(paint); st.jsy.onStop(paint);
+  }
+  function jellyTarget(st, tx, ty, cfg){
+    [[st.jsx, tx], [st.jsy, ty]].forEach(function(p){
+      var s = p[0];
+      if(Math.abs(s.currentValue - p[1]) < 0.0004 && Math.abs(s.currentVelocity) < 0.0004 && !s.isAnimating) return;
+      s.updateConfig(Object.assign({ toValue:p[1] }, cfg || {})).start();
     });
   }
+  function jellyStop(st){ if(st && st.jsx){ st.jsx.stop(); st.jsy.stop(); st.jsx.removeAllListeners && st.jsx.removeAllListeners(); st.jsy.removeAllListeners && st.jsy.removeAllListeners(); if(st.jel) st.jel.style.transform = ''; st.jsx = st.jsy = null; } }
   function jellyMove(st, e, el){
     if(!el || jellyOff()) return;
     var now = performance.now();
-    if(st.jel !== el){ if(st.jel) st.jel.style.transform = ''; st.jel = el; st.js = st.js || 0; st.jv = st.jv || 0; }
-    if(st.jt === undefined){ st.jx = e.clientX; st.jy = e.clientY; st.jt = now; st.speed = 0; st.js = 0; st.jv = 0; st.hor = true; st.jlive = true; el.classList.remove('jelly-end'); el.classList.add('jelly-on'); return; }
+    jellySprings(st, el);
+    if(st.jt === undefined){ st.jx = e.clientX; st.jy = e.clientY; st.jt = now; st.vx = 0; st.vy = 0; el.classList.remove('jelly-end'); el.classList.add('jelly-on'); return; }
     var dt = now - st.jt; if(dt < 4) return;
     var vx = (e.clientX - st.jx) / dt, vy = (e.clientY - st.jy) / dt;
-    st.vx = (st.vx || 0) * 0.7 + vx * 0.3; st.vy = (st.vy || 0) * 0.7 + vy * 0.3;
-    st.speed = Math.min(3, Math.hypot(st.vx, st.vy)); st.hor = Math.abs(st.vx) >= Math.abs(st.vy);
-    st.jx = e.clientX; st.jy = e.clientY; st.jt = now; st.jlive = true;
-    jellyLoop(st, el);
+    st.vx = st.vx * 0.6 + vx * 0.4; st.vy = st.vy * 0.6 + vy * 0.4; st.jx = e.clientX; st.jy = e.clientY; st.jt = now;
+    // вытягивание вдоль движения и сжатие поперёк (объём почти сохраняется); сила плавно насыщается
+    var sp = Math.hypot(st.vx, st.vy), str = JELLY.max * (1 - Math.exp(-sp / 1.1));
+    if(sp > 0.01){ var ux = st.vx / sp, uy = st.vy / sp, d = ux * ux - uy * uy; jellyTarget(st, 1 + str * d, 1 - str * d, JELLY.drag); }
+    // палец остановился — форма мягко возвращается
+    clearTimeout(st.jidle);
+    st.jidle = setTimeout(function(){ st.vx = st.vy = 0; if(st.jsx) jellyTarget(st, 1, 1, JELLY.drag); }, 70);
   }
-  // отпустили — короткая затухающая пружинка
+  // отпустили — пружины доигрывают затухающее колебание от текущей скорости
   function jellyEnd(st, el){
-    if(st){ st.jlive = false; if(st.jraf){ cancelAnimationFrame(st.jraf); st.jraf = 0; } }
     if(!el) return;
-    el.style.transform = ''; el.classList.remove('jelly-on');
-    if(jellyOff()) return;
-    el.classList.remove('jelly-end'); void el.offsetWidth; el.classList.add('jelly-end');
-    setTimeout(function(){ el.classList.remove('jelly-end'); }, 520);
+    clearTimeout(st && st.jidle);
+    el.classList.remove('jelly-on');
+    if(jellyOff() || !st || !st.jsx){ el.style.transform = ''; return; }
+    jellyTarget(st, 1, 1, JELLY.release);
+    var sx = st.jsx, sy = st.jsy;
+    setTimeout(function(){ if(st.jsx === sx){ jellyStop(st); } }, 1400);
   }
-  document.addEventListener('pointerup', function(){ setTimeout(function(){ Array.prototype.forEach.call(document.querySelectorAll('.jelly-on'), function(x){ if(!x.classList.contains('dragging')){ x.style.transform = ''; x.classList.remove('jelly-on'); } }); }, 0); }, true);
+  // страховка: элементы, которые уже не перетаскиваются, без остаточной деформации
+  document.addEventListener('pointerup', function(){ setTimeout(function(){ Array.prototype.forEach.call(document.querySelectorAll('.jelly-on'), function(x){ if(!x.classList.contains('dragging')){ x.style.transform = ''; x.classList.remove('jelly-on'); } }); }, 1500); }, true);
 
   /* ---------- оформление текста: шрифт, цвет, обводка ---------- */
   var FONTS = [

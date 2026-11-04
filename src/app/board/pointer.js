@@ -118,7 +118,7 @@
       if(!grp){ S.multi = []; S.sel = { type:'node', id:n.id }; }
       updateSel(); hidePop();
       ne.classList.add('dragging');
-      drag = { mode:'move', type:'node', item:n, el:ne, ox:n.x, oy:n.y, dx:w.x - n.x, dy:w.y - n.y, sx:e.clientX, sy:e.clientY, moved:false, sticky:false, group:grp, t0:Date.now() };
+      drag = { mode:'move', type:'node', touch:e.pointerType !== 'mouse', item:n, el:ne, ox:n.x, oy:n.y, dx:w.x - n.x, dy:w.y - n.y, sx:e.clientX, sy:e.clientY, moved:false, sticky:false, group:grp, t0:Date.now() };
       if(e.pointerType !== 'mouse'){        // на телефоне: удержание открывает код
         var dn = drag;
         dn.lp = setTimeout(function(){ if(drag === dn && !dn.moved){ drag = null; dn.el.classList.remove('dragging'); showPop(); } }, 600);
@@ -132,7 +132,7 @@
       var w2 = toWorld(e.clientX, e.clientY), grp2 = groupFor('note', t);
       if(!grp2){ S.multi = []; S.sel = { type:'note', id:t.id }; }
       updateSel(); hidePop();
-      drag = { mode:'move', type:'note', item:t, el:noteE, dx:w2.x - t.x, dy:w2.y - t.y, sx:e.clientX, sy:e.clientY, moved:false, sticky:stNo, group:grp2 };
+      drag = { mode:'move', type:'note', touch:e.pointerType !== 'mouse', item:t, el:noteE, dx:w2.x - t.x, dy:w2.y - t.y, sx:e.clientX, sy:e.clientY, moved:false, sticky:stNo, group:grp2 };
       if(stNo) carry(true);
       else if(e.pointerType !== 'mouse'){
         var dno = drag;
@@ -327,7 +327,8 @@
   function smoothMove(dg){
     if(moveRaf && moveDg !== dg) finishSmooth();
     if(dg.vx == null){ dg.vx = dg.item.x; dg.vy = dg.item.y; }
-    if(document.body.classList.contains('noanim')){ dg.vx = dg.tx; dg.vy = dg.ty; placeDragged(dg, dg.tx, dg.ty); return; }
+    // палец и выключенные анимации: блок строго под пальцем, без догоняющего сглаживания
+    if(dg.touch || document.body.classList.contains('noanim')){ if(dg.finishing){ dg.finishing = false; dg.vx = dg.tx; dg.vy = dg.ty; placeDragged(dg, dg.tx, dg.ty); saveGraph(); return; } dg.vx = dg.tx; dg.vy = dg.ty; if(!dg.pr){ dg.pr = requestAnimationFrame(function(){ dg.pr = 0; placeDragged(dg, dg.tx, dg.ty); }); } return; }
     moveDg = dg;
     if(moveRaf) return;
     moveT = performance.now();
