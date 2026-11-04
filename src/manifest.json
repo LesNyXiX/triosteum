@@ -40,6 +40,8 @@
     "app/ui/context-menu.js",
     "app/ui/personalize.js",
     "app/ui/font-size.js",
+    "app/ui/docks.js",
+    "app/ui/theme-editor.js",
     "app/ui/add-menu.js",
     "app/ui/hotkeys.js",
     "app/editor/highlight.js",

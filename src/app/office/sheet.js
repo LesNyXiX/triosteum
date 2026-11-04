@@ -284,7 +284,7 @@
     var box = $('sgCharts'); if(!box) return; box.innerHTML = '';
     var sh = shCur(), list = sh.charts || []; box.hidden = !list.length;
     list.forEach(function(ch, i){
-      var dark = !(THEMES[UI.theme] || {}).light;
+      var dark = !themeOf(UI.theme).light;
       var card = h('figure', { 'class':'chart-card' }, [
         h('div', { 'class':'cc-bar' }, [
           h('input', { 'class':'input cc-title', value:ch.title || '', placeholder:'Название диаграммы', 'aria-label':'Название диаграммы', on:{ change:function(e){ ch.title = e.target.value; shChanged(); renderCharts(); } } }),

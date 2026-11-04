@@ -396,6 +396,65 @@
   .clp-seg button.on{background:var(--wine2);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line2)}
   .clp-b code{font-family:var(--mono);font-size:11.5px;background:var(--bg);border:1px solid var(--line2);border-radius:5px;padding:0 4px;color:var(--ink)}
   .clp-b p b{color:var(--ink)}
+  /* панели инструментов у любого края */
+  .row{position:relative}
+  .tools.empty{display:none}
+  .tools.dock-top,.tools.dock-bottom,.tools.dock-right{position:absolute;z-index:30;width:auto;padding:5px;gap:4px;background:var(--panel);border:1px solid var(--line2);border-radius:14px;box-shadow:0 10px 28px rgba(0,0,0,.4)}
+  .tools.dock-top,.tools.dock-bottom{flex-direction:row;left:50%;transform:translateX(-50%);max-width:calc(100% - 24px);overflow-x:auto}
+  .tools.dock-top{top:10px} .tools.dock-bottom{bottom:10px}
+  .tools.dock-right{flex-direction:column;right:10px;top:50%;transform:translateY(-50%);max-height:calc(100% - 24px);overflow-y:auto}
+  .tools.dock > .tool{flex:none}
+  .tools.dock-top > .tool,.tools.dock-bottom > .tool,.tools.dock-right > .tool{margin:0 !important}
+  .tools.dock > .tool{touch-action:none}
+  .tools.dock[hidden]{display:none}
+  .tool-ghost{position:fixed;z-index:90;pointer-events:none;background:var(--wine);color:var(--on-wine);border-color:var(--red);box-shadow:0 10px 26px rgba(0,0,0,.5);opacity:.95;transform:scale(1.08)}
+  .tool.dock-src{opacity:.3}
+  .dock-mark{flex:none;align-self:center;width:3px;height:30px;border-radius:2px;background:var(--red)}
+  .dock-right .dock-mark{width:30px;height:3px}
+  .dock-zone{position:absolute;z-index:29;pointer-events:none;border:2px dashed var(--line2);border-radius:14px;background:color-mix(in srgb,var(--red) 6%,transparent);display:grid;place-items:center;transition:background .15s,border-color .15s}
+  .dock-zone span{font-size:12px;color:var(--muted);background:var(--panel);padding:2px 8px;border-radius:8px}
+  .dock-zone.hot{border-color:var(--red);background:color-mix(in srgb,var(--red) 16%,transparent)}
+  .dock-zone.hot span{color:var(--ink)}
+  .dz-left{left:4px;top:8px;bottom:8px;width:64px} .dz-right{right:4px;top:8px;bottom:8px;width:72px}
+  .dz-top{top:4px;left:80px;right:90px;height:62px} .dz-bottom{bottom:4px;left:80px;right:90px;height:62px}
+  body.docking .tools.empty{display:flex;min-width:56px}
+  body.docking{cursor:grabbing}
+  .tip.s-top{transform:translate(-50%,0)} .tip.s-bottom{transform:translate(-50%,-100%)} .tip.s-right{transform:translate(-100%,-50%)}
+  .tip.s-top::before{left:calc(50% - 4px);top:-5px;margin-top:0;transform:rotate(135deg)} .tip.s-bottom::before{left:calc(50% - 4px);top:auto;bottom:-5px;margin-top:0;transform:rotate(-45deg)} .tip.s-right::before{left:auto;right:-5px;transform:rotate(-135deg)}
+  .addmenu.above::before{left:calc(50% - 5px);top:auto;bottom:-6px;transform:rotate(-45deg)}
+  .addmenu.leftof::before{left:auto;right:-6px;transform:rotate(-135deg)}
+  .dock-sel{height:28px;border-radius:7px;border:1px solid var(--line2);background:var(--bg);color:var(--ink);font:inherit;font-size:12px;padding:0 4px;margin-left:auto;margin-right:8px}
+  .dock-sel:disabled{opacity:.4}
+  /* редактор тем */
+  .pers.th-ed{left:auto;right:16px;top:64px;width:460px;height:calc(100vh - 92px);z-index:48}
+  @media (max-width:640px){ .pers.th-ed{right:0 !important} }
+  .theme-w{position:relative;display:flex}
+  .theme-w .theme{flex:1;width:100%}
+  .theme-ed{position:absolute;right:6px;top:6px;width:26px;height:26px;border-radius:8px;border:1px solid var(--line2);background:var(--panel);color:var(--muted);display:grid;place-items:center;cursor:pointer;opacity:.85}
+  .theme-ed:hover,.theme-ed:focus-visible{color:var(--ink-strong);border-color:var(--red);opacity:1}
+  .theme-new{border-style:dashed;align-items:stretch}
+  .theme-new .pv{display:grid !important;place-items:center;color:var(--muted);background:transparent !important}
+  .th-pv{border:1px solid;border-radius:12px;overflow:hidden;height:150px;display:flex;flex-direction:column;flex:none}
+  .th-top{display:flex;align-items:center;gap:10px;height:30px;padding:0 10px;font-size:11.5px}
+  .th-top span{flex:1}
+  .th-top i{font-style:normal;font-size:11px;font-weight:600;padding:3px 9px;border-radius:7px}
+  .th-body{flex:1;display:flex;min-height:0}
+  .th-side{width:30px;display:flex;flex-direction:column;align-items:center;gap:6px;padding-top:8px}
+  .th-side span{width:16px;height:16px;border-radius:5px;display:block}
+  .th-board{flex:1;position:relative;background-size:14px 14px}
+  .th-card{position:absolute;left:18%;top:18%;padding:7px 10px;border-radius:9px;display:flex;flex-direction:column;font-size:12px}
+  .th-card small,.th-tip small{font-size:10px}
+  .th-tip{position:absolute;right:10%;bottom:14%;padding:6px 9px;border-radius:8px;font-size:11.5px;display:flex;flex-direction:column;box-shadow:0 6px 16px rgba(0,0,0,.3)}
+  .th-quick{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .th-q{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink);cursor:pointer}
+  .th-q input,.th-f input{width:38px;height:30px;border:1px solid var(--line2);border-radius:8px;background:none;padding:2px;cursor:pointer}
+  .th-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px}
+  .th-f{display:flex;align-items:center;gap:10px;padding:6px 8px;border:1px solid var(--line);border-radius:10px;cursor:pointer}
+  .th-f b{display:block;font-size:12.5px;color:var(--ink);font-weight:600}
+  .th-f small{display:block;font-size:11px;color:var(--muted)}
+  .th-acts{display:flex;flex-wrap:wrap;gap:8px}
+  .th-code{display:flex;flex-direction:column;gap:8px}
+  .th-code[hidden]{display:none}
 
   /* ---------- заметки ---------- */
   .note{position:absolute;width:max-content;min-width:140px;max-width:360px;min-height:22px;padding:10px 12px;border-radius:10px;
@@ -1465,6 +1524,11 @@
 <section class="clp" id="claudeP" role="dialog" aria-label="Подключение ИИ" hidden>
   <div class="clp-h"><b>ИИ в Triosteum</b><button class="icon-btn" type="button" id="claudePClose" aria-label="Закрыть"><svg class="i" viewBox="0 0 24 24" style="width:15px;height:15px;stroke-width:2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
   <div class="clp-b" id="claudePBody"></div>
+</section>
+<section class="pers th-ed" id="themeEd" role="dialog" aria-label="Редактор темы" hidden>
+  <div class="pers-h"><h2 id="themeEdTitle">Тема</h2>
+    <button class="icon-btn" type="button" id="themeEdClose" aria-label="Закрыть без сохранения"><svg class="i" viewBox="0 0 24 24" style="width:16px;height:16px;stroke-width:2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+  <div class="pers-b" id="themeEdBody"></div>
 </section>
 <section class="pers" id="pers" role="dialog" aria-label="Персонализация" hidden>
   <div class="pers-h" id="persHead"><h2>Персонализация</h2>
@@ -5210,14 +5274,14 @@ var Wobble=function(t){"use strict";var i=Object.assign||function(t){for(var i,e
   function applyTheme(){
     // у каждой среды своя палитра: запоминаем выбор для текущей среды
     if(typeof ENV !== 'undefined' && ENV){ UI.envs = UI.envs || {}; UI.envs[ENV.id] = { theme:UI.theme || ENV_THEME_DEF[ENV.id] || 'burgundy', accent:UI.accent || null }; }
-    var th = THEMES[UI.theme] || THEMES.burgundy, root = document.documentElement.style;
+    var th = themeOf(UI.theme), root = document.documentElement.style;
     // у «Офиса» свой зелёный цвет: на темах с красным акцентом он сохраняется, пока пользователь не выберет другой акцент
     var ac = UI.accent || envAccent(th, UI.theme);
     root.setProperty('--bg', th.bg); root.setProperty('--panel', th.panel); root.setProperty('--line', th.line); root.setProperty('--line2', th.line2);
     root.setProperty('--ink', th.ink); root.setProperty('--ink-strong', th.strong); root.setProperty('--muted', th.muted); root.setProperty('--dim', th.dim);
     root.setProperty('--dot', th.dot); root.setProperty('--tipbg', th.tip);
     var P;
-    if(UI.theme === 'burgundy' && ac.toUpperCase() === '#DC2626'){
+    if(UI.theme === 'burgundy' && ac.toUpperCase() === '#DC2626' && !themeEdited('burgundy') && !TH_ED){
       // исходная палитра — ровно как была
       P = { red:'#DC2626', btn:'#B91C1C', btnH:'#991B1B', soft:'#F87171', wine:'#5C0F1E', wine2:'#3A0F18', onWine:'#fff', onAcc:'#fff' };
     } else {
@@ -5244,6 +5308,7 @@ var Wobble=function(t){"use strict";var i=Object.assign||function(t){for(var i,e
       b.hidden = !on;
     });
     save('triosteum.ui', UI);
+    if(typeof dockRefresh === 'function') dockRefresh();
   }
   var persWin = null;
   function openPers(){
@@ -5257,15 +5322,20 @@ var Wobble=function(t){"use strict";var i=Object.assign||function(t){for(var i,e
   function renderPers(){
     var b = $('persBody'); b.innerHTML = '';
     var tg = h('div', { 'class':'themes', role:'radiogroup', 'aria-label':'Тема' });
-    Object.keys(THEMES).forEach(function(k){
-      var th = THEMES[k], on = (UI.theme || 'burgundy') === k;
+    themeKeys().forEach(function(k){
+      var th = themeOf(k), on = (UI.theme || 'burgundy') === k;
       var pv = h('span', { 'class':'pv', style:'background:' + th.bg + ';border:1px solid ' + th.line2 });
       [th.panel, th.line2, th.accent, th.muted].forEach(function(c, i){ pv.appendChild(h('i', { style:'height:' + (14 + i * 6) + 'px;background:' + c })); });
-      tg.appendChild(h('button', { type:'button', 'class':'theme' + (on ? ' on' : ''), role:'radio', 'aria-checked':on ? 'true' : 'false',
-        on:{ click:function(){ UI.theme = k; UI.accent = null; applyTheme(); renderPers(); } } }, [ pv, h('span', { text:th.name }) ]));
+      var tile = h('div', { 'class':'theme-w' }, [
+        h('button', { type:'button', 'class':'theme' + (on ? ' on' : ''), role:'radio', 'aria-checked':on ? 'true' : 'false',
+          on:{ click:function(){ if(TH_ED) themeCancel(true); UI.theme = k; UI.accent = null; applyTheme(); renderPers(); } } }, [ pv, h('span', { text:th.name + (themeEdited(k) ? ' ✎' : '') }) ]),
+        h('button', { type:'button', 'class':'theme-ed', 'aria-label':'Изменить тему «' + th.name + '»', title:'Изменить тему', html:'<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M14 6l4 4"/></svg>', on:{ click:function(){ themeOpen(k); } } })
+      ]);
+      tg.appendChild(tile);
     });
-    b.appendChild(section('Тема оформления — для среды «' + ENV.name + '» (у каждой среды своя)', tg));
-    var th = THEMES[UI.theme || 'burgundy'];
+    tg.appendChild(h('button', { type:'button', 'class':'theme theme-new', on:{ click:function(){ themeOpen(UI.theme || 'burgundy', { asNew:true, name:'Своя тема' }); } } }, [ h('span', { 'class':'pv' , html:'<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>' }), h('span', { text:'Создать тему' }) ]));
+    b.appendChild(section('Тема оформления — для среды «' + ENV.name + '» (у каждой среды своя). Карандаш — изменить тему', tg));
+    var th = themeOf(UI.theme || 'burgundy');
     var defAc = envAccent(th, UI.theme);
     b.appendChild(section('Акцентный цвет (кнопки, выделение, активные инструменты)', colorRow(ACCENTS, UI.accent || null, function(c, live){ UI.accent = c; applyTheme(); if(!live) renderPers(); }, 'Акцент', isDocs() ? 'Цвет среды' : 'Цвет темы', defAc)));
     var gseg = h('div', { 'class':'seg' });
@@ -5291,9 +5361,18 @@ var Wobble=function(t){"use strict";var i=Object.assign||function(t){for(var i,e
     var tgrid = h('div', { 'class':'toolgrid' });
     TOOL_OPTS.forEach(function(t){
       var tools = UI.tools || {}, on = tools[t.id] === undefined ? !!t.core : !!tools[t.id];
-      tgrid.appendChild(toggleRow(t.name, on, function(v){ UI.tools = UI.tools || {}; UI.tools[t.id] = v; applyTheme(); }));
+      var btn = t.btn ? $(t.btn) : document.querySelector(t.sel), key = btn && btn._dk;
+      var row = toggleRow(t.name, on, function(v){ UI.tools = UI.tools || {}; UI.tools[t.id] = v; applyTheme(); renderPers(); });
+      if(key){
+        var sel = h('select', { 'class':'dock-sel', 'aria-label':'Где кнопка «' + t.name + '»', on:{ change:function(){ dockSet(key, sel.value); } } });
+        Object.keys(DOCK_SIDES).forEach(function(s){ var o = h('option', { value:s, text:DOCK_SIDES[s] }); if(dockSideOf(btn) === s) o.selected = true; sel.appendChild(o); });
+        if(!on) sel.disabled = true;
+        row.insertBefore(sel, row.lastChild);
+      }
+      tgrid.appendChild(row);
     });
-    b.appendChild(section('Кнопки на панели слева', tgrid));
+    b.appendChild(section('Кнопки панелей инструментов — включите и выберите край (или перетащите кнопку мышью к любому краю)', h('div', null, [ tgrid,
+      h('button', { type:'button', 'class':'btn sm', style:'margin-top:8px', text:'Вернуть все кнопки на панель слева', on:{ click:function(){ dockReset(); renderPers(); } } }) ])));
     var txt = h('div', null, [
       fsRow('Окна и меню', fsControl(UI.scale, 80, 160, function(v){ UI.scale = v; applyUI(); }, 'масштаб окон', '%')),
       fsRow('Редактор кода', fsControl(UI.code, 10, 28, function(v){ UI.code = v; applyUI(); updateGutter(); }, 'шрифт кода')),
@@ -5397,21 +5476,304 @@ var Wobble=function(t){"use strict";var i=Object.assign||function(t){for(var i,e
     $('tmNote').appendChild(fsControl(UI.note, 8, 72, function(v){ UI.note = v; applyUI(); }, 'шрифт новых заметок'));
   }
   // меню у кнопки панели: справа от неё, но целиком в пределах экрана (у .addmenu сдвиг вверх на 24px в CSS)
-  function placeBeside(menu, r){
-    var hh = menu.offsetHeight, ww = menu.offsetWidth, vh = window.innerHeight, vw = window.innerWidth;
+  // меню у кнопки панели: справа от левой панели, под верхней, над нижней, слева от правой
+  function placeBeside(menu, r, btn){
+    var hh = menu.offsetHeight, ww = menu.offsetWidth, vh = window.innerHeight, vw = window.innerWidth, side = btn && typeof dockSideOf === 'function' ? dockSideOf(btn) : 'left';
+    menu.classList.remove('below', 'above', 'leftof');
+    if(side === 'top' || side === 'bottom'){
+      menu.classList.add(side === 'top' ? 'below' : 'above');
+      menu.style.left = Math.max(8, Math.min(vw - ww - 8, r.left + r.width / 2 - ww / 2)) + 'px';
+      menu.style.top = (side === 'top' ? Math.min(r.bottom + 12, vh - hh - 8) : Math.max(8, r.top - 12 - hh)) + 24 + 'px';
+      return;
+    }
     var top = Math.max(8 + 24, Math.min(r.top + r.height / 2, vh - hh - 8 + 24));
-    menu.style.left = Math.max(8, Math.min(r.right + 12, vw - ww - 8)) + 'px'; menu.style.top = top + 'px';
+    if(side === 'right'){ menu.classList.add('leftof'); menu.style.left = Math.max(8, r.left - 12 - ww) + 'px'; }
+    else menu.style.left = Math.max(8, Math.min(r.right + 12, vw - ww - 8)) + 'px';
+    menu.style.top = top + 'px';
   }
   function openTextMenu(){
     buildTextMenu(); closeAddMenu();
     var r = bTextSize.getBoundingClientRect();
-    textMenu.hidden = false; placeBeside(textMenu, r); bTextSize.setAttribute('aria-expanded', 'true'); bTextSize.classList.add('on'); hideTip();
+    textMenu.hidden = false; placeBeside(textMenu, r, bTextSize); bTextSize.setAttribute('aria-expanded', 'true'); bTextSize.classList.add('on'); hideTip();
   }
   function closeTextMenu(){ textMenu.hidden = true; bTextSize.setAttribute('aria-expanded', 'false'); bTextSize.classList.remove('on'); }
   bTextSize.addEventListener('click', function(e){ e.stopPropagation(); textMenu.hidden ? openTextMenu() : closeTextMenu(); });
   $('tmReset').addEventListener('click', function(){ UI = { scale:100, code:14, note:14 }; applyUI(); buildTextMenu(); updateGutter(); });
   textMenu.addEventListener('keydown', function(e){ if(e.key === 'Escape'){ closeTextMenu(); bTextSize.focus(); } });
   document.addEventListener('click', function(e){ if(!textMenu.hidden && !textMenu.contains(e.target) && !bTextSize.contains(e.target)) closeTextMenu(); });
+
+  /* =====================================================================
+     ПАНЕЛИ ИНСТРУМЕНТОВ У ЛЮБОГО КРАЯ: любую кнопку панели слева можно
+     перетащить мышью (или пальцем) к верхнему, нижнему или правому краю —
+     там появляется своя панель. Место запоминается. То же самое — в
+     Персонализации: у каждой кнопки выбор «слева / сверху / снизу / справа».
+     ===================================================================== */
+  var DOCK_SIDES = { left:'Слева', top:'Сверху', bottom:'Снизу', right:'Справа' };
+  var dockRow = document.querySelector('.row'), dockNav = document.querySelector('nav.tools');
+  dockNav.classList.add('dock'); dockNav.dataset.side = 'left';
+  var DOCKS = { left:dockNav }, DOCK_BTN = {}, DOCK_ORIG = Array.prototype.slice.call(dockNav.children);
+  ['top', 'bottom', 'right'].forEach(function(s){
+    var d = document.createElement('nav'); d.className = 'tools dock dock-' + s; d.dataset.side = s; d.hidden = true;
+    d.setAttribute('aria-label', 'Инструменты — ' + DOCK_SIDES[s].toLowerCase());
+    dockRow.appendChild(d); DOCKS[s] = d;
+  });
+  DOCK_ORIG.forEach(function(c){ if(!c.classList.contains('tool')) return; var k = c.id || ('tool-' + (c.dataset.tool || '')); c._dk = k; DOCK_BTN[k] = c; });
+  function dockKeyOf(btn){ return btn && btn._dk; }
+  function dockSideOf(btn){ var d = btn && btn.closest && btn.closest('.dock'); return d ? d.dataset.side : 'left'; }
+  function dockRefresh(){
+    var map = UI.dock || {}, ord = UI.dockOrder || {};
+    DOCK_ORIG.forEach(function(c){ var k = c._dk; if(k && map[k] && map[k] !== 'left') return; dockNav.appendChild(c); });
+    ['top', 'bottom', 'right'].forEach(function(s){
+      var d = DOCKS[s], keys = (ord[s] || []).filter(function(k){ return map[k] === s; });
+      Object.keys(map).forEach(function(k){ if(map[k] === s && keys.indexOf(k) < 0) keys.push(k); });
+      keys.forEach(function(k){ if(DOCK_BTN[k]) d.appendChild(DOCK_BTN[k]); });
+    });
+    // пустая панель не показывается (кнопки могут быть выключены или скрыты в этой среде)
+    Object.keys(DOCKS).forEach(function(s){
+      var d = DOCKS[s]; d.hidden = false; d.classList.remove('empty');
+      var any = Array.prototype.some.call(d.children, function(c){ return c.classList.contains('tool') && c.offsetWidth > 0; });
+      if(s === 'left') d.classList.toggle('empty', !any && !document.body.classList.contains('docking')); else d.hidden = !any && !document.body.classList.contains('docking');
+    });
+  }
+  function dockSet(key, side, index){
+    UI.dock = UI.dock || {}; UI.dockOrder = UI.dockOrder || {};
+    Object.keys(UI.dockOrder).forEach(function(s){ UI.dockOrder[s] = UI.dockOrder[s].filter(function(k){ return k !== key; }); });
+    if(side === 'left') delete UI.dock[key];
+    else {
+      UI.dock[key] = side;
+      var list = (UI.dockOrder[side] = UI.dockOrder[side] || []);
+      // порядок — по фактическому расположению кнопок в панели
+      var cur = Array.prototype.filter.call(DOCKS[side].children, function(c){ return c._dk && c._dk !== key && UI.dock[c._dk] === side; }).map(function(c){ return c._dk; });
+      if(index === undefined || index < 0 || index > cur.length) index = cur.length;
+      cur.splice(index, 0, key); UI.dockOrder[side] = cur;
+    }
+    save('triosteum.ui', UI); dockRefresh();
+  }
+  function dockReset(){ UI.dock = {}; UI.dockOrder = {}; save('triosteum.ui', UI); dockRefresh(); }
+  new MutationObserver(function(){ dockRefresh(); }).observe(document.body, { attributes:true, attributeFilter:['data-mode'] });
+  window.addEventListener('resize', function(){ dockRefresh(); });
+
+  /* ---------- перетаскивание кнопок между краями ---------- */
+  var DG = null, dockNoClick = 0, dockNoClickEl = null, dockZones = null;
+  function dockZonesShow(on){
+    if(on && !dockZones){
+      dockZones = {};
+      Object.keys(DOCK_SIDES).forEach(function(s){ var z = document.createElement('div'); z.className = 'dock-zone dz-' + s; z.innerHTML = '<span>' + DOCK_SIDES[s] + '</span>'; dockRow.appendChild(z); dockZones[s] = z; });
+    }
+    if(!on && dockZones){ Object.keys(dockZones).forEach(function(s){ dockZones[s].remove(); }); dockZones = null; }
+  }
+  function dockTarget(x, y){
+    var R = dockRow.getBoundingClientRect(), T = 90;
+    var dists = { left:x - R.left, right:R.right - x, top:y - R.top, bottom:R.bottom - y };
+    var best = null; Object.keys(dists).forEach(function(s){ if(dists[s] >= -40 && dists[s] < T && (!best || dists[s] < dists[best])) best = s; });
+    if(!best){ var over = document.elementFromPoint(x, y), d = over && over.closest && over.closest('.dock'); if(d) best = d.dataset.side; }
+    if(!best) return null;
+    // место среди кнопок панели
+    var d2 = DOCKS[best], horiz = best === 'top' || best === 'bottom', idx = 0;
+    var kids = Array.prototype.filter.call(d2.children, function(c){ return c.classList.contains('tool') && c !== DG.b && c.offsetWidth > 0 && (best === 'left' || (UI.dock || {})[c._dk] === best); });
+    kids.forEach(function(c, i){ var r = c.getBoundingClientRect(); if((horiz ? x : y) > (horiz ? r.left + r.width / 2 : r.top + r.height / 2)) idx = i + 1; });
+    return { side:best, index:idx, before:kids[idx] || null };
+  }
+  function dockMark(t){
+    var m = document.querySelector('.dock-mark');
+    if(!t || t.side === 'left'){ if(m) m.remove(); return; }
+    if(!m){ m = document.createElement('i'); m.className = 'dock-mark'; }
+    var d = DOCKS[t.side]; if(t.before) d.insertBefore(m, t.before); else d.appendChild(m);
+  }
+  document.addEventListener('pointerdown', function(e){
+    var b = e.target.closest && e.target.closest('.dock > .tool');
+    if(!b || e.button !== 0) return;
+    DG = { b:b, sx:e.clientX, sy:e.clientY, on:false, id:e.pointerId };
+  }, true);
+  document.addEventListener('pointermove', function(e){
+    if(!DG || e.pointerId !== DG.id) return;
+    if(!DG.on){
+      if(Math.abs(e.clientX - DG.sx) + Math.abs(e.clientY - DG.sy) < 10) return;
+      DG.on = true;
+      if(typeof hideTip === 'function') hideTip();
+      document.body.classList.add('docking'); dockZonesShow(true); dockRefresh();
+      DG.ghost = DG.b.cloneNode(true); DG.ghost.removeAttribute('id'); DG.ghost.className = 'tool tool-ghost'; DG.ghost.setAttribute('aria-hidden', 'true'); document.body.appendChild(DG.ghost);
+      DG.b.classList.add('dock-src');
+    }
+    e.preventDefault();
+    DG.ghost.style.left = (e.clientX - 22) + 'px'; DG.ghost.style.top = (e.clientY - 22) + 'px';
+    var t = dockTarget(e.clientX, e.clientY); DG.t = t;
+    if(dockZones) Object.keys(dockZones).forEach(function(s){ dockZones[s].classList.toggle('hot', !!t && t.side === s); });
+    dockMark(t);
+  }, true);
+  function dockEnd(cancel){
+    if(!DG) return;
+    var g = DG; DG = null;
+    if(!g.on) return;
+    dockNoClick = Date.now(); dockNoClickEl = g.b;
+    g.ghost.remove(); g.b.classList.remove('dock-src'); dockMark(null);
+    document.body.classList.remove('docking'); dockZonesShow(false);
+    if(!cancel && g.t){ var k = dockKeyOf(g.b); if(k){ var was = dockSideOf(g.b); dockSet(k, g.t.side, g.t.index); if(was !== g.t.side) toast('«' + (g.b.getAttribute('aria-label') || 'Кнопка') + '» — панель ' + DOCK_SIDES[g.t.side].toLowerCase()); return; } }
+    dockRefresh();
+  }
+  document.addEventListener('pointerup', function(e){ if(DG && e.pointerId === DG.id) dockEnd(false); }, true);
+  document.addEventListener('pointercancel', function(){ dockEnd(true); }, true);
+  document.addEventListener('keydown', function(e){ if(e.key === 'Escape' && DG && DG.on){ e.stopPropagation(); dockEnd(true); } }, true);
+  // нажатие, которым закончилось перетаскивание, — не нажатие кнопки
+  window.addEventListener('click', function(e){ if(Date.now() - dockNoClick < 350 && dockNoClickEl && e.target.closest && e.target.closest('.tool') === dockNoClickEl){ dockNoClickEl = null; e.stopPropagation(); e.preventDefault(); } }, true);
+  dockRefresh();
+
+  /* =====================================================================
+     РЕДАКТОР ТЕМ (как темы чатов в Telegram): любую тему можно изменить,
+     можно создать свою — с нуля или копией. Изменения видны сразу во всём
+     приложении; «Отмена» возвращает как было. Тему можно передать коллеге
+     кодом и вставить у себя.
+     ===================================================================== */
+  var THEME_FIELDS = [
+    ['accent', 'Акцент', 'кнопки, выделение, активные инструменты'],
+    ['bg', 'Фон', 'доска и фон окна'],
+    ['panel', 'Панели', 'шапка, панели, карточки'],
+    ['tip', 'Меню и подсказки', 'всплывающие окна'],
+    ['line', 'Тонкие линии', 'разделители'],
+    ['line2', 'Рамки', 'рамки окон и полей'],
+    ['dot', 'Сетка', 'точки и линии доски'],
+    ['ink', 'Текст', 'основной текст'],
+    ['strong', 'Заголовки', 'самый яркий текст'],
+    ['muted', 'Второй текст', 'подписи, описания'],
+    ['dim', 'Подсказки', 'самый тихий текст']
+  ];
+  var TH_ED = null;   // { key, custom, draft, prevTheme, prevAccent, name }
+  function themeLight(t){ return lum(t.bg) > 0.45; }
+  function themeOf(k){
+    if(TH_ED && TH_ED.key === k) return TH_ED.draft;
+    var c = (UI.customThemes || {})[k]; if(c) return c;
+    var base = THEMES[k]; if(!base) return THEMES.burgundy;
+    var ed = (UI.themeEdits || {})[k];
+    if(!ed) return base;
+    var o = {}; for(var x in base) o[x] = base[x]; for(var y in ed) o[y] = ed[y]; o.light = themeLight(o); return o;
+  }
+  function themeKeys(){ var ks = Object.keys(THEMES); Object.keys(UI.customThemes || {}).forEach(function(k){ ks.push(k); }); if(TH_ED && TH_ED.custom && ks.indexOf(TH_ED.key) < 0) ks.push(TH_ED.key); return ks; }
+  function themeEdited(k){ return !!(UI.themeEdits || {})[k]; }
+  // остальные цвета из двух: фона и акцента
+  function themeDerive(bg, accent, name){
+    var light = lum(bg) > 0.45, ink = light ? mixHex(bg, '#000000', 0.82) : mixHex(bg, '#FFFFFF', 0.9);
+    var tint = function(c){ return mixHex(c, accent, 0.12); };
+    return { name:name || 'Своя тема', bg:bg, panel:light ? mixHex(bg, '#FFFFFF', 0.75) : mixHex(bg, '#FFFFFF', 0.045),
+      line:tint(mixHex(bg, ink, 0.12)), line2:tint(mixHex(bg, ink, 0.2)), ink:ink, strong:light ? mixHex(bg, '#000000', 0.94) : mixHex(bg, '#FFFFFF', 0.97),
+      muted:mixHex(ink, bg, 0.32), dim:mixHex(ink, bg, 0.45), dot:tint(mixHex(bg, ink, 0.15)), tip:light ? '#FFFFFF' : mixHex(bg, ink, 0.08), accent:accent, light:light };
+  }
+  function themeOpen(key, opts){
+    opts = opts || {};
+    if(TH_ED) themeCancel(true);
+    var custom = !THEMES[key] || opts.asNew, src = themeOf(key), draft = {};
+    for(var k in src) draft[k] = src[k];
+    if(opts.asNew){ key = 'c' + Date.now().toString(36); draft.name = opts.name || (src.name + ' — копия'); }
+    TH_ED = { key:key, custom:custom, isNew:!!opts.asNew, draft:draft, prevTheme:UI.theme, prevAccent:UI.accent };
+    UI.theme = key; UI.accent = null; applyTheme();
+    var w = $('themeEd'); w.hidden = false;
+    if(!themeEdWin) themeEdWin = makeWindow(w, '.pers-h', 'themeEd', 'fixed');
+    themeEdWin.apply(); themeRender();
+    if(!$('pers').hidden) renderPers();
+  }
+  var themeEdWin = null;
+  function themeCancel(silent){
+    if(!TH_ED) return;
+    var t = TH_ED; TH_ED = null;
+    UI.theme = t.prevTheme; UI.accent = t.prevAccent;
+    if(!themeOf(UI.theme) || (!THEMES[UI.theme] && !(UI.customThemes || {})[UI.theme])) UI.theme = 'burgundy';
+    applyTheme(); $('themeEd').hidden = true;
+    if(!silent && !$('pers').hidden) renderPers();
+  }
+  function themeSave(){
+    if(!TH_ED) return;
+    var t = TH_ED, d = t.draft; d.light = themeLight(d); d.name = String(d.name || 'Своя тема').trim() || 'Своя тема';
+    if(t.custom){ UI.customThemes = UI.customThemes || {}; var o = {}; THEME_FIELDS.forEach(function(f){ o[f[0]] = d[f[0]]; }); o.name = d.name; o.light = d.light; UI.customThemes[t.key] = o; }
+    else { var base = THEMES[t.key], diff = {}, any = false; THEME_FIELDS.forEach(function(f){ if(String(d[f[0]]).toLowerCase() !== String(base[f[0]]).toLowerCase()){ diff[f[0]] = d[f[0]]; any = true; } }); UI.themeEdits = UI.themeEdits || {}; if(any) UI.themeEdits[t.key] = diff; else delete UI.themeEdits[t.key]; }
+    TH_ED = null; UI.theme = t.key; UI.accent = null; applyTheme(); $('themeEd').hidden = true;
+    toast('Тема «' + d.name + '» сохранена');
+    if(!$('pers').hidden) renderPers();
+  }
+  function themeDelete(){
+    if(!TH_ED || !TH_ED.custom) return;
+    var t = TH_ED, nm = t.draft.name;
+    if(UI.customThemes) delete UI.customThemes[t.key];
+    TH_ED = null; UI.theme = t.prevTheme === t.key ? 'burgundy' : t.prevTheme; UI.accent = t.prevAccent;
+    if(UI.envs) Object.keys(UI.envs).forEach(function(e){ if(UI.envs[e] && UI.envs[e].theme === t.key) UI.envs[e].theme = 'burgundy'; });
+    applyTheme(); $('themeEd').hidden = true; toast('Тема «' + nm + '» удалена');
+    if(!$('pers').hidden) renderPers();
+  }
+  function themeCode(d){ var o = { triosteumTheme:1, name:d.name }; THEME_FIELDS.forEach(function(f){ o[f[0]] = d[f[0]]; }); return JSON.stringify(o); }
+  function themeImport(text){
+    var o; try { o = JSON.parse(String(text).trim()); } catch(e){ return 'Это не код темы Triosteum'; }
+    if(!o || !o.triosteumTheme) return 'Это не код темы Triosteum';
+    var ok = THEME_FIELDS.every(function(f){ return /^#[0-9a-f]{6}$/i.test(o[f[0]] || ''); });
+    if(!ok) return 'В коде темы не хватает цветов';
+    var key = 'c' + Date.now().toString(36), t = { name:String(o.name || 'Тема').slice(0, 40) };
+    THEME_FIELDS.forEach(function(f){ t[f[0]] = o[f[0]]; }); t.light = themeLight(t);
+    UI.customThemes = UI.customThemes || {}; UI.customThemes[key] = t; UI.theme = key; UI.accent = null; applyTheme();
+    toast('Тема «' + t.name + '» добавлена'); return null;
+  }
+  // мини-превью приложения в цветах темы
+  function themePreview(d){
+    var ac = d.accent, btn = mixHex(ac, '#000000', 0.18), on = bestText(btn);
+    var pv = h('div', { 'class':'th-pv', style:'background:' + d.bg + ';border-color:' + d.line2 });
+    pv.appendChild(h('div', { 'class':'th-top', style:'background:' + d.panel + ';border-bottom:1px solid ' + d.line }, [ h('b', { style:'color:' + d.strong, text:'Triosteum' }), h('span', { style:'color:' + d.muted, text:'Пространство' }), h('i', { style:'background:' + btn + ';color:' + on, text:'Запустить' }) ]));
+    var body = h('div', { 'class':'th-body' });
+    body.appendChild(h('div', { 'class':'th-side', style:'background:' + d.panel + ';border-right:1px solid ' + d.line }, [0, 1, 2, 3].map(function(i){ return h('span', { style:i === 1 ? 'background:' + mixHex(ac, d.bg, 0.62) + ';border:1px solid ' + ac : 'background:' + d.line }); })));
+    var board = h('div', { 'class':'th-board', style:'background-color:' + d.bg + ';background-image:radial-gradient(' + d.dot + ' 1.2px,transparent 1.3px)' });
+    board.appendChild(h('div', { 'class':'th-card', style:'background:' + d.panel + ';border:1.5px solid ' + ac }, [ h('b', { style:'color:' + d.ink, text:'Блок' }), h('small', { style:'color:' + d.muted, text:'данные → итог' }) ]));
+    board.appendChild(h('div', { 'class':'th-tip', style:'background:' + d.tip + ';border:1px solid ' + d.line2 + ';color:' + d.strong }, [ document.createTextNode('Подсказка'), h('small', { style:'color:' + d.dim, text:'тихий текст' }) ]));
+    body.appendChild(board);
+    pv.appendChild(body);
+    return pv;
+  }
+  function themeRender(){
+    var b = $('themeEdBody'), t = TH_ED; if(!b || !t) return;
+    b.textContent = '';
+    var d = t.draft;
+    $('themeEdTitle').textContent = t.isNew ? 'Новая тема' : (t.custom ? 'Своя тема' : 'Тема «' + THEMES[t.key].name + '»');
+    var upd = function(){ applyTheme(); var old = b.querySelector('.th-pv'); if(old) old.replaceWith(themePreview(d)); };
+    b.appendChild(themePreview(d));
+    var nm = h('input', { type:'text', 'class':'input', value:d.name || '', 'aria-label':'Название темы', maxlength:'40', on:{ input:function(){ d.name = nm.value; } } });
+    b.appendChild(section('Название', nm));
+    // основа: фон и акцент; остальное подбирается само
+    var quick = h('div', { 'class':'th-quick' });
+    [['bg', 'Фон'], ['accent', 'Акцент']].forEach(function(f){
+      var ci = h('input', { type:'color', 'aria-label':f[1] }); ci.value = d[f[0]];
+      ci.addEventListener('input', function(){ d[f[0]] = ci.value; var row = b.querySelector('[data-f="' + f[0] + '"] input'); if(row) row.value = ci.value; upd(); });
+      quick.appendChild(h('label', { 'class':'th-q' }, [ ci, h('span', { text:f[1] }) ]));
+    });
+    quick.appendChild(h('button', { type:'button', 'class':'btn sm primary', text:'Подобрать остальные цвета', title:'Панели, линии, текст и сетка — под выбранные фон и акцент', on:{ click:function(){ var nd = themeDerive(d.bg, d.accent, d.name); for(var k in nd) if(k !== 'name') d[k] = nd[k]; themeRender(); applyTheme(); } } }));
+    b.appendChild(section('Основа — как в Telegram: выберите фон и акцент', quick));
+    var bgs = h('div', { 'class':'swatches' });
+    ['#12090B', '#0E0F12', '#0A0F1C', '#07110E', '#14101F', '#1B1410', '#F6F2F3', '#F4F7FB', '#F3F7F2', '#FFF8EE'].forEach(function(c){
+      bgs.appendChild(h('button', { type:'button', 'class':'swb', 'aria-label':'Фон ' + c, style:'background:' + c + ';box-shadow:inset 0 0 0 1px rgba(128,128,128,.4)', on:{ click:function(){ var nd = themeDerive(c, d.accent, d.name); for(var k in nd) if(k !== 'name') d[k] = nd[k]; themeRender(); applyTheme(); } } }));
+    });
+    b.appendChild(section('Готовые фоны (остальные цвета подберутся)', bgs));
+    var acs = h('div', { 'class':'swatches' });
+    ACCENTS.concat(['#14B8A6', '#A3E635', '#F43F5E']).forEach(function(c){ acs.appendChild(h('button', { type:'button', 'class':'swb' + (String(d.accent).toLowerCase() === c.toLowerCase() ? ' on' : ''), 'aria-label':'Акцент ' + c, style:'background:' + c, on:{ click:function(){ d.accent = c; themeRender(); applyTheme(); } } })); });
+    b.appendChild(section('Акцент', acs));
+    var grid = h('div', { 'class':'th-grid' });
+    THEME_FIELDS.forEach(function(f){
+      var ci = h('input', { type:'color', 'aria-label':f[1] }); ci.value = d[f[0]];
+      ci.addEventListener('input', function(){ d[f[0]] = ci.value; if(f[0] === 'bg' || f[0] === 'accent'){ var q = quick.querySelector('input[aria-label="' + (f[0] === 'bg' ? 'Фон' : 'Акцент') + '"]'); if(q) q.value = ci.value; } upd(); });
+      grid.appendChild(h('label', { 'class':'th-f', 'data-f':f[0] }, [ ci, h('span', null, [ h('b', { text:f[1] }), h('small', { text:f[2] }) ]) ]));
+    });
+    b.appendChild(section('Все цвета', grid));
+    var low = contrast(d.ink, d.bg) < 4.5 || contrast(d.ink, d.panel) < 4.5;
+    if(low) b.appendChild(h('div', { 'class':'bld-issue warn', text:'Текст плохо читается на фоне (контраст ниже 4,5:1). Сделайте текст ярче или фон темнее — или нажмите «Подобрать остальные цвета».' }));
+    var codeBox = h('div', { 'class':'th-code', hidden:'hidden' });
+    var ta = h('textarea', { 'class':'input', rows:'3', placeholder:'Вставьте код темы, который вам прислали', 'aria-label':'Код темы' });
+    codeBox.appendChild(ta);
+    codeBox.appendChild(h('button', { type:'button', 'class':'btn sm', text:'Добавить тему из кода', on:{ click:function(){ var err = themeImport(ta.value); if(err){ toast(err); return; } TH_ED = null; $('themeEd').hidden = true; if(!$('pers').hidden) renderPers(); } } }));
+    b.appendChild(h('div', { 'class':'th-acts' }, [
+      h('button', { type:'button', 'class':'btn primary', text:'Сохранить', on:{ click:themeSave } }),
+      h('button', { type:'button', 'class':'btn', text:'Отмена', on:{ click:function(){ themeCancel(); } } }),
+      t.custom && !t.isNew ? h('button', { type:'button', 'class':'btn', text:'Удалить тему', on:{ click:themeDelete } }) : null,
+      !t.custom && themeEdited(t.key) ? h('button', { type:'button', 'class':'btn', text:'Вернуть как было', on:{ click:function(){ var base = THEMES[t.key]; for(var k in base) d[k] = base[k]; delete UI.themeEdits[t.key]; save('triosteum.ui', UI); themeRender(); applyTheme(); toast('Тема «' + base.name + '» возвращена к исходной'); } } }) : null,
+      h('button', { type:'button', 'class':'btn', text:'Копия как своя тема', on:{ click:function(){ var src = {}; for(var k in d) src[k] = d[k]; themeCancel(true); var key = 'c' + Date.now().toString(36); src.name = (src.name || 'Тема') + ' — копия'; TH_ED = { key:key, custom:true, isNew:true, draft:src, prevTheme:UI.theme, prevAccent:UI.accent }; UI.theme = key; UI.accent = null; applyTheme(); $('themeEd').hidden = false; themeRender(); } } }),
+      h('button', { type:'button', 'class':'btn', text:'Поделиться кодом', title:'Скопировать код темы — его можно вставить в другом Triosteum', on:{ click:function(){ var c = themeCode(d); if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(c).then(function(){ toast('Код темы скопирован'); }, function(){ toast('Браузер не разрешил копирование'); }); } } }),
+      h('button', { type:'button', 'class':'btn', text:'Вставить код темы', on:{ click:function(){ codeBox.hidden = !codeBox.hidden; if(!codeBox.hidden) ta.focus(); } } })
+    ]));
+    b.appendChild(codeBox);
+  }
+  $('themeEdClose').addEventListener('click', function(){ themeCancel(); });
+  $('themeEd').addEventListener('keydown', function(e){ if(e.key === 'Escape'){ e.stopPropagation(); themeCancel(); } });
 
   /* ---------- меню «Добавление элементов» ---------- */
   var addMenu = $('addMenu'), bAdd = $('bAdd');
@@ -5428,7 +5790,7 @@ var Wobble=function(t){"use strict";var i=Object.assign||function(t){for(var i,e
     } else {
       addMenu.classList.remove('below');
       var r = bAdd.getBoundingClientRect();
-      placeBeside(addMenu, r);
+      placeBeside(addMenu, r, bAdd);
     }
     bAdd.setAttribute('aria-expanded', 'true'); hideTip();
     var first = addMenu.querySelector('.am-item'); if(first) first.focus();
@@ -8456,15 +8818,19 @@ var Wobble=function(t){"use strict";var i=Object.assign||function(t){for(var i,e
   /* ---------- подсказки у кнопок панели ---------- */
   var tipEl = $('tip'), tipTimer = null;
   function showTip(btn, ms){
+    if(document.body.classList.contains('docking')) return;
     var parts = btn.getAttribute('data-tip').split('|');
     var sub = parts[1] || '';
     if(btn.dataset.tool === 'block') sub = 'Нажмите на доску, чтобы поставить (' + shortName(langById(S.lang)) + ')';
     tipEl.innerHTML = '<b></b><span></span>';
     tipEl.querySelector('b').textContent = parts[0];
     tipEl.querySelector('span').textContent = sub;
-    var r = btn.getBoundingClientRect();
-    tipEl.style.left = (r.right + 10) + 'px';
-    tipEl.style.top = (r.top + r.height / 2) + 'px';
+    var r = btn.getBoundingClientRect(), side = typeof dockSideOf === 'function' ? dockSideOf(btn) : 'left';
+    tipEl.className = 'tip' + (side === 'left' ? '' : ' s-' + side);
+    if(side === 'top'){ tipEl.style.left = (r.left + r.width / 2) + 'px'; tipEl.style.top = (r.bottom + 10) + 'px'; }
+    else if(side === 'bottom'){ tipEl.style.left = (r.left + r.width / 2) + 'px'; tipEl.style.top = (r.top - 10) + 'px'; }
+    else if(side === 'right'){ tipEl.style.left = (r.left - 10) + 'px'; tipEl.style.top = (r.top + r.height / 2) + 'px'; }
+    else { tipEl.style.left = (r.right + 10) + 'px'; tipEl.style.top = (r.top + r.height / 2) + 'px'; }
     tipEl.hidden = false;
     clearTimeout(tipTimer);
     if(ms) tipTimer = setTimeout(hideTip, ms);
@@ -12984,7 +13350,7 @@ var Wobble=function(t){"use strict";var i=Object.assign||function(t){for(var i,e
     var box = $('sgCharts'); if(!box) return; box.innerHTML = '';
     var sh = shCur(), list = sh.charts || []; box.hidden = !list.length;
     list.forEach(function(ch, i){
-      var dark = !(THEMES[UI.theme] || {}).light;
+      var dark = !themeOf(UI.theme).light;
       var card = h('figure', { 'class':'chart-card' }, [
         h('div', { 'class':'cc-bar' }, [
           h('input', { 'class':'input cc-title', value:ch.title || '', placeholder:'Название диаграммы', 'aria-label':'Название диаграммы', on:{ change:function(e){ ch.title = e.target.value; shChanged(); renderCharts(); } } }),
@@ -15835,7 +16201,7 @@ var Wobble=function(t){"use strict";var i=Object.assign||function(t){for(var i,e
         } else NATIVE_HIDDEN.set.call(self, v);
       } });
   }
-  ['pop', 'ctx', 'addMenu', 'textMenu', 'lib', 'pers', 'builder', 'arcW', 'schemeW', 'resW', 'tplW', 'cmdk', 'eco', 'newModal', 'runp', 'mini', 'tip', 'toast', 'ofSide', 'ofAi']
+  ['pop', 'ctx', 'addMenu', 'textMenu', 'lib', 'pers', 'themeEd', 'builder', 'arcW', 'schemeW', 'resW', 'tplW', 'cmdk', 'eco', 'newModal', 'runp', 'mini', 'tip', 'toast', 'ofSide', 'ofAi']
     .forEach(function(id){ animHidden($(id), CLOSE_MS[id] || 300); });
   function animRemove(node, ms){
     if(!node) return; if(noAnim()){ node.remove(); return; }

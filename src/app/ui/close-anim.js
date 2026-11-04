@@ -19,7 +19,7 @@
         } else NATIVE_HIDDEN.set.call(self, v);
       } });
   }
-  ['pop', 'ctx', 'addMenu', 'textMenu', 'lib', 'pers', 'builder', 'arcW', 'schemeW', 'resW', 'tplW', 'cmdk', 'eco', 'newModal', 'runp', 'mini', 'tip', 'toast', 'ofSide', 'ofAi']
+  ['pop', 'ctx', 'addMenu', 'textMenu', 'lib', 'pers', 'themeEd', 'builder', 'arcW', 'schemeW', 'resW', 'tplW', 'cmdk', 'eco', 'newModal', 'runp', 'mini', 'tip', 'toast', 'ofSide', 'ofAi']
     .forEach(function(id){ animHidden($(id), CLOSE_MS[id] || 300); });
   function animRemove(node, ms){
     if(!node) return; if(noAnim()){ node.remove(); return; }

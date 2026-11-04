@@ -48,14 +48,14 @@
   function applyTheme(){
     // у каждой среды своя палитра: запоминаем выбор для текущей среды
     if(typeof ENV !== 'undefined' && ENV){ UI.envs = UI.envs || {}; UI.envs[ENV.id] = { theme:UI.theme || ENV_THEME_DEF[ENV.id] || 'burgundy', accent:UI.accent || null }; }
-    var th = THEMES[UI.theme] || THEMES.burgundy, root = document.documentElement.style;
+    var th = themeOf(UI.theme), root = document.documentElement.style;
     // у «Офиса» свой зелёный цвет: на темах с красным акцентом он сохраняется, пока пользователь не выберет другой акцент
     var ac = UI.accent || envAccent(th, UI.theme);
     root.setProperty('--bg', th.bg); root.setProperty('--panel', th.panel); root.setProperty('--line', th.line); root.setProperty('--line2', th.line2);
     root.setProperty('--ink', th.ink); root.setProperty('--ink-strong', th.strong); root.setProperty('--muted', th.muted); root.setProperty('--dim', th.dim);
     root.setProperty('--dot', th.dot); root.setProperty('--tipbg', th.tip);
     var P;
-    if(UI.theme === 'burgundy' && ac.toUpperCase() === '#DC2626'){
+    if(UI.theme === 'burgundy' && ac.toUpperCase() === '#DC2626' && !themeEdited('burgundy') && !TH_ED){
       // исходная палитра — ровно как была
       P = { red:'#DC2626', btn:'#B91C1C', btnH:'#991B1B', soft:'#F87171', wine:'#5C0F1E', wine2:'#3A0F18', onWine:'#fff', onAcc:'#fff' };
     } else {
@@ -82,6 +82,7 @@
       b.hidden = !on;
     });
     save('triosteum.ui', UI);
+    if(typeof dockRefresh === 'function') dockRefresh();
   }
   var persWin = null;
   function openPers(){
@@ -95,15 +96,20 @@
   function renderPers(){
     var b = $('persBody'); b.innerHTML = '';
     var tg = h('div', { 'class':'themes', role:'radiogroup', 'aria-label':'Тема' });
-    Object.keys(THEMES).forEach(function(k){
-      var th = THEMES[k], on = (UI.theme || 'burgundy') === k;
+    themeKeys().forEach(function(k){
+      var th = themeOf(k), on = (UI.theme || 'burgundy') === k;
       var pv = h('span', { 'class':'pv', style:'background:' + th.bg + ';border:1px solid ' + th.line2 });
       [th.panel, th.line2, th.accent, th.muted].forEach(function(c, i){ pv.appendChild(h('i', { style:'height:' + (14 + i * 6) + 'px;background:' + c })); });
-      tg.appendChild(h('button', { type:'button', 'class':'theme' + (on ? ' on' : ''), role:'radio', 'aria-checked':on ? 'true' : 'false',
-        on:{ click:function(){ UI.theme = k; UI.accent = null; applyTheme(); renderPers(); } } }, [ pv, h('span', { text:th.name }) ]));
+      var tile = h('div', { 'class':'theme-w' }, [
+        h('button', { type:'button', 'class':'theme' + (on ? ' on' : ''), role:'radio', 'aria-checked':on ? 'true' : 'false',
+          on:{ click:function(){ if(TH_ED) themeCancel(true); UI.theme = k; UI.accent = null; applyTheme(); renderPers(); } } }, [ pv, h('span', { text:th.name + (themeEdited(k) ? ' ✎' : '') }) ]),
+        h('button', { type:'button', 'class':'theme-ed', 'aria-label':'Изменить тему «' + th.name + '»', title:'Изменить тему', html:'<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M14 6l4 4"/></svg>', on:{ click:function(){ themeOpen(k); } } })
+      ]);
+      tg.appendChild(tile);
     });
-    b.appendChild(section('Тема оформления — для среды «' + ENV.name + '» (у каждой среды своя)', tg));
-    var th = THEMES[UI.theme || 'burgundy'];
+    tg.appendChild(h('button', { type:'button', 'class':'theme theme-new', on:{ click:function(){ themeOpen(UI.theme || 'burgundy', { asNew:true, name:'Своя тема' }); } } }, [ h('span', { 'class':'pv' , html:'<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>' }), h('span', { text:'Создать тему' }) ]));
+    b.appendChild(section('Тема оформления — для среды «' + ENV.name + '» (у каждой среды своя). Карандаш — изменить тему', tg));
+    var th = themeOf(UI.theme || 'burgundy');
     var defAc = envAccent(th, UI.theme);
     b.appendChild(section('Акцентный цвет (кнопки, выделение, активные инструменты)', colorRow(ACCENTS, UI.accent || null, function(c, live){ UI.accent = c; applyTheme(); if(!live) renderPers(); }, 'Акцент', isDocs() ? 'Цвет среды' : 'Цвет темы', defAc)));
     var gseg = h('div', { 'class':'seg' });
@@ -129,9 +135,18 @@
     var tgrid = h('div', { 'class':'toolgrid' });
     TOOL_OPTS.forEach(function(t){
       var tools = UI.tools || {}, on = tools[t.id] === undefined ? !!t.core : !!tools[t.id];
-      tgrid.appendChild(toggleRow(t.name, on, function(v){ UI.tools = UI.tools || {}; UI.tools[t.id] = v; applyTheme(); }));
+      var btn = t.btn ? $(t.btn) : document.querySelector(t.sel), key = btn && btn._dk;
+      var row = toggleRow(t.name, on, function(v){ UI.tools = UI.tools || {}; UI.tools[t.id] = v; applyTheme(); renderPers(); });
+      if(key){
+        var sel = h('select', { 'class':'dock-sel', 'aria-label':'Где кнопка «' + t.name + '»', on:{ change:function(){ dockSet(key, sel.value); } } });
+        Object.keys(DOCK_SIDES).forEach(function(s){ var o = h('option', { value:s, text:DOCK_SIDES[s] }); if(dockSideOf(btn) === s) o.selected = true; sel.appendChild(o); });
+        if(!on) sel.disabled = true;
+        row.insertBefore(sel, row.lastChild);
+      }
+      tgrid.appendChild(row);
     });
-    b.appendChild(section('Кнопки на панели слева', tgrid));
+    b.appendChild(section('Кнопки панелей инструментов — включите и выберите край (или перетащите кнопку мышью к любому краю)', h('div', null, [ tgrid,
+      h('button', { type:'button', 'class':'btn sm', style:'margin-top:8px', text:'Вернуть все кнопки на панель слева', on:{ click:function(){ dockReset(); renderPers(); } } }) ])));
     var txt = h('div', null, [
       fsRow('Окна и меню', fsControl(UI.scale, 80, 160, function(v){ UI.scale = v; applyUI(); }, 'масштаб окон', '%')),
       fsRow('Редактор кода', fsControl(UI.code, 10, 28, function(v){ UI.code = v; applyUI(); updateGutter(); }, 'шрифт кода')),

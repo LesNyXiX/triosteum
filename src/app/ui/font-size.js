@@ -64,15 +64,25 @@
     $('tmNote').appendChild(fsControl(UI.note, 8, 72, function(v){ UI.note = v; applyUI(); }, 'шрифт новых заметок'));
   }
   // меню у кнопки панели: справа от неё, но целиком в пределах экрана (у .addmenu сдвиг вверх на 24px в CSS)
-  function placeBeside(menu, r){
-    var hh = menu.offsetHeight, ww = menu.offsetWidth, vh = window.innerHeight, vw = window.innerWidth;
+  // меню у кнопки панели: справа от левой панели, под верхней, над нижней, слева от правой
+  function placeBeside(menu, r, btn){
+    var hh = menu.offsetHeight, ww = menu.offsetWidth, vh = window.innerHeight, vw = window.innerWidth, side = btn && typeof dockSideOf === 'function' ? dockSideOf(btn) : 'left';
+    menu.classList.remove('below', 'above', 'leftof');
+    if(side === 'top' || side === 'bottom'){
+      menu.classList.add(side === 'top' ? 'below' : 'above');
+      menu.style.left = Math.max(8, Math.min(vw - ww - 8, r.left + r.width / 2 - ww / 2)) + 'px';
+      menu.style.top = (side === 'top' ? Math.min(r.bottom + 12, vh - hh - 8) : Math.max(8, r.top - 12 - hh)) + 24 + 'px';
+      return;
+    }
     var top = Math.max(8 + 24, Math.min(r.top + r.height / 2, vh - hh - 8 + 24));
-    menu.style.left = Math.max(8, Math.min(r.right + 12, vw - ww - 8)) + 'px'; menu.style.top = top + 'px';
+    if(side === 'right'){ menu.classList.add('leftof'); menu.style.left = Math.max(8, r.left - 12 - ww) + 'px'; }
+    else menu.style.left = Math.max(8, Math.min(r.right + 12, vw - ww - 8)) + 'px';
+    menu.style.top = top + 'px';
   }
   function openTextMenu(){
     buildTextMenu(); closeAddMenu();
     var r = bTextSize.getBoundingClientRect();
-    textMenu.hidden = false; placeBeside(textMenu, r); bTextSize.setAttribute('aria-expanded', 'true'); bTextSize.classList.add('on'); hideTip();
+    textMenu.hidden = false; placeBeside(textMenu, r, bTextSize); bTextSize.setAttribute('aria-expanded', 'true'); bTextSize.classList.add('on'); hideTip();
   }
   function closeTextMenu(){ textMenu.hidden = true; bTextSize.setAttribute('aria-expanded', 'false'); bTextSize.classList.remove('on'); }
   bTextSize.addEventListener('click', function(e){ e.stopPropagation(); textMenu.hidden ? openTextMenu() : closeTextMenu(); });

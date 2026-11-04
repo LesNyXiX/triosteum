@@ -13,7 +13,7 @@
     } else {
       addMenu.classList.remove('below');
       var r = bAdd.getBoundingClientRect();
-      placeBeside(addMenu, r);
+      placeBeside(addMenu, r, bAdd);
     }
     bAdd.setAttribute('aria-expanded', 'true'); hideTip();
     var first = addMenu.querySelector('.am-item'); if(first) first.focus();
