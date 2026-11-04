@@ -2751,8 +2751,10 @@ public class MovingAverage : IBlock
   function NWof(n){ return n.kind === 'hub' ? HUB : (n.w || NW); }
   function NHof(n){ return n.kind === 'hub' ? HUB : (n.h || NH); }
   var NMIN_W = 140, NMIN_H = 64, NMAX_W = 640, NMAX_H = 420;
-  function portOut(n){ return { x:n.x + NWof(n) - 1, y:n.y + NHof(n) / 2 }; }
-  function portIn(n){ return { x:n.x - 2, y:n.y + NHof(n) / 2 }; }
+  // «желе» растягивает блок от центра — концы связей идут за его видимым краем, без зазора
+  function jellyK(n){ var k = typeof JELLY_SCALE !== 'undefined' ? JELLY_SCALE.get(n) : null; return k ? k.x : 1; }
+  function portOut(n){ var w = NWof(n), k = jellyK(n); return { x:n.x + w / 2 + (w / 2) * k - 1, y:n.y + NHof(n) / 2 }; }
+  function portIn(n){ var w = NWof(n), k = jellyK(n); return { x:n.x + w / 2 - (w / 2) * k - 2, y:n.y + NHof(n) / 2 }; }
   // Линия выходит из отростка вправо.
   // toPoint: цель — точка на связи или курсор: один плавный изгиб, без «петли» у конца.
   // Иначе цель — вход блока слева: S-образная линия; если блок левее — изгибы минимальные.
@@ -4074,8 +4076,9 @@ public class MovingAverage : IBlock
   function smoothMove(dg){
     if(moveRaf && moveDg !== dg) finishSmooth();
     if(dg.vx == null){ dg.vx = dg.item.x; dg.vy = dg.item.y; }
-    // палец и выключенные анимации: блок строго под пальцем, без догоняющего сглаживания
-    if(dg.touch || document.body.classList.contains('noanim')){ if(dg.finishing){ dg.finishing = false; dg.vx = dg.tx; dg.vy = dg.ty; placeDragged(dg, dg.tx, dg.ty); saveGraph(); return; } dg.vx = dg.tx; dg.vy = dg.ty; if(!dg.pr){ dg.pr = requestAnimationFrame(function(){ dg.pr = 0; placeDragged(dg, dg.tx, dg.ty); }); } return; }
+    // блок строго под пальцем и под курсором, без догоняющего сглаживания: отставание
+    // вместе с вытягиванием «желе» выглядело как разрыв. Мягкость даёт только пружина формы
+    if(true){ if(dg.finishing){ dg.finishing = false; dg.vx = dg.tx; dg.vy = dg.ty; placeDragged(dg, dg.tx, dg.ty); saveGraph(); return; } dg.vx = dg.tx; dg.vy = dg.ty; if(!dg.pr){ dg.pr = requestAnimationFrame(function(){ dg.pr = 0; placeDragged(dg, dg.tx, dg.ty); }); } return; }
     moveDg = dg;
     if(moveRaf) return;
     moveT = performance.now();
@@ -4104,8 +4107,9 @@ public class MovingAverage : IBlock
       dd.el.classList.remove('dragging'); jellyEnd(dd, dd.el);
       if(dd.moved){
         lastTap = { key:null, t:0 };
-        if(dd.tx != null && (Math.abs(dd.vx - dd.tx) > 0.4 || Math.abs(dd.vy - dd.ty) > 0.4) && !document.body.classList.contains('noanim')){ dd.finishing = true; smoothMove(dd); }
-        else { if(dd.tx != null) placeDragged(dd, dd.tx, dd.ty); saveGraph(); }
+        if(dd.pr){ cancelAnimationFrame(dd.pr); dd.pr = 0; }
+        if(dd.tx != null){ dd.vx = dd.tx; dd.vy = dd.ty; placeDragged(dd, dd.tx, dd.ty); }
+        saveGraph();
       }
       else { lastTap = { key:(dd.type === 'node' ? 'n:' : 't:') + dd.item.id, t:Date.now(), quick:!dd.t0 || Date.now() - dd.t0 < 350, x:dd.sx, y:dd.sy }; }
     } else if(dd.mode === 'link'){
@@ -4628,11 +4632,19 @@ var Wobble=function(t){"use strict";var i=Object.assign||function(t){for(var i,e
      сами доигрывают затухающее колебание — это и есть «желе». */
   var JELLY = { max:0.04, drag:{ stiffness:520, damping:30, mass:1 }, release:{ stiffness:380, damping:9, mass:1 } };
   function jellyOff(){ return document.body.classList.contains('noanim') || (window.matchMedia && matchMedia('(prefers-reduced-motion:reduce)').matches) || typeof Wobble === 'undefined'; }
+  var JELLY_SCALE = new WeakMap(), jellyEdgeRaf = 0;
+  function jellyEdges(){ if(jellyEdgeRaf) return; jellyEdgeRaf = requestAnimationFrame(function(){ jellyEdgeRaf = 0; if(typeof renderEdges === 'function') renderEdges(); }); }
   function jellySprings(st, el){
     if(st.jel === el && st.jsx) return;
     jellyStop(st);
     st.jel = el;
-    var paint = function(){ var x = st.jsx.currentValue, y = st.jsy.currentValue; el.style.transform = Math.abs(x - 1) < 0.0008 && Math.abs(y - 1) < 0.0008 ? '' : 'scale(' + x.toFixed(4) + ',' + y.toFixed(4) + ')'; };
+    var node = st.type === 'node' && st.item ? st.item : null;
+    var paint = function(){
+      if(!st.jsx) return;
+      var x = st.jsx.currentValue, y = st.jsy.currentValue, rest = Math.abs(x - 1) < 0.0008 && Math.abs(y - 1) < 0.0008;
+      el.style.transform = rest ? '' : 'scale(' + x.toFixed(4) + ',' + y.toFixed(4) + ')';
+      if(node){ if(rest) JELLY_SCALE.delete(node); else JELLY_SCALE.set(node, { x:x, y:y }); jellyEdges(); }
+    };
     st.jsx = new Wobble.Spring(Object.assign({ fromValue:1, toValue:1, restDisplacementThreshold:0.00005, restVelocityThreshold:0.00002 }, JELLY.drag));
     st.jsy = new Wobble.Spring(Object.assign({ fromValue:1, toValue:1, restDisplacementThreshold:0.00005, restVelocityThreshold:0.00002 }, JELLY.drag));
     st.jsx.onUpdate(paint); st.jsy.onUpdate(paint);
@@ -4645,7 +4657,7 @@ var Wobble=function(t){"use strict";var i=Object.assign||function(t){for(var i,e
       s.updateConfig(Object.assign({ toValue:p[1] }, cfg || {})).start();
     });
   }
-  function jellyStop(st){ if(st && st.jsx){ st.jsx.stop(); st.jsy.stop(); st.jsx.removeAllListeners && st.jsx.removeAllListeners(); st.jsy.removeAllListeners && st.jsy.removeAllListeners(); if(st.jel) st.jel.style.transform = ''; st.jsx = st.jsy = null; } }
+  function jellyStop(st){ if(st && st.item && JELLY_SCALE.has(st.item)){ JELLY_SCALE.delete(st.item); jellyEdges(); } if(st && st.jsx){ st.jsx.stop(); st.jsy.stop(); st.jsx.removeAllListeners && st.jsx.removeAllListeners(); st.jsy.removeAllListeners && st.jsy.removeAllListeners(); if(st.jel) st.jel.style.transform = ''; st.jsx = st.jsy = null; } }
   function jellyMove(st, e, el){
     if(!el || jellyOff()) return;
     var now = performance.now();

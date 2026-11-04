@@ -121,7 +121,8 @@ const kinds = await page.$$eval('.am-sub .am-kind b', (x) => x.map((e) => e.text
 check(kinds.length >= 5 && kinds.includes('C++') && kinds.includes('1С'), '«Разработка»: варианты — языки (' + kinds.join(', ') + ')');
 await page.locator('.am-sub .am-kind', { hasText: 'C++' }).click(); await page.waitForTimeout(200);
 const before = await page.$$eval('#nodes .node', (x) => x.length);
-await page.mouse.click(900, 600); await page.waitForTimeout(300);
+const free = await page.evaluate(() => [[900, 600], [1150, 720], [300, 760], [1250, 300]].find(([x, y]) => { const e = document.elementFromPoint(x, y); return e && !e.closest('.node, .note, .edge-g, .tap-handle, .mini, .zoom'); }));
+await page.mouse.click(free[0], free[1]); await page.waitForTimeout(300);
 const last = await page.$$eval('#nodes .node', (x) => x[x.length - 1].querySelector('.ln').textContent);
 check(await page.$$eval('#nodes .node', (x) => x.length) === before + 1 && last === 'C++', 'выбран C++ — на доску встал блок C++');
 await page.keyboard.press('Escape');
@@ -171,6 +172,41 @@ console.log('Телефон: перетаскивание пальцем');
   await tctx.close();
 }
 
+console.log('Желе мышью на компьютере');
+{
+  const mc = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const g2 = { nodes: [node('m1', 'Источник', 'python', 200, 200), node('m2', 'Приёмник', 'csharp', 700, 260)], edges: [{ id: 'me', from: 'm1', to: 'm2', taps: [] }], notes: [], cam: { x: 0, y: 0, k: 1 }, seq: 5 };
+  await mc.addInitScript((g) => {
+    localStorage.setItem('triosteum.projects', JSON.stringify({ cur: 'p1', list: [{ id: 'p1', name: 'Доска', t: Date.now() }] }));
+    localStorage.setItem('triosteum.proj.p1', JSON.stringify(g));
+    localStorage.setItem('triosteum.profile', JSON.stringify({ name: 'Тест', org: 'Завод' }));
+  }, g2);
+  const mp = await mc.newPage(); await mp.goto(URL); await mp.waitForTimeout(900);
+  const nb = await mp.locator('#nodes .node[data-id="m1"]').boundingBox();
+  let x = nb.x + 60, y = nb.y + 30; const x0 = x, y0 = y;
+  const p0 = await mp.$eval('#nodes .node[data-id="m1"]', (d) => ({ l: parseFloat(d.style.left), t: parseFloat(d.style.top) }));
+  await mp.mouse.move(x, y); await mp.mouse.down();
+  let lag = 0, gap = 0, stretched = 0;
+  // замер в кадре: видимый правый край блока и начало линии связи
+  const probe = () => mp.evaluate(() => { const d = document.querySelector('#nodes .node[data-id="m1"]'), r = d.getBoundingClientRect(), path = document.querySelector('.edge-g .edge'), pt = path.getPointAtLength(0), m = path.getScreenCTM(); return { l: parseFloat(d.style.left), t: parseFloat(d.style.top), right: r.right, sx: pt.x * m.a + m.e, tf: d.style.transform }; });
+  for (let i = 1; i <= 24; i++) {
+    x += i < 12 ? 38 : -30; y += (i % 3) - 1;
+    await mp.mouse.move(x, y);
+    await mp.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    const r = await probe();
+    if (i > 2) lag = Math.max(lag, Math.abs((r.l - p0.l) - (x - x0)), Math.abs((r.t - p0.t) - (y - y0)));
+    gap = Math.max(gap, Math.abs(r.right - 1 - r.sx));
+    if (r.tf) stretched++;
+  }
+  await mp.mouse.up();
+  for (let i = 0; i < 12; i++) { await mp.waitForTimeout(50); const r = await probe(); gap = Math.max(gap, Math.abs(r.right - 1 - r.sx)); }
+  check(lag < 1, 'мышью блок идёт строго за курсором (отставание ' + lag.toFixed(1) + ' px)');
+  check(stretched > 5, 'желе при перетаскивании мышью работает');
+  check(gap < 1.5, 'линия связи не отрывается от растянутого блока ни при движении, ни при пружинке (зазор ' + gap.toFixed(2) + ' px)');
+  await mp.waitForTimeout(1500);
+  check(await mp.$eval('#nodes .node[data-id="m1"]', (d) => d.style.transform === ''), 'после отпускания форма возвращается');
+  await mc.close();
+}
 check(errors.length === 0, 'ошибок в консоли нет' + (errors.length ? ': ' + errors.slice(0, 3).join(' | ') : ''));
 await browser.close();
 console.log(failed ? '\nНе прошло: ' + failed : '\nВсё прошло');

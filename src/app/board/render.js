@@ -3,8 +3,10 @@
   function NWof(n){ return n.kind === 'hub' ? HUB : (n.w || NW); }
   function NHof(n){ return n.kind === 'hub' ? HUB : (n.h || NH); }
   var NMIN_W = 140, NMIN_H = 64, NMAX_W = 640, NMAX_H = 420;
-  function portOut(n){ return { x:n.x + NWof(n) - 1, y:n.y + NHof(n) / 2 }; }
-  function portIn(n){ return { x:n.x - 2, y:n.y + NHof(n) / 2 }; }
+  // «желе» растягивает блок от центра — концы связей идут за его видимым краем, без зазора
+  function jellyK(n){ var k = typeof JELLY_SCALE !== 'undefined' ? JELLY_SCALE.get(n) : null; return k ? k.x : 1; }
+  function portOut(n){ var w = NWof(n), k = jellyK(n); return { x:n.x + w / 2 + (w / 2) * k - 1, y:n.y + NHof(n) / 2 }; }
+  function portIn(n){ var w = NWof(n), k = jellyK(n); return { x:n.x + w / 2 - (w / 2) * k - 2, y:n.y + NHof(n) / 2 }; }
   // Линия выходит из отростка вправо.
   // toPoint: цель — точка на связи или курсор: один плавный изгиб, без «петли» у конца.
   // Иначе цель — вход блока слева: S-образная линия; если блок левее — изгибы минимальные.

@@ -327,8 +327,9 @@
   function smoothMove(dg){
     if(moveRaf && moveDg !== dg) finishSmooth();
     if(dg.vx == null){ dg.vx = dg.item.x; dg.vy = dg.item.y; }
-    // палец и выключенные анимации: блок строго под пальцем, без догоняющего сглаживания
-    if(dg.touch || document.body.classList.contains('noanim')){ if(dg.finishing){ dg.finishing = false; dg.vx = dg.tx; dg.vy = dg.ty; placeDragged(dg, dg.tx, dg.ty); saveGraph(); return; } dg.vx = dg.tx; dg.vy = dg.ty; if(!dg.pr){ dg.pr = requestAnimationFrame(function(){ dg.pr = 0; placeDragged(dg, dg.tx, dg.ty); }); } return; }
+    // блок строго под пальцем и под курсором, без догоняющего сглаживания: отставание
+    // вместе с вытягиванием «желе» выглядело как разрыв. Мягкость даёт только пружина формы
+    if(true){ if(dg.finishing){ dg.finishing = false; dg.vx = dg.tx; dg.vy = dg.ty; placeDragged(dg, dg.tx, dg.ty); saveGraph(); return; } dg.vx = dg.tx; dg.vy = dg.ty; if(!dg.pr){ dg.pr = requestAnimationFrame(function(){ dg.pr = 0; placeDragged(dg, dg.tx, dg.ty); }); } return; }
     moveDg = dg;
     if(moveRaf) return;
     moveT = performance.now();
@@ -357,8 +358,9 @@
       dd.el.classList.remove('dragging'); jellyEnd(dd, dd.el);
       if(dd.moved){
         lastTap = { key:null, t:0 };
-        if(dd.tx != null && (Math.abs(dd.vx - dd.tx) > 0.4 || Math.abs(dd.vy - dd.ty) > 0.4) && !document.body.classList.contains('noanim')){ dd.finishing = true; smoothMove(dd); }
-        else { if(dd.tx != null) placeDragged(dd, dd.tx, dd.ty); saveGraph(); }
+        if(dd.pr){ cancelAnimationFrame(dd.pr); dd.pr = 0; }
+        if(dd.tx != null){ dd.vx = dd.tx; dd.vy = dd.ty; placeDragged(dd, dd.tx, dd.ty); }
+        saveGraph();
       }
       else { lastTap = { key:(dd.type === 'node' ? 'n:' : 't:') + dd.item.id, t:Date.now(), quick:!dd.t0 || Date.now() - dd.t0 < 350, x:dd.sx, y:dd.sy }; }
     } else if(dd.mode === 'link'){
