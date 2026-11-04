@@ -20,7 +20,7 @@
     var s = document.createElement('span'); if(cls) s.className = cls; s.textContent = text + '\n'; std.appendChild(s);
     CMP.std++; $('rtStd').textContent = CMP.std;
   }
-  function cmpLangName(n){ if(n.kind === 'hub') return 'узел'; var l = typeof langById === 'function' ? langById(n.lang) : null; return l ? shortName(l) : (n.lang || ''); }
+  function cmpLangName(n){ if(n.kind === 'hub') return 'узел'; var l = typeof langById === 'function' ? langById(n.lang) : null; return (l ? shortName(l) : (n.lang || '')) + (n.xref ? ' ↗ ' + (n.xref.spName || '') : ''); }
   function cmpBegin(plan, title){
     cmpOpen();
     runEl.out.textContent = ''; $('runStd').textContent = ''; $('runStd').lastBlock = null;

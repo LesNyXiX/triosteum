@@ -212,6 +212,7 @@
     if(n.fs) d.querySelector('.nt').style.fontSize = n.fs + 'px';
     if(n.dfs) nd.style.fontSize = n.dfs + 'px';
     if(n.ts){ styleHtml(d.querySelector('.nt'), n.ts); styleHtml(nd, n.ts, true); var hl = d.querySelector('.hub-label'); if(hl) styleHtml(hl, n.ts); }
+    if(n.xref){ d.classList.add('xref'); d.title = 'Ссылка: «' + n.name + '» из пространства «' + (n.xref.spName || '') + '». Код и данные берутся из источника при каждом запуске'; }
     if(isSel('node', n.id)) d.classList.add('sel');
     applyRun(d, n.id);
     return d;

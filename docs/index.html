@@ -486,6 +486,12 @@
   .modal.ask p{margin:0;color:var(--muted);font-size:13.5px;line-height:1.5}
   .ask-acts{display:flex;justify-content:flex-end;gap:8px;margin-top:6px}
   #askModal{z-index:150}
+  .arc-x{display:flex;flex-wrap:wrap;gap:6px}
+  .arc-x:empty{display:none}
+  .arc-x-h{flex-basis:100%;font-size:12px;color:var(--muted)}
+  .arc-x-i{font-size:12px;padding:3px 9px;border-radius:999px;border:1px solid var(--line2);background:var(--bg);color:var(--ink)}
+  .arc-blocks .tag.ref{border-color:var(--red-soft);color:var(--ink)}
+  .node.xref .ln::after{content:" ↗";color:var(--red-soft)}
 
   /* ---------- заметки ---------- */
   .note{position:absolute;width:max-content;min-width:140px;max-width:360px;min-height:22px;padding:10px 12px;border-radius:10px;
@@ -3079,6 +3085,7 @@ public class MovingAverage : IBlock
     if(n.fs) d.querySelector('.nt').style.fontSize = n.fs + 'px';
     if(n.dfs) nd.style.fontSize = n.dfs + 'px';
     if(n.ts){ styleHtml(d.querySelector('.nt'), n.ts); styleHtml(nd, n.ts, true); var hl = d.querySelector('.hub-label'); if(hl) styleHtml(hl, n.ts); }
+    if(n.xref){ d.classList.add('xref'); d.title = 'Ссылка: «' + n.name + '» из пространства «' + (n.xref.spName || '') + '». Код и данные берутся из источника при каждом запуске'; }
     if(isSel('node', n.id)) d.classList.add('sel');
     applyRun(d, n.id);
     return d;
@@ -4675,7 +4682,7 @@ public class MovingAverage : IBlock
     var s = document.createElement('span'); if(cls) s.className = cls; s.textContent = text + '\n'; std.appendChild(s);
     CMP.std++; $('rtStd').textContent = CMP.std;
   }
-  function cmpLangName(n){ if(n.kind === 'hub') return 'узел'; var l = typeof langById === 'function' ? langById(n.lang) : null; return l ? shortName(l) : (n.lang || ''); }
+  function cmpLangName(n){ if(n.kind === 'hub') return 'узел'; var l = typeof langById === 'function' ? langById(n.lang) : null; return (l ? shortName(l) : (n.lang || '')) + (n.xref ? ' ↗ ' + (n.xref.spName || '') : ''); }
   function cmpBegin(plan, title){
     cmpOpen();
     runEl.out.textContent = ''; $('runStd').textContent = ''; $('runStd').lastBlock = null;
@@ -10031,7 +10038,7 @@ var Wobble=function(t){"use strict";var i=Object.assign||function(t){for(var i,e
   }
 
   // ---------- ИИ-архитектор ----------
-  var ARC = { busy:false, chars:0, res:null, err:null, prompt:'', fresh:null }, arcWin = null;
+  var ARC = { busy:false, chars:0, res:null, err:null, prompt:'', fresh:null, run:true, xhits:[] }, arcWin = null;
   var ARC_EXAMPLES_DOCS = [
     'Договоры поставки из реестра: сформировать договор, крупные согласовать с финдиректором, подписать ЭЦП, зарегистрировать и выгрузить реестр в Excel',
     'Входящие счета: оставить новые, согласовать с руководителем и финдиректором, передать в 1С на оплату и отправить отчёт на почту',
@@ -10058,14 +10065,26 @@ var Wobble=function(t){"use strict";var i=Object.assign||function(t){for(var i,e
     var b = $('arcBody'); b.innerHTML = '';
     var aiOff = AI.api === null, aiWait = AI.api === undefined;
     var ta = h('textarea', { 'class':'bld-wish arc-in', rows:'4', placeholder:ENV.hint ? 'Опишите задачу: какие данные, что посчитать, какие документы и отчёты получить…' : isDocs() ? 'Опишите процесс: какие документы, откуда данные, кто согласует и подписывает, куда выгрузить…' : 'Опишите задачу: откуда берём данные, что считаем, куда отправляем результат…', 'aria-label':'Задача для ИИ' });
-    ta.value = ARC.prompt; ta.addEventListener('input', function(){ ARC.prompt = ta.value; });
+    ta.value = ARC.prompt;
+    var xbox = h('div', { 'class':'arc-x' });
+    function xShow(){
+      xbox.textContent = ''; var hits = ARC.prompt.trim() ? xFind(ARC.prompt) : [];
+      if(!hits.length) return;
+      xbox.appendChild(h('div', { 'class':'arc-x-h', text:'Найдено в других пространствах и средах — войдёт в схему живыми ссылками:' }));
+      hits.slice(0, 8).forEach(function(it){ xbox.appendChild(h('span', { 'class':'arc-x-i', title:'из «' + it.spName + '», среда «' + it.envName + '»', text:(it.kind === 'space' ? '▣ ' : it.kind === 'file' ? (it.lang === 'sheet' ? '▦ ' : '▤ ') : '◆ ') + it.name + ' · ' + it.envName })); });
+      if(hits.length > 8) xbox.appendChild(h('span', { 'class':'arc-x-i', text:'ещё ' + (hits.length - 8) }));
+    }
+    var xt = 0; ta.addEventListener('input', function(){ ARC.prompt = ta.value; clearTimeout(xt); xt = setTimeout(xShow, 250); });
+    xShow();
     ta.addEventListener('keydown', function(e){ if(e.key === 'Enter' && (e.ctrlKey || e.metaKey)){ e.preventDefault(); buildArc(); } });
     var ex = h('div', { 'class':'arc-ex' }, (ENV.examples || (isDocs() ? ARC_EXAMPLES_DOCS : ARC_EXAMPLES)).map(function(t){ return h('button', { type:'button', 'class':'chip', text:t, on:{ click:function(){ ARC.prompt = t; ta.value = t; ta.focus(); } } }); }));
     if(ARC.fresh === null) ARC.fresh = G.nodes.length > 0;
     var fresh = toggleRow('Собрать в новом пространстве (текущая доска не изменится)', ARC.fresh, function(v){ ARC.fresh = v; });
-    b.appendChild(section('Задача', h('div', { 'class':'arc-col' }, [ ta, ex, fresh,
+    var runT = toggleRow('Сразу скомпилировать после сборки', ARC.run, function(v){ ARC.run = v; });
+    b.appendChild(section('Задача', h('div', { 'class':'arc-col' }, [ ta, xbox, ex, fresh, runT,
       h('div', { 'class':'bld-acts' }, [
         h('button', { type:'button', 'class':'btn primary', text:ARC.busy ? 'ИИ проектирует…' : 'Собрать схему', disabled:(ARC.busy || aiOff || aiWait) ? 'disabled' : null, on:{ click:buildArc } }),
+        h('button', { type:'button', 'class':'btn', text:'Собрать из готового и скомпилировать', title:'Без ИИ: найти упомянутые в запросе блоки, таблицы, документы и пространства во всех средах, поставить их ссылками и сразу запустить', on:{ click:function(){ var q = (ARC.prompt || '').trim(); if(!q){ toast('Опишите задачу'); return; } if(xBuildRun(q, ARC.fresh)){ ARC.fresh = null; closeArc(); } } } }),
         h('span', { 'class':'bld-stat', text:(IS_MAC ? '⌘' : 'Ctrl') + '+Enter' })
       ]),
       aiOff ? h('div', { 'class':'bld-issue warn', text:aiOffText() }) : null
@@ -10080,17 +10099,17 @@ var Wobble=function(t){"use strict";var i=Object.assign||function(t){for(var i,e
     if(r.summary) box.appendChild(h('p', { 'class':'bld-sum', text:r.summary }));
     var ol = h('ol', { 'class':'arc-blocks' });
     r.blocks.forEach(function(bk){
-      var l = langById(bk.lang);
+      var l = langById(bk.lang) || { id:bk.lang, name:bk.lang };
       ol.appendChild(h('li', null, [
-        h('i', { style:'background:' + grad(COLORS[bk.lang]) }),
+        h('i', { style:'background:' + grad(COLORS[bk.lang] || foreignColors(bk.lang) || ['#8A8A8A', '#555555']) }),
         h('span', { 'class':'nm', text:bk.name }),
-        h('span', { 'class':'tag' + (bk.isNew ? ' new' : ''), text:(bk.isNew ? 'новый ' + ENV.word.plugin : 'из библиотеки') + ' · ' + shortName(l) }),
+        h('span', { 'class':'tag' + (bk.isNew ? ' new' : '') + (bk.ref ? ' ref' : ''), text:bk.ref ? '↗ из «' + bk.ref.spName + '» · ' + bk.ref.envName : (bk.isNew ? 'новый ' + ENV.word.plugin : 'из библиотеки') + ' · ' + shortName(l) }),
         bk.desc ? h('span', { 'class':'ds', text:bk.desc }) : null
       ].filter(Boolean)));
     });
     box.appendChild(ol);
-    var nNew = r.blocks.filter(function(x){ return x.isNew; }).length;
-    box.appendChild(h('div', { 'class':'bld-stat', text:'Блоков: ' + r.blocks.length + ' (из библиотеки: ' + (r.blocks.length - nNew) + ', новых: ' + nNew + ') · Связей: ' + r.links.length + (r.backend ? ' · ' + (isDocs() ? 'Регламент' : 'Бэкенд') + ': ' + r.backend.split('\n').length + ' строк' : '') }));
+    var nNew = r.blocks.filter(function(x){ return x.isNew; }).length, nRef = r.blocks.filter(function(x){ return x.ref; }).length;
+    box.appendChild(h('div', { 'class':'bld-stat', text:'Блоков: ' + r.blocks.length + ' (из библиотеки: ' + (r.blocks.length - nNew - nRef) + ', новых: ' + nNew + (nRef ? ', из других пространств: ' + nRef : '') + ') · Связей: ' + r.links.length + (r.backend ? ' · ' + (isDocs() ? 'Регламент' : 'Бэкенд') + ': ' + r.backend.split('\n').length + ' строк' : '') }));
     box.appendChild(h('div', { 'class':'bld-acts' }, [
       h('button', { type:'button', 'class':'btn primary', text:'Поставить на доску', on:{ click:applyArc } }),
       h('button', { type:'button', 'class':'btn', text:'Собрать заново', on:{ click:buildArc } }),
@@ -10106,6 +10125,8 @@ var Wobble=function(t){"use strict";var i=Object.assign||function(t){for(var i,e
     var catalog = PLUGINS.concat(myVis()).map(function(p){ return '- ' + p.id + ' | ' + langById(p.lang).name + ' | ' + p.name + ' — ' + (p.desc || ''); }).join('\n');
     var fmts = LANGS.map(function(l){ return '#### ' + l.name + ' (lang="' + l.id + '")\n' + FENCE + langTag(l.id) + '\n' + l.tpl.replace(/\s+$/, '') + '\n' + FENCE; }).join('\n');
     var ctxBoard = !ARC.fresh && G.nodes.length ? 'На доске уже есть блоки (новые ставятся рядом, связывать с ними нельзя): ' + G.nodes.map(function(n){ return n.name; }).join(', ') : '';
+    ARC.xhits = xFind(q);
+    if(ARC.xhits.length) ctxBoard += (ctxBoard ? '\n' : '') + 'В других пространствах и средах пользователя УЖЕ ЕСТЬ то, что упомянуто в задаче. Используй это, а не пиши заново: в blocks укажи {"key":"bN","ref":"xK","name":"…"} (код и данные возьмутся из источника, язык менять нельзя), и свяжи с остальными блоками по потоку данных:\n' + xForPrompt(ARC.xhits);
     var prompt = isDocs() ? docsArcPrompt(q, catalog, ctxBoard) : [
       'Ты — ИИ-архитектор Triosteum, платформы автоматизации и аналитики для производственных компаний России.',
       'Схема — это блоки с кодом (плагины), соединённые связями: результат блока передаётся по связи следующему (функция run получает данные предыдущего блока).',
@@ -10167,6 +10188,8 @@ var Wobble=function(t){"use strict";var i=Object.assign||function(t){for(var i,e
     var keys = {}, blocks = [];
     (o.blocks || []).forEach(function(bk){
       if(!bk || !bk.key || keys[bk.key]) return;
+      var xr = bk.ref && /^x\d+$/.test(String(bk.ref)) ? ARC.xhits[+String(bk.ref).slice(1) - 1] : null;
+      if(xr){ blocks.push({ key:bk.key, ref:xr, lang:xr.lang || 'space', name:xr.name, desc:xr.kind === 'space' ? 'всё пространство' : (xr.desc || ''), isNew:false }); keys[bk.key] = 1; return; }
       var p = bk.plugin && pluginById(bk.plugin);
       if(p && langById(p.lang) && !bk.code){ blocks.push({ key:bk.key, plugin:p.id, lang:p.lang, name:String(bk.name || p.name).slice(0, 80), desc:p.desc || '', isNew:false }); keys[bk.key] = 1; return; }
       var lang = String(bk.lang || '').toLowerCase().replace('c#', 'csharp').replace('1с', '1c');
@@ -10201,8 +10224,15 @@ var Wobble=function(t){"use strict";var i=Object.assign||function(t){for(var i,e
   function applyArc(){
     var r = ARC.res; if(!r) return;
     if(ARC.fresh) newProj(r.title, null, ENV.id);
-    var map = {}, made = [], nNew = 0;
+    var map = {}, made = [], nNew = 0, groups = {};
     r.blocks.forEach(function(bk, i){
+      if(bk.ref){
+        var placed = xPlace([bk.ref], { link:false });
+        placed.forEach(function(n){ made.push(n); });
+        if(placed.length){ map[bk.key] = placed[0].id; var ids = {}; placed.forEach(function(n){ ids[n.id] = 1; });
+          groups[bk.key] = { ins:placed.filter(function(n){ return !G.edges.some(function(e){ return e.to === n.id && ids[e.from]; }); }), outs:placed.filter(function(n){ return !G.edges.some(function(e){ return e.from === n.id && ids[e.to]; }); }) }; }
+        return;
+      }
       var pid = bk.plugin, fam = null, desc = bk.desc;
       if(bk.isNew){
         var np = { id:'my-' + Date.now().toString(36) + i, my:true, name:bk.name, lang:bk.lang, desc:bk.desc, family:null, codes:{}, ai:true };
@@ -10211,7 +10241,11 @@ var Wobble=function(t){"use strict";var i=Object.assign||function(t){for(var i,e
       var n = { id:newId('n'), name:bk.name, lang:bk.lang, x:0, y:0, codes:{}, pluginId:pid, family:fam, desc:desc, colors:null };
       G.nodes.push(n); map[bk.key] = n.id; made.push(n);
     });
-    r.links.forEach(function(l){ G.edges.push({ id:newId('e'), from:map[l.from], to:map[l.to], taps:[] }); });
+    r.links.forEach(function(l){
+      if(!map[l.from] || !map[l.to]) return;
+      var A = groups[l.from] ? groups[l.from].outs : [nodeById(map[l.from])], B = groups[l.to] ? groups[l.to].ins : [nodeById(map[l.to])];
+      A.forEach(function(a){ B.forEach(function(b0){ if(a && b0 && a !== b0) G.edges.push({ id:newId('e'), from:a.id, to:b0.id, taps:[] }); }); });
+    });
     var others = G.nodes.filter(function(n){ return made.indexOf(n) < 0; });
     var x0, cy;
     if(others.length){ x0 = Math.max.apply(0, others.map(function(n){ return n.x + NWof(n); })) + 200; cy = others.reduce(function(s, n){ return s + n.y; }, 0) / others.length + NH / 2; }
@@ -10222,8 +10256,10 @@ var Wobble=function(t){"use strict";var i=Object.assign||function(t){for(var i,e
     S.sel = null; S.multi = made.map(function(n){ return { type:'node', id:n.id }; });
     saveGraph(); renderGraph(); updateSel();
     setTimeout(fitView, 30);
+    var nRef = r.blocks.filter(function(x){ return x.ref; }).length;
     ARC.res = null; ARC.fresh = null; closeArc();
-    toast('Схема «' + r.title + '» собрана: блоков ' + made.length + (nNew ? ', новых: ' + nNew + ' (в «Мои»)' : '') + (r.backend ? ' · ' + (isDocs() ? 'регламент' : 'бэкенд') + ' — в окне «' + ENV.word.scheme + '»' : ''));
+    if(ARC.run) setTimeout(function(){ runBoard(); }, 450);
+    toast('Схема «' + r.title + '» собрана: блоков ' + made.length + (nNew ? ', новых: ' + nNew + ' (в «Мои»)' : '') + (nRef ? ', из других пространств: ' + nRef : '') + (r.backend ? ' · ' + (isDocs() ? 'регламент' : 'бэкенд') + ' — в окне «' + ENV.word.scheme + '»' : ''));
   }
 
   /* =====================================================================
@@ -17028,6 +17064,140 @@ var Wobble=function(t){"use strict";var i=Object.assign||function(t){for(var i,e
     if(S.visit && S.visit.proj === PROJ.cur) acts.insertBefore(h('button', { type:'button', 'class':'btn sm primary', text:'Вернуться в «' + S.visit.envName + '»', on:{ click:function(){ hidePop(); visitReturn(); } } }), acts.firstChild);
     if(n.bridge) acts.insertBefore(h('button', { type:'button', 'class':'btn sm primary', text:'Вернуть в «' + n.bridge.projName + '»', on:{ click:function(){ hidePop(); bridgeReturn(n); } } }), acts.firstChild);
     acts.appendChild(h('button', { type:'button', 'class':'btn sm', text:'Копировать (в любое пространство)', on:{ click:function(){ S.multi = []; S.sel = { type:'node', id:n.id }; copySel(); } } }));
+  };
+
+  /* =====================================================================
+     СКВОЗНАЯ КОМПИЛЯЦИЯ: запрос к ИИ может опираться на то, что лежит в
+     других пространствах и средах. Triosteum находит упомянутые в запросе
+     блоки, таблицы, документы и целые пространства, ставит на доску живые
+     ссылки на них (блок-ссылка всегда берёт свежий код или данные из
+     источника) и компилирует всё одним маршрутом.
+     ===================================================================== */
+  var XSTOP = { 'взять':1, 'взяв':1, 'сделать':1, 'нужно':1, 'надо':1, 'чтобы':1, 'который':1, 'которые':1, 'данные':0, 'потом':1, 'затем':1, 'после':1, 'через':1, 'всех':1, 'всего':1, 'каждый':1, 'каждого':1, 'среды':1, 'среде':1, 'среда':1, 'пространство':1, 'пространства':1, 'пространстве':1, 'блок':1, 'блока':1, 'блоки':1, 'таблица':0, 'таблицу':0, 'таблицы':0, 'новый':1, 'новое':1, 'вывести':1, 'посчитать':1, 'отправить':1, 'сравнить':1, 'сравнение':1 };
+  function xNorm(s){ return String(s || '').toLowerCase().replace(/ё/g, 'е').replace(/[«»"'`(),.;:!?/\\|[\]{}<>+=*#№%-]+/g, ' ').replace(/\s+/g, ' ').trim(); }
+  function xStems(s){ return xNorm(s).split(' ').filter(function(w){ return w.length >= 4 && !XSTOP[w]; }).map(function(w){ return w.slice(0, Math.max(4, Math.min(6, w.length - 2))); }); }
+  function xSpaceGraph(id){ if(id === PROJ.cur) return G; var g = Repo.space(id); return g && typeof g === 'object' ? g : null; }
+  function xEnvName(id){ return ENVS[id || 'code'] ? ENVS[id || 'code'].name : 'Разработка'; }
+  // всё, на что может сослаться запрос: пространства, их блоки и файлы
+  function xIndex(){
+    var out = [];
+    PROJ.list.forEach(function(p){
+      var g = xSpaceGraph(p.id); if(!g) return;
+      var env = p.env || 'code', base = { sp:p.id, spName:p.name, env:env, envName:xEnvName(env), here:p.id === PROJ.cur };
+      out.push(Object.assign({ kind:'space', name:p.name, count:(g.nodes || []).length }, base));
+      (g.nodes || []).forEach(function(n){ if(n.kind === 'hub' || n.xref) return; out.push(Object.assign({ kind:'node', id:n.id, name:n.name, lang:n.lang, desc:n.desc || '' }, base)); });
+      ((g.files && g.files.items) || []).forEach(function(f){ if(f.type !== 'sheet' && f.type !== 'doc') return; out.push(Object.assign({ kind:'file', id:f.id, name:f.name, lang:f.type, desc:f.type === 'sheet' ? 'таблица' : 'документ' }, base)); });
+    });
+    return out;
+  }
+  // что из этого упомянуто в запросе: названия в кавычках — точно, остальное — по основам слов
+  function xFind(prompt, opts){
+    opts = opts || {};
+    var idx = xIndex(), q = xNorm(prompt), qs = {}, quoted = [];
+    xStems(prompt).forEach(function(s){ qs[s] = 1; });
+    String(prompt).replace(/[«"]([^»"]{2,80})[»"]/g, function(m, x){ quoted.push(xNorm(x)); return m; });
+    var hits = [];
+    idx.forEach(function(it){
+      if(it.here && !opts.withHere) return;
+      var nm = xNorm(it.name), score = 0;
+      if(!nm) return;
+      if(quoted.indexOf(nm) >= 0) score = 2;
+      else if(nm.length >= 5 && (' ' + q + ' ').indexOf(' ' + nm + ' ') >= 0) score = 1.5;
+      else {
+        var st = xStems(it.name); if(!st.length) return;
+        var m = st.filter(function(s){ return qs[s]; }).length;
+        if(m && m / st.length >= 0.6 && (m >= 2 || st.length === 1)) score = m / st.length;
+      }
+      if(!score) return;
+      if(it.kind === 'space' && /пространств|сред/.test(q)) score += 0.3;
+      if(new RegExp('сред[аеуы]? «?' + xNorm(it.envName).split(' ')[0]).test(q) || q.indexOf(xNorm(it.envName)) >= 0) score += 0.2;
+      hits.push(Object.assign({ score:score }, it));
+    });
+    // целое пространство поглощает упоминания своих же блоков
+    var spaces = {}; hits.forEach(function(x){ if(x.kind === 'space' && x.score >= 1) spaces[x.sp] = 1; });
+    hits = hits.filter(function(x){ return x.kind === 'space' || !spaces[x.sp]; });
+    hits.sort(function(a, b){ return b.score - a.score; });
+    return hits.slice(0, opts.max || 24);
+  }
+  /* ---------- блок-ссылка ---------- */
+  // свежий код или данные источника; null — источник пропал (тогда работает сохранённая копия)
+  function xrefCode(n){
+    var r = n.xref, g = r && xSpaceGraph(r.sp); if(!g) return null;
+    if(r.file){
+      var f = ((g.files && g.files.items) || []).filter(function(x){ return x.id === r.file; })[0];
+      return f && typeof fileAsBlockCode === 'function' ? fileAsBlockCode(f, n.lang) : null;
+    }
+    var s = (g.nodes || []).filter(function(x){ return x.id === r.node; })[0]; if(!s) return null;
+    if(s.src && g.files){ var sf = (g.files.items || []).filter(function(x){ return x.id === s.src; })[0]; if(sf && typeof fileAsBlockCode === 'function'){ var fc = fileAsBlockCode(sf, s.lang); if(fc !== null) return fc; } }
+    if(s.codes && s.codes[s.lang] !== undefined) return s.codes[s.lang];
+    if(s.pluginId && pluginById(s.pluginId) || s.family) return nodeOriginal(s);
+    return null;
+  }
+  var _xNodeCode = nodeCode;
+  nodeCode = function(n){ if(n && n.xref){ var c = xrefCode(n); if(c !== null && c !== undefined) return c; } return _xNodeCode(n); };
+  function xMakeNode(it, x, y){
+    var g = xSpaceGraph(it.sp), src = it.kind === 'node' ? (g.nodes || []).filter(function(z){ return z.id === it.id; })[0] : null;
+    var lang = it.lang || (src && src.lang), n = { id:newId('n'), name:it.name, lang:lang, x:Math.round(x), y:Math.round(y), codes:{}, pluginId:src ? src.pluginId || null : null, family:src ? src.family || null : null,
+      desc:'↗ из «' + it.spName + '» · ' + it.envName + (src && src.desc ? ' — ' + src.desc : ''), colors:src ? colorsOf(src) : (COLORS[lang] || foreignColors(lang) || null), env:it.env,
+      xref:it.kind === 'file' ? { sp:it.sp, file:it.id, spName:it.spName, env:it.env } : { sp:it.sp, node:it.id, spName:it.spName, env:it.env } };
+    if(src && src.w) n.w = src.w; if(src && src.h) n.h = src.h;
+    var c = null; try { c = xrefCode(n); } catch(e){}
+    if(c !== null && c !== undefined) n.codes[lang] = c;   // копия на случай, если источник удалят
+    return n;
+  }
+  // тип блока для порядка «источник → обработка → результат», когда связи не заданы
+  function xRank(lang){ if(/^(sheet|src|source|1c)$/.test(lang)) return 0; if(/^(doc|send|step|html|report)$/.test(lang)) return 2; return 1; }
+  // поставить найденное на доску ссылками; целое пространство — со своими связями
+  function xPlace(hits, opts){
+    opts = opts || {};
+    var made = [], tail = [], c = viewCenter(), x0 = G.nodes.length ? Math.max.apply(0, G.nodes.map(function(n){ return n.x + NWof(n); })) + 200 : c.x - 300, y = c.y - 120;
+    hits.forEach(function(it){
+      if(it.kind === 'space'){
+        var g = xSpaceGraph(it.sp); if(!g) return;
+        var map = {}, nodes = (g.nodes || []).filter(function(n){ return n.kind !== 'hub' && !n.xref; });
+        nodes.forEach(function(sn, i){ var n = xMakeNode({ kind:'node', id:sn.id, name:sn.name, lang:sn.lang, sp:it.sp, spName:it.spName, env:it.env, envName:it.envName }, x0 + (i % 4) * (NW + 80), y + Math.floor(i / 4) * (NH + 50)); G.nodes.push(n); made.push(n); map[sn.id] = n.id; });
+        (g.edges || []).forEach(function(e){ if(map[e.from] && map[e.to]) G.edges.push({ id:newId('e'), from:map[e.from], to:map[e.to], taps:[] }); });
+        var outs = nodes.filter(function(sn){ return !(g.edges || []).some(function(e){ return e.from === sn.id && map[e.to]; }); }).map(function(sn){ return nodeById(map[sn.id]); });
+        tail.push({ rank:1, outs:outs, ins:nodes.filter(function(sn){ return !(g.edges || []).some(function(e){ return e.to === sn.id && map[e.from]; }); }).map(function(sn){ return nodeById(map[sn.id]); }) });
+        y += (Math.ceil(nodes.length / 4)) * (NH + 50) + 60;
+      } else {
+        var n = xMakeNode(it, x0, y); G.nodes.push(n); made.push(n); tail.push({ rank:xRank(n.lang), outs:[n], ins:[n] }); y += NH + 50;
+      }
+    });
+    // связи между найденным: источники → обработка → результаты
+    if(opts.link !== false && tail.length > 1){
+      tail.sort(function(a, b){ return a.rank - b.rank; });
+      for(var i = 0; i + 1 < tail.length; i++) tail[i].outs.forEach(function(a){ tail[i + 1].ins.forEach(function(b){ if(a && b && a !== b) G.edges.push({ id:newId('e'), from:a.id, to:b.id, taps:[] }); }); });
+    }
+    if(typeof layoutSet === 'function' && made.length) layoutSet(made, x0, c.y);
+    return made;
+  }
+  // описание найденного для ИИ-архитектора: на это он ссылается вместо того, чтобы писать заново
+  function xForPrompt(hits){
+    return hits.map(function(it, i){ return '- x' + (i + 1) + ' | ' + (it.kind === 'space' ? 'пространство целиком (' + it.count + ' блоков)' : it.kind === 'file' ? (it.lang === 'sheet' ? 'таблица' : 'документ') : 'блок ' + (langById(it.lang) ? shortName(langById(it.lang)) : it.lang)) + ' | «' + it.name + '» | из «' + it.spName + '», среда «' + it.envName + '»' + (it.desc && it.kind === 'node' ? ' — ' + it.desc : ''); }).join('\n');
+  }
+  // без ИИ: найти упомянутое, поставить на доску и сразу скомпилировать
+  function xBuildRun(prompt, fresh){
+    var hits = xFind(prompt);
+    if(!hits.length){ toast('В других пространствах ничего из запроса не нашлось. Назовите блоки, таблицы или пространства как в Triosteum — можно в «кавычках»'); return false; }
+    if(fresh) newProj('Сводная: ' + String(prompt).slice(0, 40), null, ENV.id);
+    var made = xPlace(hits);
+    S.sel = null; S.multi = made.map(function(n){ return { type:'node', id:n.id }; });
+    saveGraph(); renderGraph(); updateSel(); setTimeout(fitView, 30);
+    toast('Поставлено ссылок: ' + made.length + ' — из ' + hits.map(function(h0){ return '«' + h0.spName + '»'; }).filter(function(v, i, a){ return a.indexOf(v) === i; }).join(', ') + '. Компилирую…');
+    setTimeout(function(){ runBoard(); }, 400);
+    return true;
+  }
+  // двойной клик по ссылке — открыть источник там, где он живёт
+  var _xOpenBlock = openBlock;
+  openBlock = function(n){
+    if(!n || !n.xref) return _xOpenBlock(n);
+    var r = n.xref; if(!PROJ.list.some(function(p){ return p.id === r.sp; })){ toast('Пространство-источник удалено — блок работает на сохранённой копии'); return _xOpenBlock(n); }
+    switchProj(r.sp);
+    setTimeout(function(){
+      if(r.file && typeof ofOpen === 'function' && ENV.office){ ofOpen(r.file); return; }
+      var s = nodeById(r.node); if(s){ S.sel = { type:'node', id:s.id }; updateSel(); _xOpenBlock(s); }
+    }, 60);
   };
 
   setEnv(curProj().env || 'code');
