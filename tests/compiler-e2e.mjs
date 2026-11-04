@@ -47,7 +47,7 @@ await ctx.route('https://api.anthropic.com/v1/messages', async (route) => {
 let oaiAuth = null, oaiModel = null;
 const oaiSse = (txt) => txt.split(' ').map((w, i) => 'data: ' + JSON.stringify({ choices: [{ delta: { content: (i ? ' ' : '') + w } }] }) + '\n\n').join('') + 'data: ' + JSON.stringify({ choices: [{ delta: {}, finish_reason: 'stop' }] }) + '\n\ndata: [DONE]\n\n';
 await ctx.route('http://localhost:11434/v1/models', (r) => r.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ data: [{ id: 'qwen2.5-coder:7b' }, { id: 'llama3.1:8b' }] }) }));
-await ctx.route('http://localhost:11434/v1/chat/completions', (r) => { oaiModel = JSON.parse(r.request().postData()).model; return r.fulfill({ status: 200, headers: { 'content-type': 'text/event-stream', 'access-control-allow-origin': '*' }, body: oaiSse('ответ от Ollama') }); });
+await ctx.route('http://localhost:11434/v1/chat/completions', (r) => { oaiModel = JSON.parse(r.request().postData()).model; if (oaiModel !== 'qwen2.5-coder:7b') return r.fulfill({ status: 404, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ error: { message: "model '" + oaiModel + "' not found" } }) }); return r.fulfill({ status: 200, headers: { 'content-type': 'text/event-stream', 'access-control-allow-origin': '*' }, body: oaiSse('ответ от Ollama') }); });
 await ctx.route('https://llm.example.ru/v1/chat/completions', (r) => { oaiAuth = r.request().headers().authorization; oaiModel = JSON.parse(r.request().postData()).model; return r.fulfill({ status: 200, headers: { 'content-type': 'text/event-stream', 'access-control-allow-origin': '*' }, body: oaiSse('ответ своего ИИ') }); });
 const page = await ctx.newPage();
 const errors = [];
@@ -128,6 +128,10 @@ await page.selectOption('#claudeP select', 'qwen2.5-coder:7b');
 await page.click('#claudeP button:has-text("Сохранить и включить")'); await page.waitForTimeout(300);
 check(await page.$eval('#claudeBtn', (x) => x.getAttribute('aria-checked') === 'true' && x.textContent.includes('Ollama')), 'переключатель включён и показывает «Ollama»');
 check(/ответ от Ollama/.test(await askB('Объясни блок')) && oaiModel === 'qwen2.5-coder:7b', 'помощник блока отвечает через Ollama выбранной моделью');
+// модель, которой нет на компьютере, — Triosteum сам берёт установленную
+await page.keyboard.press('Escape'); await page.click('#claudeMore'); await page.waitForTimeout(150);
+await page.selectOption('#claudeP select', 'llama3.1:8b'); await page.click('#claudeP button:has-text("Сохранить")'); await page.waitForTimeout(250);
+check(/ответ от Ollama/.test(await askB('Ещё раз')) && oaiModel === 'qwen2.5-coder:7b', 'нет такой модели — берётся установленная, ответ приходит');
 await page.keyboard.press('Escape');
 await page.click('#claudeMore'); await page.waitForTimeout(150);
 await page.click('#claudeP .clp-seg [data-prov="openai"]'); await page.waitForTimeout(150);

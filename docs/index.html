@@ -3842,6 +3842,13 @@ public class MovingAverage : IBlock
     var body = { model:model, stream:true, messages:[{ role:'system', content:CL_SYSTEM }, { role:'user', content:String(prompt) }] };
     if(cfg.max) body.max_tokens = cfg.max;
     return fetch(base + '/chat/completions', { method:'POST', headers:headers, body:JSON.stringify(body) }).then(function(r){
+      // Ollama: указанной модели нет — берём установленную на компьютере и повторяем запрос
+      if(r.status === 404 && p === 'ollama' && !cfg.retried) return clListModels('ollama').then(function(ms){
+        var pick = clPickModel(ms); if(!pick) throw clError(404, null, 'на компьютере нет ни одной модели — скачайте её: ollama pull qwen2.5-coder:7b', who);
+        CL.cfg.ollama.model = pick; CL.models.ollama = ms; clSaveCfg(); clPaint();
+        if(typeof toast === 'function') toast('Ollama: выбрана установленная модель ' + pick);
+        return oaiHttp(prompt, opts, { prov:'ollama', retried:true, max:cfg.max, model:pick });
+      });
       if(!r.ok) return r.text().then(function(t){ var d = null; try { d = JSON.parse(t); } catch(e){} throw clError(r.status, d, t && t.slice(0, 200), who); });
       var text = '', stop = null;
       return clSse(r, function(block){
@@ -3854,6 +3861,8 @@ public class MovingAverage : IBlock
       }).then(function(){ return { text:text, stop:stop }; });
     }, function(err){ throw clNetErr(p, err); });
   }
+  // какую из установленных моделей взять: для кода — coder, иначе первую
+  function clPickModel(ms){ if(!ms || !ms.length) return null; return ms.filter(function(m){ return /coder/i.test(m); })[0] || ms.filter(function(m){ return !/embed/i.test(m); })[0] || ms[0]; }
   // список моделей сервиса (для Ollama — установленные на компьютере)
   function clListModels(p, cfg){
     cfg = cfg || {};
@@ -3895,6 +3904,7 @@ public class MovingAverage : IBlock
       });
     }
     var c = CL.cfg[CL.prov];
+    if(CL.prov === 'ollama' && !c.model) return clListModels('ollama').then(function(ms){ var pick = clPickModel(ms); if(!pick) return null; c.model = pick; CL.models.ollama = ms; clSaveCfg(); CL.src = 'ollama'; return function(prompt, opts){ return oaiHttp(prompt, opts, { prov:'ollama' }); }; }, function(){ return null; });
     if(!c.model || (CL.prov === 'openai' && !c.url)) return Promise.resolve(null);
     var p = CL.prov; CL.src = p;
     return Promise.resolve(function(prompt, opts){ return oaiHttp(prompt, opts, { prov:p }); });
@@ -3939,6 +3949,7 @@ public class MovingAverage : IBlock
     });
     b.appendChild(seg);
     if(CL.prov === 'claude') clPanelClaude(b); else clPanelOai(b, CL.prov);
+    if(CL.prov === 'ollama' && !CL.models.ollama && !CL.autoFind){ CL.autoFind = true; clListModels('ollama').then(function(ms){ CL.models.ollama = ms; var c = CL.cfg.ollama; if(ms.length && ms.indexOf(c.model) < 0){ c.model = clPickModel(ms); clSaveCfg(); } if(!$('claudeP').hidden && CL.prov === 'ollama') clRenderPanel(); }, function(){}); }
     if(CL.status) b.appendChild(h('div', { 'class':'clp-st ' + (CL.status.cls || ''), text:CL.status.text, role:'status' }));
     b.appendChild(h('p', { text:'Пока переключатель включён, помощник блока, архитектор, конструктор, бэкенд и ИИ офиса работают через выбранный ИИ. Выключите — вернётся прежний. После закрытия вкладки переключатель выключается.' }));
   }
