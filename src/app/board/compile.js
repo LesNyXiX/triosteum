@@ -1,12 +1,7 @@
   /* ---------- компиляция всей доски ---------- */
-  var runEl = { box:$('runp'), out:$('runOut'), sum:$('runSum') };
-  $('runClose').addEventListener('click', function(){ runEl.box.hidden = true; });
-  var runWin = makeWindow(runEl.box, '.runp-h', 'run', 'canvas');
-  runWin.apply();
   popWin = makeWindow(el.pop, '.pop-head', 'pop', 'fixed', function(){ placePop(); });
   var modalWin = makeWindow(el.form, 'h2', 'create', 'shift');
   modalWin.apply();
-  function rlog(text, cls){ var s = document.createElement('span'); if(cls) s.className = cls; s.textContent = text + '\n'; runEl.out.appendChild(s); runEl.out.scrollTop = runEl.out.scrollHeight; }
   function boardOrder(){
     var preds = {}; G.nodes.forEach(function(n){ preds[n.id] = []; });
     function dep(a, b){ if(preds[b] && preds[a] && a !== b && preds[b].indexOf(a) < 0) preds[b].push(a); }
@@ -43,22 +38,24 @@
     if(isDocs() || G.nodes.some(function(n){ return n.kind !== 'hub' && !CODE_LANGS.some(function(l){ return l.id === n.lang; }); })) return runRoute();
     if(running) return;
     if(S.view !== 'canvas'){ S.view = 'canvas'; render(); renderGraph(); }
-    runEl.box.hidden = false; runEl.out.textContent = ''; runEl.sum.textContent = '';
-    if(!G.nodes.length){ rlog('На доске нет блоков.', 'dim'); return; }
+    if(!G.nodes.length){ cmpOpen(); runEl.out.textContent = ''; runEl.sum.textContent = ''; rlog('На доске нет блоков.', 'dim'); CMP.only = null; return; }
     clearRun();
-    var plan = boardOrder();
+    var plan = cmpPlan(boardOrder());
+    cmpBegin(plan, 'Разработка');
     rlog('Порядок выполнения: ' + plan.order.map(function(n){ return n.name; }).join(' → '), 'dim');
     if(plan.cyclic.length) rlog('Пропущены из-за замкнутого круга связей: ' + plan.cyclic.map(function(n){ return n.name; }).join(', '), 'warn');
     var needPy = plan.order.some(function(n){ return n.lang === 'python'; });
-    var results = {}, stat = { ok:0, err:0, skip:0 };
+    var results = cmpSeed(), stat = { ok:0, err:0, skip:0 };
     running = true;
     if(needPy && RUN_SERVER) rlog('Python выполняется на сервере', 'dim');
     (needPy && !RUN_SERVER ? loadPyFor(rlog) : Promise.resolve(null)).then(function(py){
       var i = 0;
       function next(){
         if(i >= plan.order.length){ finish(); return; }
+        if(cmpStopped()){ finish(true); return; }
         var n = plan.order[i++], d = domOf('node', n.id), l = langById(n.lang);
         if(d) d.classList.add('running');
+        cmpBlockStart(n);
         var ins = plan.preds[n.id].map(function(p){ return results[p]; }).filter(function(v){ return v !== undefined && v !== null; });
         var input = ins.length === 0 ? null : (ins.length === 1 ? ins[0] : ins);
         setTimeout(function(){
@@ -92,6 +89,8 @@
               results[n.id] = oj ? JSON.parse(oj) : null;
               rlog('  ✓ результат: ' + (oj ? (oj.length > 160 ? oj.slice(0, 160) + '…' : oj) : 'нет'), 'ok'); stat.ok++;
               setRun(n, 'ok', 'Выполнен. Результат: ' + (oj ? (oj.length > 200 ? oj.slice(0, 200) + '…' : oj) : 'нет'));
+            } else if(n.kind === 'hub'){
+              rlog('▶ ' + n.name + ' — связующая точка: объединено входов: ' + ins.length, 'dim'); results[n.id] = input; stat.ok++; setRun(n, 'ok', 'Объединено входов: ' + ins.length);
             } else if(n.lang === 'html'){
               rlog('▶ ' + n.name + ' — HTML-виджет, отображается в предпросмотре', 'dim'); stat.ok++; setRun(n, 'ok', 'HTML-виджет — смотрите предпросмотр в редакторе');
             } else if(FOREIGN_LANGS[n.lang]){
@@ -112,11 +111,11 @@
           next();
         }, 120);
       }
-      function finish(){
+      function finish(stopped){
         running = false;
-        runEl.sum.textContent = 'выполнено: ' + stat.ok + ' · ошибок: ' + stat.err + ' · пропущено: ' + stat.skip;
-        rlog('Готово.', stat.err ? 'warn' : 'ok');
+        if(!stopped) rlog('Готово.', stat.err ? 'warn' : 'ok');
+        cmpEnd(results, stopped);
       }
       next();
-    }, function(err){ running = false; rlog(err.message + '. Проверьте подключение к интернету.', 'err'); });
+    }, function(err){ running = false; rlog(err.message + '. Проверьте подключение к интернету.', 'err'); cmpEnd(null, false); });
   }

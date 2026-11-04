@@ -187,6 +187,7 @@
     if(v instanceof BStruct){ var o3 = {}; v.m.forEach(function(x){ o3[x.k] = bslToJson(x.v, d + 1); }); return o3; }
     if(v instanceof BMap){ var o4 = {}; v.m.forEach(function(x){ o4[String(x.k)] = bslToJson(x.v, d + 1); }); return o4; }
     if(v instanceof BSym) return String(v);
+    if(v.bslType !== undefined) return String(v.bslType);
     if(v.qres) return bslToJson(v.qres, d + 1);
     if(v.kv) return { Ключ:bslToJson(v.k, d + 1), Значение:bslToJson(v.v, d + 1) };
     return null;
@@ -202,27 +203,42 @@
     if(v instanceof BMap) return 'Соответствие';
     if(v instanceof BSym) return String(v);
     if(v instanceof BRow) return 'СтрокаТаблицыЗначений';
+    if(v && v.bslType !== undefined) return String(v.bslType);
     return String(v);
   }
   function BslBreak(){} function BslCont(){} function BslRet(v){ this.v = v; }
 
   /* ---------- исполнитель ---------- */
-  function BslVM(mod, ctx){ this.mod = mod; this.ctx = ctx || {}; this.out = []; this.notes = []; this.steps = 0; this.globals = new Map(); var self = this; mod.vars.forEach(function(n){ self.globals.set(String(n).toLowerCase(), undefined); }); }
+  function BslVM(mod, ctx){ this.mod = mod; this.ctx = ctx || {}; this.out = []; this.notes = []; this.steps = 0; this.depth = 0; this.globals = new Map(); var self = this; mod.vars.forEach(function(n){ self.globals.set(String(n).toLowerCase(), undefined); }); }
   var BV = BslVM.prototype;
   BV.note = function(t){ if(this.notes.indexOf(t) < 0) this.notes.push(t); };
   BV.tick = function(){ if(++this.steps > 3e6) throw BslErr('Слишком долгое выполнение — возможен бесконечный цикл'); };
-  BV.callProc = function(pr, args, line){
+  BV.callProc = function(pr, args, line, back){
     var sc = new Map(), self = this;
+    if(++this.depth > 900){ this.depth = 0; throw BslErr('Переполнение стека: слишком глубокая рекурсия', line); }
     pr.params.forEach(function(p, i){ var v = args[i]; if(v === undefined && p.def) v = self.eval(p.def, sc); sc.set(p.lo, v); });
-    try { this.block(pr.body, sc); } catch(e){ if(e instanceof BslRet) return e.v; throw e; }
-    return undefined;
+    var ret;
+    try { this.block(pr.body, sc); } catch(e){ if(!(e instanceof BslRet)){ this.depth--; throw e; } ret = e.v; }
+    this.depth--;
+    if(back) back(sc);
+    return ret;
+  };
+  // параметры без «Знач» передаются по ссылке: присваивание внутри процедуры видно снаружи
+  BV.callUser = function(pr, e, sc){
+    var self = this, args = e.args.map(function(a){ return a === undefined ? undefined : self.eval(a, sc); });
+    var back = null;
+    if(pr.params.some(function(p, i){ return !p.byVal && e.args[i] && e.args[i].k === 'id'; })) back = function(psc){ pr.params.forEach(function(p, i){ var a = e.args[i]; if(p.byVal || !a || a.k !== 'id') return; var nv = psc.get(p.lo); if(nv !== args[i]) self.assign(a, nv, sc); }); };
+    return this.callProc(pr, args, e.line, back);
   };
   BV.block = function(list, sc){ for(var i = 0; i < list.length; i++) this.exec(list[i], sc); };
   BV.exec = function(s, sc){
     this.tick(); var self = this;
     switch(s.k){
       case 'assign': this.assign(s.l, this.eval(s.r, sc), sc); return;
-      case 'call': this.eval(s.e, sc); return;
+      case 'call':
+        // оператор Выполнить("код") — выполняет текст как код 1С в текущем контексте
+        if(s.e.k === 'call' && s.e.f.k === 'id' && /^(выполнить|execute)$/.test(s.e.f.lo) && s.e.args.length === 1){ var code = this.eval(s.e.args[0], sc); if(typeof code === 'string'){ this.runCode(code, sc, s.line); return; } var pr0 = this.mod.procs[s.e.f.lo]; if(pr0){ this.callProc(pr0, [code], s.line); return; } }
+        this.eval(s.e, sc); return;
       case 'vars': s.names.forEach(function(n){ sc.set(n, undefined); }); return;
       case 'if': for(var i = 0; i < s.br.length; i++){ if(this.truthy(this.eval(s.br[i].c, sc))){ this.block(s.br[i].b, sc); return; } } if(s.els) this.block(s.els, sc); return;
       case 'while': while(this.truthy(this.eval(s.c, sc))){ this.tick(); try { this.block(s.b, sc); } catch(e){ if(e instanceof BslBreak) break; if(e instanceof BslCont) continue; throw e; } } return;
@@ -237,8 +253,8 @@
       case 'return': throw new BslRet(s.e ? this.eval(s.e, sc) : undefined);
       case 'break': throw new BslBreak();
       case 'continue': throw new BslCont();
-      case 'try': try { this.block(s.b, sc); } catch(e){ if(e instanceof BslRet || e instanceof BslBreak || e instanceof BslCont) throw e; this.lastErr = String(e.message || e); this.block(s.e, sc); } return;
-      case 'raise': throw BslErr(s.e ? bslStr(this.eval(s.e, sc)) : (this.lastErr || 'Исключение'), s.line);
+      case 'try': try { this.block(s.b, sc); } catch(e){ if(e instanceof BslRet || e instanceof BslBreak || e instanceof BslCont) throw e; if(/долгое выполнение/.test(e.message)) throw e; this.lastErr = e.raw !== undefined ? e.raw : String(e.message || e).replace(/ \(строка \d+\)$/, ''); this.lastErrInfo = e; this.block(s.e, sc); } return;
+      case 'raise': var rmsg = s.e ? bslStr(this.eval(s.e, sc)) : (this.lastErr || 'Исключение'), rerr = BslErr(rmsg, s.line); rerr.raw = rmsg; throw rerr;
     }
   };
   BV.items = function(v, line){
@@ -252,7 +268,7 @@
   };
   BV.truthy = function(v){ if(v === BSL_MISSING) return true; return !!v; };
   BV.num = function(v){ if(typeof v === 'number') return v; if(v === undefined || v === null || v === BSL_MISSING) return 0; if(typeof v === 'boolean') return v ? 1 : 0; if(v instanceof Date) return +v / 1000; var n = parseFloat(String(v).replace(/\s/g, '').replace(',', '.')); if(isNaN(n)) throw BslErr('Преобразование значения к типу Число не может быть выполнено: «' + v + '»'); return n; };
-  BV.eq = function(a, b){ if(a instanceof BSym) a = String(a); if(b instanceof BSym) b = String(b); if(a instanceof Date && b instanceof Date) return +a === +b; if(a instanceof BRow && b instanceof BRow) return a === b; return a === b || ((a === undefined || a === BSL_MISSING) && (b === undefined || b === BSL_MISSING)); };
+  BV.eq = function(a, b){ if(a && a.bslType !== undefined && b && b.bslType !== undefined) return String(a.bslType).toLowerCase().replace(/ё/g, 'е') === String(b.bslType).toLowerCase().replace(/ё/g, 'е'); if(a instanceof BSym) a = String(a); if(b instanceof BSym) b = String(b); if(a instanceof Date && b instanceof Date) return +a === +b; if(a instanceof BRow && b instanceof BRow) return a === b; return a === b || ((a === undefined || a === BSL_MISSING) && (b === undefined || b === BSL_MISSING)); };
   BV.lookupVar = function(lo, sc){ if(sc.has(lo)) return { sc:sc }; if(this.globals.has(lo)) return { sc:this.globals }; return null; };
   BV.assign = function(l, v, sc){
     if(l.k === 'id'){ var r = this.lookupVar(l.lo, sc); (r ? r.sc : sc).set(l.lo, v); return; }
@@ -324,16 +340,22 @@
         break;
       case 'new': return this.newObj(e.name || String(this.eval(e.nameExpr, sc)).toLowerCase(), e.args.map(function(a){ return a === undefined ? undefined : self.eval(a, sc); }), e.line, e.raw);
       case 'call':
+        if(e.f.k === 'id' && this.mod.procs[e.f.lo]) return this.callUser(this.mod.procs[e.f.lo], e, sc);
         var args = e.args.map(function(a){ return a === undefined ? undefined : self.eval(a, sc); });
         if(e.f.k === 'id'){
           var pr = this.mod.procs[e.f.lo];
-          if(pr) return this.callProc(pr, args, e.line);
+          if(pr) return this.callUser(pr, e, sc);
           return this.builtin(e.f.n, e.f.lo, args, e.line, e, sc);
         }
         if(e.f.k === 'member') return this.method(this.eval(e.f.o, sc), e.f.n, e.f.lo, args, e.line, e, sc);
         throw BslErr('Это не процедура', e.line);
     }
     throw BslErr('Неподдерживаемое выражение');
+  };
+  BV.runCode = function(code, sc, line){
+    var m; try { m = new BslParser(code).module(); } catch(err){ throw BslErr('Выполнить: ' + String(err.message).replace(/ \(строка \d+\)$/, ''), line); }
+    var self = this; Object.keys(m.procs).forEach(function(k){ self.mod.procs[k] = m.procs[k]; });
+    this.block(m.body, sc);
   };
   BV.global = function(n, lo, line){
     if(/^(перечисления|справочники|документы|константы|регистрысведений|регистрынакопления|бизнеспроцессы|планывидовхарактеристик|планысчетов|catalogs|documents|enums|constants)$/.test(lo)){ this.note('Обращение к объектам базы 1С («' + n + '») — в Triosteum блок работает с данными схемы'); return new BSym([n]); }
@@ -348,7 +370,16 @@
       case 'соответствие': case 'map': return new BMap();
       case 'таблицазначений': case 'valuetable': return new BTable();
       case 'запрос': case 'query': return { query:true, text:typeof args[0] === 'string' ? args[0] : '', params:new BStruct() };
-      case 'описаниетипов': return { types:args[0] };
+      case 'описаниетипов': case 'typedescription': return { types:args[0] };
+      case 'чтениеjson': case 'jsonreader': return { jsonr:true, text:null };
+      case 'записьjson': case 'jsonwriter': return { jsonw:true, buf:null, parts:[] };
+      case 'параметрызаписиjson': case 'jsonwritersettings': return { jsonset:true };
+      case 'списокзначений': case 'valuelist': return new BArr();
+      case 'уникальныйидентификатор': case 'uuid': return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c){ var r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 3 | 8)).toString(16); });
+      case 'текстовыйдокумент': case 'textdocument': return { textdoc:true, lines:[] };
+      case 'httpсоединение': case 'httpconnection': case 'httpзапрос': case 'httprequest': throw BslErr('HTTP-запросы из браузера недоступны: сайты обычно не разрешают такие запросы. Блок с HTTPСоединение выполняйте на сервере Triosteum', line);
+      case 'интернетпочтовыйпрофиль': case 'интернетпочта': case 'internetmailprofile': case 'internetmail': throw BslErr('Отправка почты из браузера невозможна — почту отправляет сервер Triosteum', line);
+      case 'чтениеxml': case 'записьxml': case 'xmlreader': case 'xmlwriter': throw BslErr('Работа с XML пока не поддерживается встроенным исполнителем — используйте JSON', line);
     }
     throw BslErr('Тип не определён (' + (raw || lo) + ')', line);
   };
@@ -366,6 +397,8 @@
         case 'найти': case 'find': for(var i = 0; i < o.a.length; i++) if(this.eq(o.a[i], a[0])) return i; return undefined;
         case 'очистить': case 'clear': o.a.length = 0; return;
         case 'вграница': case 'ubound': return o.a.length - 1;
+        case 'выгрузитьзначения': case 'unloadvalues': return new BArr(o.a.slice());
+        case 'добавитьзначение': o.a.push(a[0]); return;
       }
     }
     if(o instanceof BStruct){
@@ -393,6 +426,23 @@
       if(lo === 'найти' || lo === 'find') return o.table.colOf(a[0]) ? { name:o.table.colOf(a[0]) } : undefined;
       if(lo === 'количество' || lo === 'count') return o.table.cols.length;
       if(lo === 'удалить' || lo === 'delete'){ var cn = o.table.colOf(a[0] && a[0].name || a[0]); o.table.cols = o.table.cols.filter(function(c){ return c !== cn; }); return; }
+    }
+    if(o && o.jsonr){
+      if(lo === 'установитьстроку' || lo === 'settostring'){ o.text = String(a[0]); return; }
+      if(lo === 'открытьфайл' || lo === 'openfile') throw BslErr('Чтение файлов с диска недоступно в браузере — передайте JSON строкой (УстановитьСтроку)', line);
+      if(lo === 'закрыть' || lo === 'close') return;
+    }
+    if(o && o.jsonw){
+      if(lo === 'установитьстроку' || lo === 'settostring'){ o.buf = ''; return; }
+      if(lo === 'открытьфайл' || lo === 'openfile') throw BslErr('Запись файлов на диск недоступна в браузере — используйте УстановитьСтроку()', line);
+      if(lo === 'закрыть' || lo === 'close') return o.buf === null ? undefined : o.buf;
+    }
+    if(o && o.textdoc){
+      if(lo === 'добавитьстроку' || lo === 'addline'){ o.lines.push(bslStr(a[0])); return; }
+      if(lo === 'получитьтекст' || lo === 'gettext') return o.lines.join('\n');
+      if(lo === 'установитьтекст' || lo === 'settext'){ o.lines = String(a[0]).split('\n'); return; }
+      if(lo === 'количествострок' || lo === 'linecount') return o.lines.length;
+      if(lo === 'получитьстроку' || lo === 'getline') return o.lines[this.num(a[0]) - 1] || '';
     }
     if(o && o.query){
       if(lo === 'установитьпараметр' || lo === 'setparameter'){ o.params.set(a[0], a[1]); return; }
@@ -479,14 +529,46 @@
       case 'мин': case 'min': return Math.min.apply(null, a.map(function(v){ return self.num(v); }));
       case 'pow': return Math.pow(this.num(a[0]), this.num(a[1])); case 'sqrt': return Math.sqrt(this.num(a[0])); case 'log': return Math.log(this.num(a[0])); case 'log10': return Math.log10(this.num(a[0])); case 'exp': return Math.exp(this.num(a[0]));
       case 'значениезаполнено': case 'valueisfilled': var v = a[0]; return !(v === undefined || v === null || v === '' || v === 0 || v === false || v === BSL_MISSING || (v instanceof BArr && !v.a.length) || (v instanceof BTable && !v.rows.length) || (v instanceof Date && +v === +new Date(1, 0, 1)));
-      case 'типзнч': case 'typeof': var tv = a[0]; return tv === undefined ? 'Неопределено' : typeof tv === 'number' ? 'Число' : typeof tv === 'string' ? 'Строка' : typeof tv === 'boolean' ? 'Булево' : tv instanceof Date ? 'Дата' : bslStr(tv);
-      case 'тип': case 'type': return String(a[0]);
       case 'предопределенноезначение': case 'predefinedvalue': return new BSym(String(a[0]).split('.'));
       case 'описаниеошибки': case 'errordescription': return this.lastErr || '';
-      case 'вычислить': case 'eval': throw BslErr('Вычислить() недоступно в Triosteum', line);
+      case 'вычислить': case 'eval': var ep; try { ep = new BslParser(String(a[0])).expr(); } catch(err){ throw BslErr('Вычислить: ' + String(err.message).replace(/ \(строка \d+\)$/, ''), line); } return this.eval(ep, sc);
+      case 'выполнить': case 'execute': if(typeof a[0] === 'string'){ this.runCode(a[0], sc, line); return; } break;
+      case 'прочитатьjson': case 'readjson': if(!a[0] || !a[0].jsonr || a[0].text === null) throw BslErr('ПрочитатьJSON: сначала вызовите УстановитьСтроку() у ЧтениеJSON', line); var pj; try { pj = JSON.parse(a[0].text); } catch(err){ throw BslErr('Ошибка разбора JSON: ' + err.message, line); } return bslJsonIn(pj, !!a[1]);
+      case 'записатьjson': case 'writejson': if(!a[0] || !a[0].jsonw) throw BslErr('ЗаписатьJSON: первый параметр — ЗаписьJSON', line); if(a[0].buf === null) a[0].buf = ''; a[0].buf += JSON.stringify(bslToJson(a[1])); return;
+      case 'заполнитьзначениясвойств': case 'fillpropertyvalues':
+        var dst = a[0], srcv = a[1], only = a[2] ? String(a[2]).split(',').map(function(x){ return x.trim(); }).filter(Boolean) : null, excl = a[3] ? String(a[3]).split(',').map(function(x){ return x.trim().toLowerCase(); }) : [];
+        var dkeys = only || (dst instanceof BRow ? dst.t.cols.slice() : dst instanceof BStruct ? dst.keys() : []);
+        dkeys.forEach(function(k){ if(excl.indexOf(k.toLowerCase()) >= 0) return; var v = bslPropOf(srcv, k); if(v === BSL_MISSING) return; if(dst instanceof BRow){ var c = dst.t.colOf(k); if(c) dst.v[c] = v; } else if(dst instanceof BStruct) dst.set(k, v); });
+        return;
+      case 'типзнч': case 'typeof': var tv = a[0]; return { bslType:bslTypeName(tv) };
+      case 'тип': case 'type': return { bslType:String(a[0]) };
+      case 'xmlстрока': case 'xmlstring': return a[0] instanceof Date ? a[0].toISOString().slice(0, 19) : (typeof a[0] === 'boolean' ? String(a[0]) : (typeof a[0] === 'number' ? String(a[0]) : bslStr(a[0])));
+      case 'получитьсекрет': case 'getsecret': var sec = typeof secretGet === 'function' ? secretGet(a[0]) : undefined; if(sec === undefined) throw BslErr('Секрет «' + a[0] + '» не задан. Добавьте его: Настройки (шестерёнка) → Секреты для блоков', line); return sec;
+      case 'символ': case 'char': return String.fromCharCode(this.num(a[0]));
+      case 'кодсимвола': case 'charcode': return String(s0).charCodeAt((a[1] || 1) - 1);
+      case 'символы': return undefined;
+      case 'перевод': return undefined;
+      case 'abs': case 'модуль': return Math.abs(this.num(a[0]));
+      case 'начатьтранзакцию': case 'зафиксироватьтранзакцию': case 'отменитьтранзакцию': this.note('Транзакции базы 1С в Triosteum не нужны — пропущено'); return;
+      case 'нстр': case 'nstr': var ns = String(s0), mm = /ru\s*=\s*'([^']*)'/i.exec(ns); return mm ? mm[1] : ns;
+      case 'стрповторить': return new Array(this.num(a[1]) + 1).join(String(s0));
+      case 'конецдня': case 'endofday': return new Date(a[0].getFullYear(), a[0].getMonth(), a[0].getDate(), 23, 59, 59);
+      case 'деньнедели': case 'weekday': var wd = a[0].getDay(); return wd === 0 ? 7 : wd;
+      case 'час': case 'hour': return a[0].getHours(); case 'минута': case 'minute': return a[0].getMinutes(); case 'секунда': case 'second': return a[0].getSeconds();
+      case 'началонедели': case 'begofweek': var bw = new Date(a[0].getFullYear(), a[0].getMonth(), a[0].getDate()); bw.setDate(bw.getDate() - ((bw.getDay() + 6) % 7)); return bw;
+      case 'началоквартала': case 'begofquarter': return new Date(a[0].getFullYear(), Math.floor(a[0].getMonth() / 3) * 3, 1);
+      case 'конецгода': case 'endofyear': return new Date(a[0].getFullYear(), 11, 31, 23, 59, 59);
     }
     throw BslErr('Процедура или функция с указанным именем не определена (' + n + ')', line);
   };
+  function bslTypeName(v){ return v === undefined || v === BSL_MISSING ? 'Неопределено' : v === null ? 'Null' : typeof v === 'number' ? 'Число' : typeof v === 'string' ? 'Строка' : typeof v === 'boolean' ? 'Булево' : v instanceof Date ? 'Дата' : v instanceof BArr ? 'Массив' : v instanceof BStruct ? 'Структура' : v instanceof BMap ? 'Соответствие' : v instanceof BTable ? 'ТаблицаЗначений' : v instanceof BRow ? 'СтрокаТаблицыЗначений' : v && v.bslType ? 'Тип' : bslStr(v); }
+  function bslPropOf(o, k){ if(o instanceof BRow){ var c = o.t.colOf(k); return c ? o.v[c] : BSL_MISSING; } if(o instanceof BStruct) return o.has(k) ? o.get(k) : BSL_MISSING; return BSL_MISSING; }
+  // JSON → значения 1С: объект → Структура (или Соответствие), массив → Массив
+  function bslJsonIn(v, asMap){
+    if(Array.isArray(v)) return new BArr(v.map(function(x){ return bslJsonIn(x, asMap); }));
+    if(v && typeof v === 'object'){ var o = asMap ? new BMap() : new BStruct(); Object.keys(v).forEach(function(k){ var x = bslJsonIn(v[k], asMap); if(asMap) o.m.set(o.key(k), { k:k, v:x }); else o.set(k, x); }); return o; }
+    return v;
+  }
   function bslFormat(v, f){
     var p = {}; String(f).split(';').forEach(function(x){ var m = /^\s*([А-ЯA-Z]+)\s*=\s*'?([^']*)'?\s*$/i.exec(x); if(m) p[m[1].toUpperCase()] = m[2]; });
     if(v instanceof Date){ var df = p['ДФ'] || p.DF || 'dd.MM.yyyy'; return df.replace(/yyyy|гггг/g, v.getFullYear()).replace(/MM/g, ('0' + (v.getMonth() + 1)).slice(-2)).replace(/dd|дд/g, ('0' + v.getDate()).slice(-2)).replace(/HH|чч/g, ('0' + v.getHours()).slice(-2)).replace(/mm|мм/g, ('0' + v.getMinutes()).slice(-2)); }
@@ -552,6 +634,7 @@
     return q;
   };
   BQP.prototype.source = function(){
+    if(this.peek().t === 'param'){ var pn = this.next().v; var asP = this.eat('AS') ? this.next().v : (this.peek().t === 'id' ? this.next().v : pn); return { param:pn, path:[pn], as:asP }; }
     if(this.eatOp('(')){ var sub = this.select(); this.eatOp(')'); var as0 = this.eat('AS') ? this.next().v : 'Вложенный'; return { sub:sub, as:as0 }; }
     var path = [this.next().v]; while(this.eatOp('.')) path.push(this.next().v);
     var args = null; if(this.eatOp('(')){ args = []; var d = 1; while(d > 0 && this.peek().t !== 'eof'){ var x = this.next(); if(x.t === 'op' && x.v === '(') d++; else if(x.t === 'op' && x.v === ')') d--; } }
@@ -604,7 +687,8 @@
   var BQ_SUFFIX = ['НачальныйОстаток', 'КонечныйОстаток', 'Остаток', 'Оборот', 'Приход', 'Расход'];
   function bqHasAgg(e){ if(!e || typeof e !== 'object') return false; if(e.k === 'fn' && BQ_AGG[e.n]) return true; for(var k in e){ var v = e[k]; if(Array.isArray(v)){ for(var i = 0; i < v.length; i++) if(bqHasAgg(v[i])) return true; } else if(v && typeof v === 'object' && v.k && bqHasAgg(v)) return true; } return false; }
   // таблица-источник запроса: по имени из входных данных или вся входная таблица
-  function bqSource(src, vm, temps){
+  function bqSource(src, vm, temps, params){
+    if(src.param){ var pv = params && params.get ? params.get(src.param) : BSL_MISSING; if(pv === BSL_MISSING || pv === undefined) throw BslErr('Ошибка в запросе: параметр «&' + src.param + '» не установлен (УстановитьПараметр)'); if(pv instanceof BTable) return pv; if(pv && pv.qres) return pv.qres; if(pv instanceof BArr) { var ct = bslFromJson(bslToJson(pv)); if(ct instanceof BTable) return ct; var t1 = new BTable(); t1.addCol('Значение'); pv.a.forEach(function(x){ t1.newRow().v['Значение'] = x; }); return t1; } throw BslErr('Ошибка в запросе: параметр «&' + src.param + '» должен быть таблицей'); }
     var data = vm.ctx.input, path = src.path, last = path[path.length - 1];
     var lo = function(s){ return String(s).toLowerCase().replace(/ё/g, 'е'); };
     if(temps[lo(path.join('.'))]) return temps[lo(path.join('.'))];
@@ -653,11 +737,11 @@
     return batch ? res : res[res.length - 1];
   }
   function bqRun(q, params, vm, temps){
-    var srcT = q.from ? (q.from.sub ? bqRun(q.from.sub, params, vm, temps) : bqSource(q.from, vm, temps)) : null;
+    var srcT = q.from ? (q.from.sub ? bqRun(q.from.sub, params, vm, temps) : bqSource(q.from, vm, temps, params)) : null;
     var main = q.from ? String(q.from.as).toLowerCase().replace(/ё/g, 'е') : null;
     var ctxs = srcT ? srcT.rows.map(function(r){ var a = {}; a[main] = r; return { aliases:a }; }) : [{ aliases:{} }];
     q.joins.forEach(function(j){
-      var jt = j.src.sub ? bqRun(j.src.sub, params, vm, temps) : bqSource(j.src, vm, temps), ja = String(j.src.as).toLowerCase().replace(/ё/g, 'е'), out = [];
+      var jt = j.src.sub ? bqRun(j.src.sub, params, vm, temps) : bqSource(j.src, vm, temps, params), ja = String(j.src.as).toLowerCase().replace(/ё/g, 'е'), out = [];
       ctxs.forEach(function(c){
         var hit = false;
         jt.rows.forEach(function(r){ var a = Object.assign({}, c.aliases); a[ja] = r; var nc = { aliases:a }; if(!j.on || bqTruth(bqEval(j.on, nc, params, vm, null))){ out.push(nc); hit = true; } });

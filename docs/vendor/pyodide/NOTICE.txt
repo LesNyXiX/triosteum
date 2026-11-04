@@ -1,0 +1,4 @@
+Pyodide 0.26.4 — Python, собранный в WebAssembly (https://github.com/pyodide/pyodide).
+Файлы взяты без изменений из npm-пакета pyodide@0.26.4; лицензия указана в его package.json
+(Apache-2.0) и в репозитории проекта. Локальная копия нужна, чтобы Python в блоках работал,
+даже когда CDN jsdelivr недоступен.

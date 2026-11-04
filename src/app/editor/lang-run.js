@@ -43,7 +43,7 @@
   function cfSample(t, vm, i, name){
     if(!t) return null;
     var n = t.name;
-    if(/^(vector|List|IEnumerable|IList|array|IReadOnlyList|ICollection)$/.test(n)){ var el = t.args[0]; if(el && /^(double|float|decimal|int|long)$/.test(el.name)) return DEMO_SERIES.slice(); var out = []; for(var j = 0; j < 3; j++) out.push(cfSample(el, vm, j)); return out; }
+    if(/^(vector|List|IEnumerable|IList|array|IReadOnlyList|ICollection)$/.test(n)){ var el = t.args[0]; if(el && /^(double|float|decimal|int|long)$/.test(el.name)) return DEMO_SERIES.slice(); if(!el || /^(Dictionary|IDictionary|IReadOnlyDictionary|object|dynamic|Data|map|unordered_map|JsonObject|ExpandoObject)$/.test(el.name)) return demoRows1c().rows; var out = []; for(var j = 0; j < 3; j++) out.push(cfSample(el, vm, j)); return out; }
     if(vm.types[n] && vm.types[n].k === 'type'){ var td = vm.types[n], o = {}; td.fields.forEach(function(f, k){ o[f.name] = cfSample(f.type, vm, (i || 0) + k * 0.1, f.name); }); if(td.fields.some(function(f){ return /^(id|Id|name|Name)$/.test(f.name); })){} return o; }
     if(/^(string|String)$/.test(n)) return /id/i.test(name || '') ? 'З-' + (1047 + (i | 0)) : ['Металл', 'Работа', 'Энергия', 'Накладные'][(i | 0) % 4];
     if(/^(double|float|decimal|int|long|size_t|short|unsigned)/.test(n)) return Math.round(sampleNum(name, i) * 100) / 100;
@@ -68,6 +68,13 @@
     if(/^(double|float|decimal|int|long)$/.test(n) && typeof v !== 'number'){ if(v && typeof v === 'object' && !Array.isArray(v)){ for(var k2 in v) if(typeof v[k2] === 'number') return v[k2]; } return parseFloat(v) || 0; }
     return v;
   }
+  /* ---------- секреты блоков: ключи и пароли хранит только этот браузер ---------- */
+  var SECRET_KEY = 'triosteum.secrets';
+  function secretStores(){ var o = {}; try { o.s = window.sessionStorage; } catch(e){} try { o.l = window.localStorage; } catch(e){} return o; }
+  function secretRead(st){ try { return st ? JSON.parse(st.getItem(SECRET_KEY) || '{}') || {} : {}; } catch(e){ return {}; } }
+  function secretAll(){ var st = secretStores(), l = secretRead(st.l), s = secretRead(st.s), out = {}; Object.keys(l).forEach(function(k){ out[k] = { v:l[k], kept:true }; }); Object.keys(s).forEach(function(k){ out[k] = { v:s[k], kept:!!l[k] }; }); return out; }
+  function secretGet(name){ var all = secretAll(); if(all[name]) return all[name].v; var lo = String(name).toLowerCase(); for(var k in all) if(k.toLowerCase() === lo) return all[k].v; return undefined; }
+  function secretSet(name, val, keep){ var st = secretStores(); [['s', true], ['l', keep]].forEach(function(x){ var store = st[x[0]]; if(!store) return; var m = secretRead(store); if(x[1] && val !== null) m[name] = val; else delete m[name]; try { store.setItem(SECRET_KEY, JSON.stringify(m)); } catch(e){} }); }
   /* ---------- окружение C#: Data, секреты, сеть, Excel с рабочего стола ---------- */
   function csIO(){
     var XL = function(f, idx){ var vals = sheetValues(f, idx); return vals; };
@@ -77,7 +84,8 @@
       global:function(n){ if(/^(Data|Secrets|Triosteum|IBlock|Block|XLWorkbook|HttpClient|Task|File|Path|Encoding|JsonSerializer)$/.test(n)) return { __type:n }; },
       staticCall:function(cls, n, a, vm){
         if(cls === 'Data'){ if(n === 'From' || n === 'Of') return a[0]; if(n === 'Empty') return {}; }
-        if(cls === 'Secrets' && /^(Get|get)$/.test(n)){ throw CfErr('Секрет «' + a[0] + '» не задан: в браузере ключи и пароли не хранятся. Блок с секретами выполняйте на сервере Triosteum'); }
+        if(cls === 'Secrets' && /^(Get|get|GetOrDefault|TryGet)$/.test(n)){ var sv = secretGet(a[0]); if(sv !== undefined) return sv; if(n === 'GetOrDefault') return a.length > 1 ? a[1] : null; throw CfErr('Секрет «' + a[0] + '» не задан. Добавьте его: Настройки (шестерёнка) → Секреты для блоков'); }
+        if(cls === 'Secrets' && /^(Has|Contains)$/.test(n)) return secretGet(a[0]) !== undefined;
         if(cls === 'Task'){ if(n === 'FromResult') return a[0]; if(n === 'Delay' || n === 'WhenAll') return null; }
         if(cls === 'JsonSerializer'){ if(n === 'Serialize') return JSON.stringify(cfToJson(a[0])); if(n === 'Deserialize') return JSON.parse(a[0]); }
       },
@@ -103,15 +111,15 @@
         if(o && o.__t === 'XLWorkbook' && n === 'Worksheet') return o.Worksheet(a[0]);
         if(o && o.__t && typeof o[n] === 'function') return o[n].apply(o, a);
         // Data: input.Get<T>("ключ") и input.Set("ключ", значение)
-        if(o && typeof o === 'object' && !o.__t && /^(Get|get|GetValue|Value)$/.test(n) && typeof a[0] === 'string'){
+        if(o && typeof o === 'object' && !o.__t && !(o instanceof CfMap) && /^(Get|get|GetValue|Value)$/.test(n) && typeof a[0] === 'string'){
           var key = cfFindKey(o, a[0]), v = key !== null ? o[key] : undefined, T = f && f.targs && f.targs[0] && f.targs[0].name;
           if(v === undefined) throw CfErr('Во входных данных нет поля «' + a[0] + '»', f && f.line);
           if(T && /^(double|decimal|float|int|long)$/.test(T)) return typeof v === 'number' ? v : (parseFloat(String(v).replace(/\s/g, '').replace(',', '.')) || 0);
           if(T === 'string') return v == null ? '' : String(v);
           return v;
         }
-        if(o && typeof o === 'object' && !o.__t && /^(Set|set)$/.test(n)){ o[a[0]] = a[1]; return o; }
-        if(o && typeof o === 'object' && !o.__t && /^(Has|Contains|ContainsKey)$/.test(n) && !Array.isArray(o)) return cfFindKey(o, a[0]) !== null;
+        if(o && typeof o === 'object' && !o.__t && !(o instanceof CfMap) && !Array.isArray(o) && /^(Set|set)$/.test(n)){ o[a[0]] = a[1]; return o; }
+        if(o && typeof o === 'object' && !o.__t && !(o instanceof CfMap) && !Array.isArray(o) && /^(Has|Contains|ContainsKey)$/.test(n) && !Array.isArray(o)) return cfFindKey(o, a[0]) !== null;
         if(o && o.__t === 'HttpContent' && n === 'ReadAsStringAsync') return o.ReadAsStringAsync();
       },
       member:function(o, n){ if(o && o.__t === 'HttpResponse' && n in o) return o[n]; }
@@ -120,13 +128,13 @@
   /* ---------- общий запуск ---------- */
   function runForeign(lang, code, input, opts){
     opts = opts || {};
-    var res = { ok:false, output:null, stdout:[], notes:[], error:null, demo:input === null || input === undefined };
+    var res = { ok:false, output:null, stdout:[], notes:[], error:null, demo:input === null || input === undefined }, live = null;
     try {
       if(lang === '1c'){
         var mod = new BslParser(code).module(), data;
         if(res.demo){ var d = demoRows1c(), t = bslFromJson(d.rows); Object.keys(d.props).forEach(function(k){ t.props.set(k, bslFromJson(d.props[k])); }); data = t; }
         else { data = bslFromJson(input); if(Array.isArray(input) && !(data instanceof BTable)){ var t0 = new BTable(); data = t0; } if(data instanceof BStruct){ var tt = new BTable(); tt.props = data; data = tt; } }
-        var vm = new BslVM(mod, { input:data });
+        var vm = new BslVM(mod, { input:data }); live = { bsl:vm };
         var entry = mod.procs['выполнить'] || mod.procs['execute'] || mod.procs['run'] || mod.procs['обработать'];
         var out;
         if(entry) out = vm.callProc(entry, [data]); else { var sc = new Map(); sc.set('входныеданные', data); try { vm.block(mod.body, sc); } catch(e){ if(!(e instanceof BslRet)) throw e; out = e.v; } }
@@ -134,7 +142,7 @@
         return res;
       }
       if(lang === 'cpp' || lang === 'csharp'){
-        var P = new CfParser(code, lang), prog = P.program(), cvm = new CfVM(prog, lang, lang === 'csharp' ? csIO() : { global:function(n){ if(n === 'Data') return { __type:'Data' }; }, method:csIO().method });
+        var P = new CfParser(code, lang), prog = P.program(), cvm = new CfVM(prog, lang, lang === 'csharp' ? csIO() : { global:function(n){ if(n === 'Data') return { __type:'Data' }; }, method:csIO().method }); live = { cf:cvm };
         var fn = null, self = null, td = null;
         if(lang === 'csharp'){
           Object.keys(cvm.types).some(function(k){ var x = cvm.types[k]; if(x.k === 'type' && x.methods && (x.methods.Run || x.methods.Execute)){ td = x; fn = x.methods.Run || x.methods.Execute; return true; } return false; });
@@ -166,6 +174,8 @@
       }
       throw new Error('Язык «' + lang + '» не поддерживается встроенным исполнителем');
     } catch(e){
+      if(live && live.bsl){ res.stdout = live.bsl.out; res.notes = live.bsl.notes; }
+      if(live && live.cf) res.stdout = live.cf.out.join('').split('\n').filter(function(x, i, a){ return x !== '' || i < a.length - 1; });
       if(e instanceof CfRet || e instanceof BslRet){ res.ok = true; res.output = cfToJson(e.v); return res; }
       res.error = String(e && e.message || e).replace(/^Error:\s*/, '');
       if(!e.cf && !e.bsl && !/строка/.test(res.error)) res.error = 'Ошибка исполнителя: ' + res.error;

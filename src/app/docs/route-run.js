@@ -9,24 +9,26 @@
   function runRoute(){
     if(running) return;
     if(S.view !== 'canvas'){ S.view = 'canvas'; render(); renderGraph(); }
-    runEl.box.hidden = false; runEl.out.textContent = ''; runEl.sum.textContent = '';
-    if(!G.nodes.length){ rlog('На доске нет блоков.', 'dim'); return; }
+    if(!G.nodes.length){ cmpOpen(); runEl.out.textContent = ''; runEl.sum.textContent = ''; rlog('На доске нет блоков.', 'dim'); CMP.only = null; return; }
     clearRun(); RES.items = []; RES.cur = 0;
-    var plan = boardOrder();
+    var plan = cmpPlan(boardOrder());
+    cmpBegin(plan, 'Маршрут');
     rlog('Маршрут: ' + plan.order.map(function(n){ return n.name; }).join(' → '), 'dim');
     if(plan.cyclic.length) rlog('Пропущены из-за замкнутого круга: ' + plan.cyclic.map(function(n){ return n.name; }).join(', '), 'warn');
     var needPy = plan.order.some(function(n){ return n.lang === 'python'; });
-    var results = {}, stat = { ok:0, err:0, skip:0 }, days = {}, regN = 0, docN = 0;
+    var results = cmpSeed(), stat = { ok:0, err:0, skip:0 }, days = {}, regN = 0, docN = 0;
     running = true;
     if(needPy && RUN_SERVER) rlog('Python выполняется на сервере', 'dim');
     (needPy && !RUN_SERVER ? loadPyFor(rlog).then(null, function(e){ rlog('Python недоступен: ' + e.message + ' — расчётные блоки будут пропущены', 'warn'); return null; }) : Promise.resolve(null)).then(function(py){
       var i = 0;
       function next(){
         if(i >= plan.order.length){ finish(); return; }
+        if(cmpStopped()){ finish(true); return; }
         var n = plan.order[i++], d = domOf('node', n.id), ins = plan.preds[n.id].map(function(p){ return results[p]; }).filter(function(v){ return v !== undefined && v !== null; });
         var rows = toRows(ins), hasIn = plan.preds[n.id].length > 0;
         days[n.id] = plan.preds[n.id].reduce(function(m, p){ return Math.max(m, days[p] || 0); }, 0);
         if(d) d.classList.add('running');
+        cmpBlockStart(n);
         setTimeout(function(){
           // код из «Разработки» на сервере: результат идёт дальше по маршруту вместе с остальными блоками
           if(n.lang === 'python' && RUN_SERVER && !py){
@@ -139,7 +141,7 @@
           next();
         }, 90);
       }
-      function finish(){
+      function finish(stopped){
         running = false;
         var total = Math.max.apply(0, [0].concat(Object.keys(days).map(function(k){ return days[k]; })));
         var nd = RES.items.filter(function(x){ return x.type === 'doc'; }).length, nt = RES.items.filter(function(x){ return x.type !== 'doc'; }).length;
@@ -152,6 +154,7 @@
           b.addEventListener('click', openRes); runEl.out.appendChild(document.createElement('br')); runEl.out.appendChild(b);
           openRes();
         }
+        cmpEnd(results, stopped);
       }
       next();
     });

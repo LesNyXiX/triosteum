@@ -138,8 +138,23 @@
       fsRow('Новые заметки', fsControl(UI.note, 8, 72, function(v){ UI.note = v; applyUI(); }, 'шрифт новых заметок'))
     ]);
     b.appendChild(section('Размер текста', txt));
+    b.appendChild(section('Секреты для блоков', secretsBox()));
     b.appendChild(h('button', { type:'button', 'class':'btn', text:'Вернуть всё по умолчанию', on:{ click:function(){
       UI = { scale:100, code:14, note:14 }; applyUI(); applyTheme(); updateGutter(); renderPers(); } } }));
+  }
+  // секреты: ключи API и пароли для блоков C# (Secrets.Get("ИМЯ")) и 1С (ПолучитьСекрет("ИМЯ"))
+  function secretsBox(){
+    var box = h('div', { 'class':'sec-box' }), all = secretAll(), names = Object.keys(all).sort();
+    box.appendChild(h('p', { 'class':'sec-note', text:'Значения хранятся только в этом браузере и не попадают в код, файл пространства и ссылки «Поделиться». Без галочки «запомнить» секрет забудется при закрытии вкладки.' }));
+    names.forEach(function(k){
+      box.appendChild(h('div', { 'class':'sec-row' }, [ h('code', { text:k }), h('span', { 'class':'sec-v', text:'••••••' + (all[k].kept ? ' · запомнен' : ' · до закрытия вкладки') }),
+        h('button', { type:'button', 'class':'btn sm', text:'Удалить', 'aria-label':'Удалить секрет ' + k, on:{ click:function(){ secretSet(k, null, false); renderPers(); } } }) ]));
+    });
+    var nm = h('input', { type:'text', placeholder:'ИМЯ, например TELEGRAM_TOKEN', 'aria-label':'Имя секрета', spellcheck:'false' }), vl = h('input', { type:'password', placeholder:'значение', 'aria-label':'Значение секрета', autocomplete:'off' }), kp = h('input', { type:'checkbox' });
+    box.appendChild(h('div', { 'class':'sec-add' }, [ nm, vl,
+      h('label', { 'class':'sec-keep' }, [ kp, document.createTextNode('запомнить') ]),
+      h('button', { type:'button', 'class':'btn sm primary', text:'Добавить', on:{ click:function(){ var n = nm.value.trim(); if(!n || !vl.value){ toast('Укажите имя и значение секрета'); return; } secretSet(n, vl.value, kp.checked); toast('Секрет «' + n + '» сохранён'); renderPers(); } } }) ]));
+    return box;
   }
   // кнопки дополнительных инструментов
   $('bRun').addEventListener('click', function(){ runBoard(); });

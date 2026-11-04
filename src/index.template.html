@@ -32,6 +32,13 @@
       <div class="saved" id="saved">сохранено</div>
     </div>
     <div class="actions">
+      <div class="cl-wrap" id="clWrap">
+        <button class="cl-tog" type="button" id="claudeBtn" role="switch" aria-checked="false" title="Подключить Claude как ИИ Triosteum (временно, до закрытия вкладки)">
+          <svg class="cl-mark" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M12 2l1.9 5.6L19.5 9.5l-5.6 1.9L12 17l-1.9-5.6L4.5 9.5l5.6-1.9zM19 14l.9 2.6 2.6.9-2.6.9L19 21l-.9-2.6-2.6-.9 2.6-.9z"/></svg>
+          <span class="cl-lbl">Claude</span><i class="cl-sw" aria-hidden="true"><b></b></i>
+        </button>
+        <button class="cl-more" type="button" id="claudeMore" aria-label="Настройки подключения Claude" aria-haspopup="dialog" title="Ключ API и модель"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
+      </div>
       <button class="btn gear-btn" type="button" id="setBtn" aria-label="Настройки" aria-haspopup="dialog" title="Настройки: тема, цвета, панель инструментов, доска"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.34 1.87l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.7 1.7 0 00-1.87-.34 1.7 1.7 0 00-1 1.55V21a2 2 0 11-4 0v-.09a1.7 1.7 0 00-1.1-1.55 1.7 1.7 0 00-1.87.34l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.7 1.7 0 00.34-1.87 1.7 1.7 0 00-1.55-1H3a2 2 0 110-4h.09a1.7 1.7 0 001.55-1.1 1.7 1.7 0 00-.34-1.87l-.06-.06a2 2 0 112.83-2.83l.06.06a1.7 1.7 0 001.87.34H9a1.7 1.7 0 001-1.55V3a2 2 0 114 0v.09a1.7 1.7 0 001 1.55 1.7 1.7 0 001.87-.34l.06-.06a2 2 0 112.83 2.83l-.06.06a1.7 1.7 0 00-.34 1.87V9a1.7 1.7 0 001.55 1H21a2 2 0 110 4h-.09a1.7 1.7 0 00-1.55 1z"/></svg></button>
       <button class="btn cmdk-btn" type="button" id="cmdBtn" aria-label="Поиск и команды"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg><span class="t">Поиск и команды</span><kbd id="cmdKb">Ctrl K</kbd></button>
       <button class="btn" type="button" id="shareBtn" aria-haspopup="menu" aria-expanded="false">Поделиться</button>
@@ -90,11 +97,7 @@
         <h1>Пространство пустое</h1>
         <p>Откройте плагин из библиотеки или выберите «Новый блок» слева и нажмите на доску.</p>
       </div>
-      <section class="runp" id="runp" aria-label="Компиляция доски" hidden>
-        <div class="runp-h"><b>Компиляция доски</b><span id="runSum"></span>
-          <button class="icon-btn" type="button" id="runClose" aria-label="Закрыть"><svg class="i" viewBox="0 0 24 24" style="width:16px;height:16px;stroke-width:2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
-        <pre class="out" id="runOut" aria-live="polite"></pre>
-      </section>
+
       <button class="ai-fab" type="button" id="aiFab" aria-haspopup="dialog" aria-expanded="false" title="ИИ-архитектор: опишите задачу — ИИ соберёт схему и бэкенд"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M12 2l1.9 5.6L19.5 9.5l-5.6 1.9L12 17l-1.9-5.6L4.5 9.5l5.6-1.9zM19 14l.9 2.6 2.6.9-2.6.9L19 21l-.9-2.6-2.6-.9 2.6-.9z"/></svg><span>AI</span></button>
       <div class="mini" id="mini" role="img" aria-label="Мини-карта доски — нажмите, чтобы перейти" hidden><canvas id="miniC"></canvas></div>
       <div class="zoom">
@@ -302,6 +305,37 @@
     <div class="cmdk-foot">↑ ↓ — выбор · Enter — выполнить · Esc — закрыть</div>
   </div>
 </div>
+<section class="runp" id="runp" role="dialog" aria-label="Компилятор" hidden>
+  <div class="runp-h">
+    <span class="runp-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6l-6 6 6 6M16 6l6 6-6 6"/></svg></span>
+    <b>Компилятор</b><span class="runp-sum" id="runSum"></span>
+    <div class="runp-acts">
+      <button class="btn sm primary" type="button" id="runGo" title="Запустить всю доску (Ctrl+R)"><svg class="i" viewBox="0 0 24 24" style="width:15px;height:15px;stroke-width:2" aria-hidden="true"><path d="M7 5l12 7-12 7z"/></svg><span>Запустить</span></button>
+      <button class="btn sm" type="button" id="runSel" title="Запустить только выделенные блоки (остальные берут результаты прошлого запуска)">Выделенные</button>
+      <button class="btn sm" type="button" id="runStop" title="Остановить после текущего блока" disabled><svg class="i" viewBox="0 0 24 24" style="width:15px;height:15px;stroke-width:2" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg><span>Стоп</span></button>
+      <button class="icon-btn" type="button" id="runCopy" aria-label="Копировать журнал" title="Копировать журнал"><svg class="i" viewBox="0 0 24 24" style="width:15px;height:15px;stroke-width:2" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 012-2h8"/></svg></button>
+      <button class="icon-btn" type="button" id="runSave" aria-label="Сохранить журнал в файл" title="Сохранить журнал в файл .txt"><svg class="i" viewBox="0 0 24 24" style="width:15px;height:15px;stroke-width:2" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg></button>
+      <button class="icon-btn" type="button" id="runMin" aria-label="Свернуть" title="Свернуть"><svg class="i" viewBox="0 0 24 24" style="width:15px;height:15px;stroke-width:2" aria-hidden="true"><path d="M5 12h14"/></svg></button>
+      <button class="icon-btn" type="button" id="runMax" aria-label="Развернуть" title="Развернуть"><svg class="i" viewBox="0 0 24 24" style="width:15px;height:15px;stroke-width:2" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2"/></svg></button>
+      <button class="icon-btn" type="button" id="runClose" aria-label="Закрыть"><svg class="i" viewBox="0 0 24 24" style="width:15px;height:15px;stroke-width:2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+  </div>
+  <div class="runp-prog" aria-hidden="true"><i id="runBar"></i></div>
+  <div class="runp-tabs" role="tablist" aria-label="Разделы компилятора">
+    <button type="button" role="tab" class="on" data-rt="log">Журнал</button>
+    <button type="button" role="tab" data-rt="blocks">Блоки <em id="rtBlocks">0</em></button>
+    <button type="button" role="tab" data-rt="errs">Ошибки <em id="rtErrs">0</em></button>
+    <button type="button" role="tab" data-rt="std">Вывод <em id="rtStd">0</em></button>
+  </div>
+  <pre class="out" id="runOut" aria-live="polite"></pre>
+  <div class="runp-list" id="runBlocks" hidden></div>
+  <div class="runp-list" id="runErrs" hidden></div>
+  <pre class="out" id="runStd" hidden></pre>
+</section>
+<section class="clp" id="claudeP" role="dialog" aria-label="Подключение Claude" hidden>
+  <div class="clp-h"><b>Claude в Triosteum</b><button class="icon-btn" type="button" id="claudePClose" aria-label="Закрыть"><svg class="i" viewBox="0 0 24 24" style="width:15px;height:15px;stroke-width:2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+  <div class="clp-b" id="claudePBody"></div>
+</section>
 <section class="pers" id="pers" role="dialog" aria-label="Персонализация" hidden>
   <div class="pers-h" id="persHead"><h2>Персонализация</h2>
     <button class="icon-btn" type="button" id="persClose" aria-label="Закрыть"><svg class="i" viewBox="0 0 24 24" style="width:16px;height:16px;stroke-width:2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>

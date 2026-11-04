@@ -21,13 +21,22 @@
     if(pyodide) return Promise.resolve(pyodide);
     if(pyLoading) return pyLoading;
     (logFn || print)('> Загружаю Python в браузер (один раз, около 10 секунд)…');
-    pyLoading = new Promise(function(res, rej){
-      var s = document.createElement('script');
-      s.src = 'https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js';
-      s.onload = function(){ window.loadPyodide().then(function(p){ pyodide = p; res(p); }, rej); };
-      s.onerror = function(){ pyLoading = null; rej(new Error('не удалось загрузить Python')); };
-      document.head.appendChild(s);
-    });
+    // сначала локальная копия рядом с приложением (работает без CDN), затем jsdelivr
+    var SOURCES = [{ js:'vendor/pyodide/pyodide.js', index:'vendor/pyodide/' }, { js:'https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js', index:'https://cdn.jsdelivr.net/pyodide/v0.26.4/full/' }];
+    if(location.protocol === 'file:') SOURCES.shift();
+    function tryFrom(k){
+      return new Promise(function(res, rej){
+        if(k >= SOURCES.length){ rej(new Error('не удалось загрузить Python (нет ни локальной копии, ни доступа к CDN)')); return; }
+        var src = SOURCES[k], go = function(){ window.loadPyodide({ indexURL:src.index }).then(res, function(){ tryFrom(k + 1).then(res, rej); }); };
+        if(window.loadPyodide){ go(); return; }
+        var s = document.createElement('script');
+        s.src = src.js;
+        s.onload = go;
+        s.onerror = function(){ s.remove(); tryFrom(k + 1).then(res, rej); };
+        document.head.appendChild(s);
+      });
+    }
+    pyLoading = tryFrom(0).then(function(p){ pyodide = p; return p; }, function(err){ pyLoading = null; throw err; });
     return pyLoading;
   }
   var PY_STUB = [

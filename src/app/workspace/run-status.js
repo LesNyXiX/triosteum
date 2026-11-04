@@ -6,7 +6,7 @@
     var s = h('span', { 'class':'rstat ' + st.s, title:st.info, 'aria-label':st.info, text:st.s === 'ok' ? '✓' : (st.s === 'err' ? '!' : '–') });
     d.appendChild(s);
   }
-  function setRun(n, s, info){ runState[n.id] = { s:s, info:info }; var d = domOf('node', n.id); if(d) applyRun(d, n.id); }
+  function setRun(n, s, info){ runState[n.id] = { s:s, info:info }; if(typeof cmpMark === 'function') cmpMark(n, s, info); var d = domOf('node', n.id); if(d) applyRun(d, n.id); }
   function clearRun(){ runState = {}; Array.prototype.forEach.call(el.nodes.querySelectorAll('.rstat'), function(x){ x.remove(); }); }
 
   // ---------- подсказка на пустой доске ----------
