@@ -72,12 +72,13 @@ check(await page.$$eval('#nodes .node.hub', (x) => x.length) === hubsZ, 'пер�
 // схватить блок, пока он ещё «доезжает»: он остаётся под курсором, без рывка
 const b0g = await page.locator('#nodes .node', { hasText: 'HTML' }).boundingBox();
 await page.mouse.move(b0g.x + 50, b0g.y + 20); await page.mouse.down();
-const b1 = await page.locator('#nodes .node', { hasText: 'HTML' }).boundingBox();
+const pos = () => page.$eval('#nodes .node.sel, #nodes .node.dragging', (d) => ({ x:parseFloat(d.style.left), y:parseFloat(d.style.top) }));
+const b1 = await pos();
 await page.waitForTimeout(200);
-const b1s = await page.locator('#nodes .node', { hasText: 'HTML' }).boundingBox();
+const b1s = await pos();
 check(Math.abs(b1s.x - b1.x) < 2 && Math.abs(b1s.y - b1.y) < 2, 'схватили на ходу — блок сразу остановился под курсором');
 await page.mouse.move(b0g.x + 60, b0g.y + 24, { steps: 2 }); await page.waitForTimeout(250);
-const b2 = await page.locator('#nodes .node', { hasText: 'HTML' }).boundingBox();
+const b2 = await pos();
 check(Math.abs((b2.x - b1.x) - 10) < 6 && Math.abs((b2.y - b1.y) - 4) < 6, 'блок, схваченный на ходу, не прыгает (сдвиг ' + Math.round(b2.x - b1.x) + ', ' + Math.round(b2.y - b1.y) + ')');
 await page.mouse.up(); await page.waitForTimeout(700);
 check(await page.$$eval('#nodes .node', (x) => x.every((d) => !d.style.transform)), 'после отпускания блоки без деформации');

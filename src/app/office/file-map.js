@@ -351,9 +351,9 @@
   /* ---------- встряхивание блока файла — все его связи отцепляются ---------- */
   function fmShakeTrack(dg, e){ dg.sh = dg.sh || {}; if(shakeDetect(dg.sh, e)){ dg.shook = true; return true; } return false; }
   function fmShakeFile(f, el){
-    if(el){ el.classList.remove('shaken'); void el.offsetWidth; el.classList.add('shaken'); }
     var n = fmEdges().filter(function(e){ return e.from === f.id || e.to === f.id; }).length;
-    if(!n){ toast('У «' + f.name + '» нет связей'); return; }
+    if(!n) return;
+    if(el){ el.classList.remove('shaken'); void el.offsetWidth; el.classList.add('shaken'); }
     fmUnlinkAll(f, true);
   }
   function fmUnlinkAll(f, shaken){

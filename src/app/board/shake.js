@@ -35,8 +35,8 @@
     var touches = function(e){ return e.from === id || e.to === id; };
     var tapHas = G.edges.some(function(e){ return (e.taps || []).some(function(tp){ return tapIds(tp).indexOf(id) >= 0; }); });
     var cnt = G.edges.filter(touches).length;
+    if(!cnt && !tapHas) return;            // связей нет — просто перетаскиваем, без сообщений и рывков
     if(dg.el){ dg.el.classList.remove('shaken'); void dg.el.offsetWidth; dg.el.classList.add('shaken'); }
-    if(!cnt && !tapHas){ toast('У «' + n.name + '» нет связей'); return; }
     if(n.kind === 'hub'){
       G.edges = G.edges.filter(function(e){ return !touches(e); });
       G.edges.forEach(function(e){ (e.taps || []).forEach(function(tp){ tp.nodes = tapIds(tp).filter(function(x){ return x !== id; }); }); });

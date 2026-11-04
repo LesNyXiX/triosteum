@@ -1002,13 +1002,12 @@
     #stRight{display:none}
   }
   /* встряхивание блока: связи переходят на узел */
-  @keyframes tShake{0%,100%{transform:translateX(0)}20%{transform:translateX(-5px) rotate(-2deg)}40%{transform:translateX(5px) rotate(2deg)}60%{transform:translateX(-4px) rotate(-1deg)}80%{transform:translateX(3px)}}
+  @keyframes tShake{0%,100%{translate:0}20%{translate:-5px 0}40%{translate:5px 0}60%{translate:-3px 0}80%{translate:3px 0}}
   body:not(.noanim) .node.shaken,body:not(.noanim) .fm-node.shaken{animation:tShake .45s ease}
 
   /* желе: элемент тянется за курсором и пружинит, когда его отпускают */
-  body:not(.noanim) .jelly-on{transition:transform .14s ease-out}
   body:not(.noanim) .jelly-end{animation:tJelly .5s ease-out}
-  @keyframes tJelly{0%{transform:scale(1.035,.965)}30%{transform:scale(.98,1.02)}60%{transform:scale(1.01,.99)}100%{transform:none}}
+  @keyframes tJelly{0%{transform:scale(1.025,.975)}35%{transform:scale(.988,1.012)}70%{transform:scale(1.005,.995)}100%{transform:none}}
 
   /* --- первый вход: «Добро пожаловать» --- */
   .welcome{position:fixed;inset:0;z-index:200;display:grid;place-items:center;padding:24px;overflow:auto;
@@ -3977,8 +3976,8 @@ public class MovingAverage : IBlock
     var touches = function(e){ return e.from === id || e.to === id; };
     var tapHas = G.edges.some(function(e){ return (e.taps || []).some(function(tp){ return tapIds(tp).indexOf(id) >= 0; }); });
     var cnt = G.edges.filter(touches).length;
+    if(!cnt && !tapHas) return;            // связей нет — просто перетаскиваем, без сообщений и рывков
     if(dg.el){ dg.el.classList.remove('shaken'); void dg.el.offsetWidth; dg.el.classList.add('shaken'); }
-    if(!cnt && !tapHas){ toast('У «' + n.name + '» нет связей'); return; }
     if(n.kind === 'hub'){
       G.edges = G.edges.filter(function(e){ return !touches(e); });
       G.edges.forEach(function(e){ (e.taps || []).forEach(function(tp){ tp.nodes = tapIds(tp).filter(function(x){ return x !== id; }); }); });
@@ -4185,29 +4184,47 @@ public class MovingAverage : IBlock
     }, function(err){ running = false; rlog(err.message + '. Проверьте подключение к интернету.', 'err'); });
   }
 
-  /* ---------- «желе»: элементы тянутся за курсором и пружинят при остановке ---------- */
+  /* ---------- «желе»: элемент мягко вытягивается по ходу движения и пружинит ----------
+     Без наклонов и поворотов — только растяжение вдоль направления движения.
+     Значения сглаживаются пружиной в requestAnimationFrame, поэтому на телефоне
+     (частые события касания) блок не дёргается и не «корёжится». */
+  var JELLY = { max:0.03, gain:0.012, stiff:0.18, damp:0.72 };
   function jellyOff(){ return document.body.classList.contains('noanim') || (window.matchMedia && matchMedia('(prefers-reduced-motion:reduce)').matches); }
+  function jellyApply(el, s, hor){ el.style.transform = s < 0.002 ? '' : 'scale(' + (hor ? 1 + s : 1 - s * 0.6).toFixed(4) + ',' + (hor ? 1 - s * 0.6 : 1 + s).toFixed(4) + ')'; }
+  function jellyLoop(st, el){
+    if(st.jraf) return;
+    st.jraf = requestAnimationFrame(function step(){
+      st.jraf = 0;
+      if(!el.isConnected || !el.classList.contains('jelly-on')){ el.style.transform = ''; return; }
+      var idle = performance.now() - st.jt > 60;                       // курсор остановился — цель «ноль»
+      var target = idle ? 0 : Math.min(JELLY.max, st.speed * JELLY.gain);
+      st.jv = (st.jv + (target - st.js) * JELLY.stiff) * JELLY.damp;
+      st.js = Math.max(0, st.js + st.jv);
+      jellyApply(el, st.js, st.hor);
+      if(st.jlive || st.js > 0.001 || Math.abs(st.jv) > 0.0005) st.jraf = requestAnimationFrame(step);
+      else el.style.transform = '';
+    });
+  }
   function jellyMove(st, e, el){
     if(!el || jellyOff()) return;
     var now = performance.now();
-    if(st.jt === undefined){ st.jx = e.clientX; st.jy = e.clientY; st.jt = now; st.vx = 0; st.vy = 0; el.classList.remove('jelly-end'); el.classList.add('jelly-on'); return; }
-    var dt = Math.max(8, now - st.jt), vx = (e.clientX - st.jx) / dt, vy = (e.clientY - st.jy) / dt;
-    st.vx = st.vx * 0.6 + vx * 0.4; st.vy = st.vy * 0.6 + vy * 0.4; st.jx = e.clientX; st.jy = e.clientY; st.jt = now;
-    // лёгкая деформация: вытягивание по направлению движения и небольшой наклон «отстающей» части
-    var speed = Math.hypot(st.vx, st.vy), sp = Math.min(0.04, speed * 0.018), hor = Math.abs(st.vx) >= Math.abs(st.vy);
-    var sk = Math.max(-4, Math.min(4, -st.vx * 2.2));
-    el.style.transform = 'skewX(' + sk.toFixed(2) + 'deg) scale(' + (hor ? 1 + sp : 1 - sp * 0.7).toFixed(3) + ',' + (hor ? 1 - sp * 0.7 : 1 + sp).toFixed(3) + ')';
-    clearTimeout(st.jidle);
-    st.jidle = setTimeout(function(){ st.vx = 0; st.vy = 0; el.style.transform = ''; }, 90);
+    if(st.jel !== el){ if(st.jel) st.jel.style.transform = ''; st.jel = el; st.js = st.js || 0; st.jv = st.jv || 0; }
+    if(st.jt === undefined){ st.jx = e.clientX; st.jy = e.clientY; st.jt = now; st.speed = 0; st.js = 0; st.jv = 0; st.hor = true; st.jlive = true; el.classList.remove('jelly-end'); el.classList.add('jelly-on'); return; }
+    var dt = now - st.jt; if(dt < 4) return;
+    var vx = (e.clientX - st.jx) / dt, vy = (e.clientY - st.jy) / dt;
+    st.vx = (st.vx || 0) * 0.7 + vx * 0.3; st.vy = (st.vy || 0) * 0.7 + vy * 0.3;
+    st.speed = Math.min(3, Math.hypot(st.vx, st.vy)); st.hor = Math.abs(st.vx) >= Math.abs(st.vy);
+    st.jx = e.clientX; st.jy = e.clientY; st.jt = now; st.jlive = true;
+    jellyLoop(st, el);
   }
-  // отпустили — короткая пружинящая волна
+  // отпустили — короткая затухающая пружинка
   function jellyEnd(st, el){
+    if(st){ st.jlive = false; if(st.jraf){ cancelAnimationFrame(st.jraf); st.jraf = 0; } }
     if(!el) return;
-    if(st) clearTimeout(st.jidle);
     el.style.transform = ''; el.classList.remove('jelly-on');
     if(jellyOff()) return;
     el.classList.remove('jelly-end'); void el.offsetWidth; el.classList.add('jelly-end');
-    setTimeout(function(){ el.classList.remove('jelly-end'); }, 620);
+    setTimeout(function(){ el.classList.remove('jelly-end'); }, 520);
   }
   document.addEventListener('pointerup', function(){ setTimeout(function(){ Array.prototype.forEach.call(document.querySelectorAll('.jelly-on'), function(x){ if(!x.classList.contains('dragging')){ x.style.transform = ''; x.classList.remove('jelly-on'); } }); }, 0); }, true);
 
@@ -13003,9 +13020,9 @@ public class MovingAverage : IBlock
   /* ---------- встряхивание блока файла — все его связи отцепляются ---------- */
   function fmShakeTrack(dg, e){ dg.sh = dg.sh || {}; if(shakeDetect(dg.sh, e)){ dg.shook = true; return true; } return false; }
   function fmShakeFile(f, el){
-    if(el){ el.classList.remove('shaken'); void el.offsetWidth; el.classList.add('shaken'); }
     var n = fmEdges().filter(function(e){ return e.from === f.id || e.to === f.id; }).length;
-    if(!n){ toast('У «' + f.name + '» нет связей'); return; }
+    if(!n) return;
+    if(el){ el.classList.remove('shaken'); void el.offsetWidth; el.classList.add('shaken'); }
     fmUnlinkAll(f, true);
   }
   function fmUnlinkAll(f, shaken){

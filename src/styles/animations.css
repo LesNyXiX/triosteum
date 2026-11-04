@@ -106,10 +106,9 @@
     #stRight{display:none}
   }
   /* встряхивание блока: связи переходят на узел */
-  @keyframes tShake{0%,100%{transform:translateX(0)}20%{transform:translateX(-5px) rotate(-2deg)}40%{transform:translateX(5px) rotate(2deg)}60%{transform:translateX(-4px) rotate(-1deg)}80%{transform:translateX(3px)}}
+  @keyframes tShake{0%,100%{translate:0}20%{translate:-5px 0}40%{translate:5px 0}60%{translate:-3px 0}80%{translate:3px 0}}
   body:not(.noanim) .node.shaken,body:not(.noanim) .fm-node.shaken{animation:tShake .45s ease}
 
   /* желе: элемент тянется за курсором и пружинит, когда его отпускают */
-  body:not(.noanim) .jelly-on{transition:transform .14s ease-out}
   body:not(.noanim) .jelly-end{animation:tJelly .5s ease-out}
-  @keyframes tJelly{0%{transform:scale(1.035,.965)}30%{transform:scale(.98,1.02)}60%{transform:scale(1.01,.99)}100%{transform:none}}
+  @keyframes tJelly{0%{transform:scale(1.025,.975)}35%{transform:scale(.988,1.012)}70%{transform:scale(1.005,.995)}100%{transform:none}}
