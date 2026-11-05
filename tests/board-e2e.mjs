@@ -208,6 +208,27 @@ console.log('Желе мышью на компьютере');
   check(gap < 1.5, 'линия связи не отрывается от растянутого блока ни при движении, ни при пружинке (зазор ' + gap.toFixed(2) + ' px)');
   await mp.waitForTimeout(1500);
   check(await mp.$eval('#nodes .node[data-id="m1"]', (d) => d.style.transform === ''), 'после отпускания форма возвращается');
+  // отросток у блока со связью — только у самой точки выхода, не при наведении на блок
+  await mp.mouse.move(100, 100); await mp.waitForTimeout(200);
+  const nb2 = await mp.locator('#nodes .node[data-id="m1"]').boundingBox();
+  await mp.mouse.move(nb2.x + nb2.width / 2, nb2.y + nb2.height / 2); await mp.waitForTimeout(300);
+  const stOp = await mp.$eval('#nodes .node[data-id="m1"]', (d) => [getComputedStyle(d.querySelector('.stem')).opacity, getComputedStyle(d.querySelector('.port-dot')).opacity]);
+  check(stOp[0] === '0' && stOp[1] === '0', 'наведение на блок со связью не показывает лишний отросток');
+  const pd = await mp.locator('#nodes .node[data-id="m1"] .port-dot').boundingBox();
+  await mp.mouse.move(pd.x + pd.width / 2, pd.y + pd.height / 2); await mp.waitForTimeout(300);
+  check(await mp.$eval('#nodes .node[data-id="m1"] .port-dot', (d) => getComputedStyle(d).opacity) === '1', 'у самой точки выхода отросток появляется — можно тянуть новую связь');
+  // комментарий: плавно появляется и гаснет, без лишнего мигания
+  await mp.mouse.move(100, 100);
+  await mp.hover('#nodes .node[data-id="m2"]'); await mp.waitForTimeout(150);
+  const trace = async () => { await mp.evaluate(() => { window.__r = []; const t0 = performance.now(); (function f(){ const n = document.querySelector('.note.comment'); window.__r.push(n ? (n.hidden ? 'H' : +getComputedStyle(n).opacity) : '-'); if (performance.now() - t0 < 500) requestAnimationFrame(f); })(); }); };
+  await trace(); await mp.click('#nodes .node[data-id="m2"] .cbtn'); await mp.waitForTimeout(600);
+  let r = await mp.evaluate(() => window.__r.filter((x) => x !== '-'));
+  check(r.some((x) => typeof x === 'number' && x > 0.05 && x < 0.95) && r[r.length - 1] === 1, 'комментарий появляется плавно');
+  await mp.keyboard.type('заметка'); await mp.waitForTimeout(100);
+  await trace(); await mp.click('#nodes .node[data-id="m2"] .cbtn'); await mp.click('#nodes .node[data-id="m2"] .cbtn', { delay: 0 }).catch(() => {}); await mp.waitForTimeout(600);
+  r = await mp.evaluate(() => window.__r);
+  const seq = r.map((x) => x === 'H' ? 'H' : 'V').filter((v, i, a) => i === 0 || v !== a[i - 1]).join('');
+  check(r.some((x) => typeof x === 'number' && x > 0.05 && x < 0.95) && seq === 'VH', 'при сворачивании гаснет плавно и не мигает повторно (' + seq + ')');
   await mc.close();
 }
 check(errors.length === 0, 'ошибок в консоли нет' + (errors.length ? ': ' + errors.slice(0, 3).join(' | ') : ''));

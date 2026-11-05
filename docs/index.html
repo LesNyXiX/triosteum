@@ -317,8 +317,10 @@
   .node.linked .port-dot{opacity:0;transform:scale(.4);transition:opacity .15s ease,transform .15s ease}
   .node .stem{transition:opacity .15s ease}
   .node.linked .stem{opacity:0}
-  .node.linked:hover .stem,.node.linked.sel .stem{opacity:1}
-  .node.linked:hover .port-dot,.node.linked.sel .port-dot,.node.linked .port-dot.grab{opacity:1;transform:none}
+  /* у блока со связями отросток показывается, только когда курсор у самой точки выхода (или её тянут) */
+  .node.linked:has(.port-dot:hover) .stem,.node.linked:has(.port-dot.grab) .stem{opacity:1}
+  .node.linked .port-dot:hover,.node.linked .port-dot.grab{opacity:1;transform:none}
+  .node.linked .port-dot::before{inset:-14px}
   .node.linked .port-dot.grab{transform:scale(1.7)}
   .port-dot.grab{transform:scale(1.7)}
   .node .rz{position:absolute;right:-2px;bottom:-2px;width:18px;height:18px;cursor:nwse-resize;opacity:0;transition:opacity .15s ease;touch-action:none;z-index:2}
@@ -492,6 +494,12 @@
   .arc-x-i{font-size:12px;padding:3px 9px;border-radius:999px;border:1px solid var(--line2);background:var(--bg);color:var(--ink)}
   .arc-blocks .tag.ref{border-color:var(--red-soft);color:var(--ink)}
   .node.xref .ln::after{content:" ↗";color:var(--red-soft)}
+  /* комментарии появляются и гаснут плавно */
+  .note.comment.c-in{animation:cIn .2s cubic-bezier(.2,.9,.3,1.2) both}
+  .note.comment.c-out{animation:cOut .16s ease-in both;pointer-events:none}
+  @keyframes cIn{from{opacity:0;transform:translateX(10px) scale(.94)}to{opacity:1;transform:none}}
+  @keyframes cOut{from{opacity:1;transform:none}to{opacity:0;transform:translateX(8px) scale(.96)}}
+  @media (prefers-reduced-motion:reduce){ .note.comment.c-in,.note.comment.c-out{animation:none} }
 
   /* ---------- заметки ---------- */
   .note{position:absolute;width:max-content;min-width:140px;max-width:360px;min-height:22px;padding:10px 12px;border-radius:10px;
@@ -2935,7 +2943,7 @@ public class MovingAverage : IBlock
       if(!n || !d) return;
       syncNote(t);
       var x1 = t.x + d.offsetWidth, y1 = t.y + d.offsetHeight / 2, x2 = n.x - 8, y2 = n.y + (n.kind === 'hub' ? HUB / 2 : 14);
-      el.edgeLayer.appendChild(svg('path', { 'class':'clink', d:'M' + x1 + ' ' + y1 + ' C' + (x1 + 30) + ' ' + y1 + ' ' + (x2 - 30) + ' ' + y2 + ' ' + x2 + ' ' + y2 }));
+      el.edgeLayer.appendChild(svg('path', { 'class':'clink', 'data-note':t.id, d:'M' + x1 + ' ' + y1 + ' C' + (x1 + 30) + ' ' + y1 + ' ' + (x2 - 30) + ' ' + y2 + ' ' + x2 + ' ' + y2 }));
     });
     edgePaths = {};
     var tapDraw = [], tlinkHits = [];
@@ -3200,13 +3208,30 @@ public class MovingAverage : IBlock
     G.notes.push(t);
     S.sel = { type:'note', id:t.id };
     hidePop(); renderGraph(); updateSel(); saveGraph();
+    commentsAnim([t.id], 'c-in');
     editNote(t.id);
   }
+  // плавное появление комментариев; при сворачивании они сначала гаснут, потом скрываются —
+  // повторные нажатия во время анимации не переключают их туда-обратно
+  var cAnimBusy = {};
+  function commentsAnim(ids, cls){ if(document.body.classList.contains('noanim')) return; ids.forEach(function(id){ var d = domOf('note', id); if(d){ d.classList.remove('c-in', 'c-out'); void d.offsetWidth; d.classList.add(cls); } }); }
   function toggleComments(n){
+    if(cAnimBusy[n.id]) return;
     var cms = commentsOf(n.id);
     if(!cms.length){ addComment(n); return; }
     var hide = !cms[0].hidden;
     if(editingNote && document.activeElement) document.activeElement.blur();
+    if(hide && !document.body.classList.contains('noanim')){
+      cAnimBusy[n.id] = true;
+      commentsAnim(commentsOf(n.id).map(function(c){ return c.id; }), 'c-out');
+      commentsOf(n.id).forEach(function(c){ var lk = el.edgeLayer.querySelector('.clink[data-note="' + c.id + '"]'); if(lk){ lk.style.transition = 'opacity .16s'; lk.style.opacity = '0'; } });
+      setTimeout(function(){ cAnimBusy[n.id] = false; commentsSet(n, true); }, 170);
+      return;
+    }
+    commentsSet(n, hide);
+  }
+  function commentsSet(n, hide){
+    var cms = commentsOf(n.id);
     if(hide){
       // пустые комментарии при сворачивании убираем — счётчик показывает только настоящие
       var empty = cms.filter(function(c){ return !String(c.text || '').trim(); }).map(function(c){ return c.id; });
@@ -3215,7 +3240,7 @@ public class MovingAverage : IBlock
     cms.forEach(function(c){ c.hidden = hide; });
     if(hide && S.sel && S.sel.type === 'note' && cms.some(function(c){ return c.id === S.sel.id; })){ S.sel = null; hidePop(); }
     saveGraph(); renderGraph();
-    if(!hide){ var first = cms[cms.length - 1]; S.sel = { type:'note', id:first.id }; updateSel(); editNote(first.id); }
+    if(!hide){ commentsAnim(cms.map(function(c){ return c.id; }), 'c-in'); cms.forEach(function(c){ var lk = el.edgeLayer.querySelector('.clink[data-note="' + c.id + '"]'); if(lk && lk.animate && !document.body.classList.contains('noanim')) lk.animate([{ opacity:0 }, { opacity:1 }], { duration:220, easing:'ease' }); }); var first = cms[cms.length - 1]; S.sel = { type:'note', id:first.id }; updateSel(); editNote(first.id); }
   }
 
   /* ---------- заметки: редактирование ---------- */

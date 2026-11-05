@@ -62,7 +62,7 @@
       if(!n || !d) return;
       syncNote(t);
       var x1 = t.x + d.offsetWidth, y1 = t.y + d.offsetHeight / 2, x2 = n.x - 8, y2 = n.y + (n.kind === 'hub' ? HUB / 2 : 14);
-      el.edgeLayer.appendChild(svg('path', { 'class':'clink', d:'M' + x1 + ' ' + y1 + ' C' + (x1 + 30) + ' ' + y1 + ' ' + (x2 - 30) + ' ' + y2 + ' ' + x2 + ' ' + y2 }));
+      el.edgeLayer.appendChild(svg('path', { 'class':'clink', 'data-note':t.id, d:'M' + x1 + ' ' + y1 + ' C' + (x1 + 30) + ' ' + y1 + ' ' + (x2 - 30) + ' ' + y2 + ' ' + x2 + ' ' + y2 }));
     });
     edgePaths = {};
     var tapDraw = [], tlinkHits = [];
@@ -327,13 +327,30 @@
     G.notes.push(t);
     S.sel = { type:'note', id:t.id };
     hidePop(); renderGraph(); updateSel(); saveGraph();
+    commentsAnim([t.id], 'c-in');
     editNote(t.id);
   }
+  // плавное появление комментариев; при сворачивании они сначала гаснут, потом скрываются —
+  // повторные нажатия во время анимации не переключают их туда-обратно
+  var cAnimBusy = {};
+  function commentsAnim(ids, cls){ if(document.body.classList.contains('noanim')) return; ids.forEach(function(id){ var d = domOf('note', id); if(d){ d.classList.remove('c-in', 'c-out'); void d.offsetWidth; d.classList.add(cls); } }); }
   function toggleComments(n){
+    if(cAnimBusy[n.id]) return;
     var cms = commentsOf(n.id);
     if(!cms.length){ addComment(n); return; }
     var hide = !cms[0].hidden;
     if(editingNote && document.activeElement) document.activeElement.blur();
+    if(hide && !document.body.classList.contains('noanim')){
+      cAnimBusy[n.id] = true;
+      commentsAnim(commentsOf(n.id).map(function(c){ return c.id; }), 'c-out');
+      commentsOf(n.id).forEach(function(c){ var lk = el.edgeLayer.querySelector('.clink[data-note="' + c.id + '"]'); if(lk){ lk.style.transition = 'opacity .16s'; lk.style.opacity = '0'; } });
+      setTimeout(function(){ cAnimBusy[n.id] = false; commentsSet(n, true); }, 170);
+      return;
+    }
+    commentsSet(n, hide);
+  }
+  function commentsSet(n, hide){
+    var cms = commentsOf(n.id);
     if(hide){
       // пустые комментарии при сворачивании убираем — счётчик показывает только настоящие
       var empty = cms.filter(function(c){ return !String(c.text || '').trim(); }).map(function(c){ return c.id; });
@@ -342,5 +359,5 @@
     cms.forEach(function(c){ c.hidden = hide; });
     if(hide && S.sel && S.sel.type === 'note' && cms.some(function(c){ return c.id === S.sel.id; })){ S.sel = null; hidePop(); }
     saveGraph(); renderGraph();
-    if(!hide){ var first = cms[cms.length - 1]; S.sel = { type:'note', id:first.id }; updateSel(); editNote(first.id); }
+    if(!hide){ commentsAnim(cms.map(function(c){ return c.id; }), 'c-in'); cms.forEach(function(c){ var lk = el.edgeLayer.querySelector('.clink[data-note="' + c.id + '"]'); if(lk && lk.animate && !document.body.classList.contains('noanim')) lk.animate([{ opacity:0 }, { opacity:1 }], { duration:220, easing:'ease' }); }); var first = cms[cms.length - 1]; S.sel = { type:'note', id:first.id }; updateSel(); editNote(first.id); }
   }
