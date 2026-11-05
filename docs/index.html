@@ -500,6 +500,16 @@
   @keyframes cIn{from{opacity:0;transform:translateX(10px) scale(.94)}to{opacity:1;transform:none}}
   @keyframes cOut{from{opacity:1;transform:none}to{opacity:0;transform:translateX(8px) scale(.96)}}
   @media (prefers-reduced-motion:reduce){ .note.comment.c-in,.note.comment.c-out{animation:none} }
+  /* одиночный блок: отросток только при наведении на блок, а не постоянно */
+  .node:not(.linked):not(.hub) .stem,.node:not(.linked):not(.hub) .port-dot{opacity:0;transition:opacity .15s ease,transform .15s ease}
+  .node:not(.linked):not(.hub):hover .stem,.node:not(.linked):not(.hub):hover .port-dot,.node:not(.linked) .port-dot.grab{opacity:1}
+  /* инструкция в настройках ИИ — раскрывается и сворачивается */
+  .clp-how{border:1px solid var(--line2);border-radius:10px;background:var(--bg)}
+  .clp-how>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;padding:9px 12px;font-weight:600;color:var(--ink);user-select:none}
+  .clp-how>summary::-webkit-details-marker{display:none}
+  .clp-how>summary::before{content:"";width:7px;height:7px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(-45deg);transition:transform .2s ease;margin-right:2px}
+  .clp-how[open]>summary::before{transform:rotate(45deg)}
+  .clp-how>div{padding:0 12px 12px;display:flex;flex-direction:column;gap:8px}
 
   /* ---------- заметки ---------- */
   .note{position:absolute;width:max-content;min-width:140px;max-width:360px;min-height:22px;padding:10px 12px;border-radius:10px;
@@ -2979,9 +2989,10 @@ public class MovingAverage : IBlock
         tapDraw.push({ e:e, tp:tp, i:i, pt:pt, n:srcs.length, col:srcs.length ? colorsOf(srcs[0])[1] : '#C29CA4' });
       });
     });
-    // точка на отростке нужна, только пока из блока не выходит ни одной связи
+    // отросток с точкой постоянно не висит: у блока, участвующего хоть в одной связи, он появляется только у самой точки выхода,
+    // у одиночного блока — при наведении на блок
     var outs = {};
-    G.edges.forEach(function(e){ outs[e.from] = true; (e.taps || []).forEach(function(tp){ tapIds(tp).forEach(function(id){ outs[id] = true; }); }); });
+    G.edges.forEach(function(e){ outs[e.from] = true; outs[e.to] = true; (e.taps || []).forEach(function(tp){ tapIds(tp).forEach(function(id){ outs[id] = true; }); }); });
     Array.prototype.forEach.call(el.nodes.children, function(d){ d.classList.toggle('linked', !!outs[d.dataset.id]); });
     // зоны захвата отростков к точкам — поверх связей, чтобы отросток можно было снять в любом месте
     tlinkHits.forEach(function(x){ el.edgeLayer.appendChild(x); });
@@ -4055,8 +4066,16 @@ public class MovingAverage : IBlock
       h('button', { type:'button', 'class':'btn sm', text:'Проверить', on:{ click:function(){ grab(); clCheck(function(){ return oaiHttp('Ответь одним словом: готово', {}, { prov:p, max:16 }); }); } } })
     ]));
     if(isO){
-      b.appendChild(h('p', { html:'<b>Как подключить Ollama (бесплатно, работает без интернета):</b><br>1. Установите Ollama с <a href="https://ollama.com/download" target="_blank" rel="noopener">ollama.com</a>.<br>2. Скачайте модель: в терминале <code>ollama pull qwen2.5-coder:7b</code> (для кода) или <code>ollama pull qwen2.5:7b</code>.<br>3. Разрешите запросы со страницы Triosteum: Windows — <code>setx OLLAMA_ORIGINS "*"</code>, macOS — <code>launchctl setenv OLLAMA_ORIGINS "*"</code>, затем перезапустите Ollama.<br>4. Нажмите «Найти модели», выберите модель и «Сохранить и включить». Если браузер спросит разрешение на доступ к устройствам локальной сети — разрешите.' }));
-      b.appendChild(h('p', { text:'Скорость и качество зависят от компьютера: модели 7–8 млрд параметров идут на обычном ноутбуке, для крупных нужна видеокарта.' }));
+      // инструкция остаётся на месте, её можно свернуть и развернуть; положение запоминается
+      var howOpen = true; try { var hv = localStorage.getItem('triosteum.ai.howOllama'); if(hv !== null) howOpen = hv === '1'; else howOpen = !(CL.models.ollama && CL.models.ollama.length); } catch(e){}
+      var how = h('details', { 'class':'clp-how' }); if(howOpen) how.open = true;
+      how.appendChild(h('summary', { text:'Инструкция' }));
+      var hb = h('div');
+      hb.appendChild(h('p', { html:'<b>Как подключить Ollama (бесплатно, работает без интернета):</b><br>1. Установите Ollama с <a href="https://ollama.com/download" target="_blank" rel="noopener">ollama.com</a>.<br>2. Скачайте модель: в терминале <code>ollama pull qwen2.5-coder:7b</code> (для кода) или <code>ollama pull qwen2.5:7b</code>.<br>3. Разрешите запросы со страницы Triosteum: Windows — <code>setx OLLAMA_ORIGINS "*"</code>, macOS — <code>launchctl setenv OLLAMA_ORIGINS "*"</code>, затем перезапустите Ollama.<br>4. Нажмите «Найти модели», выберите модель и «Сохранить и включить». Если браузер спросит разрешение на доступ к устройствам локальной сети — разрешите.' }));
+      hb.appendChild(h('p', { text:'Скорость и качество зависят от компьютера: модели 7–8 млрд параметров идут на обычном ноутбуке, для крупных нужна видеокарта.' }));
+      how.appendChild(hb);
+      how.addEventListener('toggle', function(){ try { localStorage.setItem('triosteum.ai.howOllama', how.open ? '1' : '0'); } catch(e){} });
+      b.appendChild(how);
     } else {
       b.appendChild(h('p', { text:'Подходит любой сервис с API в формате OpenAI (/chat/completions с потоком): облачные модели, LM Studio, vLLM, собственный сервер компании. Сервис должен разрешать запросы из браузера (CORS) — иначе подключайте его через сервер Triosteum (AI_PROVIDER). Ключ хранится только в этом браузере и отправляется только на указанный адрес.' }));
     }

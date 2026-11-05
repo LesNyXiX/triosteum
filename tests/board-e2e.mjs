@@ -214,6 +214,8 @@ console.log('Желе мышью на компьютере');
   await mp.mouse.move(nb2.x + nb2.width / 2, nb2.y + nb2.height / 2); await mp.waitForTimeout(300);
   const stOp = await mp.$eval('#nodes .node[data-id="m1"]', (d) => [getComputedStyle(d.querySelector('.stem')).opacity, getComputedStyle(d.querySelector('.port-dot')).opacity]);
   check(stOp[0] === '0' && stOp[1] === '0', 'наведение на блок со связью не показывает лишний отросток');
+  await mp.mouse.move(100, 100); await mp.waitForTimeout(250);
+  check(await mp.$eval('#nodes .node[data-id="m2"]', (d) => getComputedStyle(d.querySelector('.stem')).opacity + getComputedStyle(d.querySelector('.port-dot')).opacity) === '00', 'у последнего блока цепочки (только вход) отросток не висит постоянно');
   const pd = await mp.locator('#nodes .node[data-id="m1"] .port-dot').boundingBox();
   await mp.mouse.move(pd.x + pd.width / 2, pd.y + pd.height / 2); await mp.waitForTimeout(300);
   check(await mp.$eval('#nodes .node[data-id="m1"] .port-dot', (d) => getComputedStyle(d).opacity) === '1', 'у самой точки выхода отросток появляется — можно тянуть новую связь');

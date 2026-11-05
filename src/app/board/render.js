@@ -98,9 +98,10 @@
         tapDraw.push({ e:e, tp:tp, i:i, pt:pt, n:srcs.length, col:srcs.length ? colorsOf(srcs[0])[1] : '#C29CA4' });
       });
     });
-    // точка на отростке нужна, только пока из блока не выходит ни одной связи
+    // отросток с точкой постоянно не висит: у блока, участвующего хоть в одной связи, он появляется только у самой точки выхода,
+    // у одиночного блока — при наведении на блок
     var outs = {};
-    G.edges.forEach(function(e){ outs[e.from] = true; (e.taps || []).forEach(function(tp){ tapIds(tp).forEach(function(id){ outs[id] = true; }); }); });
+    G.edges.forEach(function(e){ outs[e.from] = true; outs[e.to] = true; (e.taps || []).forEach(function(tp){ tapIds(tp).forEach(function(id){ outs[id] = true; }); }); });
     Array.prototype.forEach.call(el.nodes.children, function(d){ d.classList.toggle('linked', !!outs[d.dataset.id]); });
     // зоны захвата отростков к точкам — поверх связей, чтобы отросток можно было снять в любом месте
     tlinkHits.forEach(function(x){ el.edgeLayer.appendChild(x); });

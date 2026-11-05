@@ -288,8 +288,16 @@
       h('button', { type:'button', 'class':'btn sm', text:'Проверить', on:{ click:function(){ grab(); clCheck(function(){ return oaiHttp('Ответь одним словом: готово', {}, { prov:p, max:16 }); }); } } })
     ]));
     if(isO){
-      b.appendChild(h('p', { html:'<b>Как подключить Ollama (бесплатно, работает без интернета):</b><br>1. Установите Ollama с <a href="https://ollama.com/download" target="_blank" rel="noopener">ollama.com</a>.<br>2. Скачайте модель: в терминале <code>ollama pull qwen2.5-coder:7b</code> (для кода) или <code>ollama pull qwen2.5:7b</code>.<br>3. Разрешите запросы со страницы Triosteum: Windows — <code>setx OLLAMA_ORIGINS "*"</code>, macOS — <code>launchctl setenv OLLAMA_ORIGINS "*"</code>, затем перезапустите Ollama.<br>4. Нажмите «Найти модели», выберите модель и «Сохранить и включить». Если браузер спросит разрешение на доступ к устройствам локальной сети — разрешите.' }));
-      b.appendChild(h('p', { text:'Скорость и качество зависят от компьютера: модели 7–8 млрд параметров идут на обычном ноутбуке, для крупных нужна видеокарта.' }));
+      // инструкция остаётся на месте, её можно свернуть и развернуть; положение запоминается
+      var howOpen = true; try { var hv = localStorage.getItem('triosteum.ai.howOllama'); if(hv !== null) howOpen = hv === '1'; else howOpen = !(CL.models.ollama && CL.models.ollama.length); } catch(e){}
+      var how = h('details', { 'class':'clp-how' }); if(howOpen) how.open = true;
+      how.appendChild(h('summary', { text:'Инструкция' }));
+      var hb = h('div');
+      hb.appendChild(h('p', { html:'<b>Как подключить Ollama (бесплатно, работает без интернета):</b><br>1. Установите Ollama с <a href="https://ollama.com/download" target="_blank" rel="noopener">ollama.com</a>.<br>2. Скачайте модель: в терминале <code>ollama pull qwen2.5-coder:7b</code> (для кода) или <code>ollama pull qwen2.5:7b</code>.<br>3. Разрешите запросы со страницы Triosteum: Windows — <code>setx OLLAMA_ORIGINS "*"</code>, macOS — <code>launchctl setenv OLLAMA_ORIGINS "*"</code>, затем перезапустите Ollama.<br>4. Нажмите «Найти модели», выберите модель и «Сохранить и включить». Если браузер спросит разрешение на доступ к устройствам локальной сети — разрешите.' }));
+      hb.appendChild(h('p', { text:'Скорость и качество зависят от компьютера: модели 7–8 млрд параметров идут на обычном ноутбуке, для крупных нужна видеокарта.' }));
+      how.appendChild(hb);
+      how.addEventListener('toggle', function(){ try { localStorage.setItem('triosteum.ai.howOllama', how.open ? '1' : '0'); } catch(e){} });
+      b.appendChild(how);
     } else {
       b.appendChild(h('p', { text:'Подходит любой сервис с API в формате OpenAI (/chat/completions с потоком): облачные модели, LM Studio, vLLM, собственный сервер компании. Сервис должен разрешать запросы из браузера (CORS) — иначе подключайте его через сервер Triosteum (AI_PROVIDER). Ключ хранится только в этом браузере и отправляется только на указанный адрес.' }));
     }

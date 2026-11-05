@@ -336,3 +336,13 @@
   @keyframes cIn{from{opacity:0;transform:translateX(10px) scale(.94)}to{opacity:1;transform:none}}
   @keyframes cOut{from{opacity:1;transform:none}to{opacity:0;transform:translateX(8px) scale(.96)}}
   @media (prefers-reduced-motion:reduce){ .note.comment.c-in,.note.comment.c-out{animation:none} }
+  /* одиночный блок: отросток только при наведении на блок, а не постоянно */
+  .node:not(.linked):not(.hub) .stem,.node:not(.linked):not(.hub) .port-dot{opacity:0;transition:opacity .15s ease,transform .15s ease}
+  .node:not(.linked):not(.hub):hover .stem,.node:not(.linked):not(.hub):hover .port-dot,.node:not(.linked) .port-dot.grab{opacity:1}
+  /* инструкция в настройках ИИ — раскрывается и сворачивается */
+  .clp-how{border:1px solid var(--line2);border-radius:10px;background:var(--bg)}
+  .clp-how>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;padding:9px 12px;font-weight:600;color:var(--ink);user-select:none}
+  .clp-how>summary::-webkit-details-marker{display:none}
+  .clp-how>summary::before{content:"";width:7px;height:7px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(-45deg);transition:transform .2s ease;margin-right:2px}
+  .clp-how[open]>summary::before{transform:rotate(45deg)}
+  .clp-how>div{padding:0 12px 12px;display:flex;flex-direction:column;gap:8px}
