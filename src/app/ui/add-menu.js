@@ -28,6 +28,8 @@
     });
   });
   addMenu.addEventListener('keydown', function(e){
+    // список языков открыт и под мышью — стрелки листают его
+    if(amSub && /^(ArrowDown|ArrowUp|Home|End)$/.test(e.key) && amSub.matches(':hover')){ e.preventDefault(); amSubFocus(e.key === 'ArrowUp' || e.key === 'End' ? -1 : 1, e.key === 'Home' || e.key === 'End'); return; }
     var items = Array.prototype.slice.call(addMenu.querySelectorAll('.am-item')), i = items.indexOf(document.activeElement);
     if(e.key === 'Escape'){ closeAddMenu(); bAdd.focus(); }
     if(e.key === 'ArrowDown'){ e.preventDefault(); items[(i + 1) % items.length].focus(); }
@@ -48,10 +50,20 @@
     groups.push({ head:'Код — выполняется вместе со схемой', list:code });
     return groups;
   }
+  // фокус в списке языков: с текущего (✓) на шаг вперёд/назад, по кругу; edge — в начало/конец
+  function amSubFocus(dir, edge){
+    if(!amSub) return;
+    var items = Array.prototype.slice.call(amSub.querySelectorAll('.ctx-i')), i = items.indexOf(document.activeElement);
+    if(!items.length) return;
+    if(edge) i = dir > 0 ? 0 : items.length - 1;
+    else if(i < 0){ var cur = amSub.querySelector('.ctx-i.on'); i = cur ? items.indexOf(cur) : (dir > 0 ? 0 : items.length - 1); }   // первое нажатие — на текущий язык
+    else i = (i + dir + items.length) % items.length;
+    items[(i + items.length) % items.length].focus();
+  }
   function closeAmSub(){ clearTimeout(amSubT); if(amSub){ amSub.remove(); amSub = null; } var b = addMenu.querySelector('.am-item[data-add="block"]'); if(b) b.setAttribute('aria-expanded', 'false'); }
   function openAmSub(btn, focus){
     clearTimeout(amSubT);
-    if(amSub && amSub._btn === btn){ if(focus){ var f0 = amSub.querySelector('.ctx-i'); if(f0) f0.focus(); } return; }
+    if(amSub && amSub._btn === btn){ if(focus){ var f0 = amSub.querySelector('.ctx-i.on') || amSub.querySelector('.ctx-i'); if(f0) f0.focus(); } return; }
     closeAmSub();
     amSub = document.createElement('div'); amSub.className = 'ctx am-sub'; amSub.setAttribute('role', 'menu'); amSub.setAttribute('aria-label', 'Варианты блоков'); amSub._btn = btn;
     blockGroups().forEach(function(g){
@@ -82,20 +94,22 @@
       if(e.key === 'Escape' || e.key === 'ArrowLeft'){ e.preventDefault(); e.stopPropagation(); closeAmSub(); btn.focus(); }
       else if(e.key === 'ArrowDown'){ e.preventDefault(); items[(i + 1) % items.length].focus(); }
       else if(e.key === 'ArrowUp'){ e.preventDefault(); items[(i - 1 + items.length) % items.length].focus(); }
+      else if(e.key === 'Home' || e.key === 'End'){ e.preventDefault(); items[e.key === 'Home' ? 0 : items.length - 1].focus(); }
     });
+    var hint = document.createElement('div'); hint.className = 'am-hint'; hint.textContent = '↑ ↓ — выбрать язык · Enter — поставить · ← — назад'; amSub.appendChild(hint);
     document.body.appendChild(amSub);
     var r = btn.getBoundingClientRect(), mr = addMenu.getBoundingClientRect(), z = UI.scale / 100 || 1, w = amSub.offsetWidth * z, hh = amSub.offsetHeight * z;
     var x = mr.right + 6; if(x + w > window.innerWidth - 8) x = Math.max(8, mr.left - w - 6);
     var y = Math.max(8, Math.min(r.top - 8, window.innerHeight - hh - 8));
     amSub.style.left = x / z + 'px'; amSub.style.top = y / z + 'px';
     btn.setAttribute('aria-haspopup', 'menu'); btn.setAttribute('aria-expanded', 'true');
-    if(focus){ var f = amSub.querySelector('.ctx-i'); if(f) f.focus(); }
+    if(focus){ var f = amSub.querySelector('.ctx-i.on') || amSub.querySelector('.ctx-i'); if(f) f.focus(); }
   }
   (function(){
     var bb = addMenu.querySelector('.am-item[data-add="block"]');
     bb.addEventListener('mouseenter', function(){ openAmSub(bb); });
     bb.addEventListener('focus', function(){ if(bb.matches(':focus-visible')) openAmSub(bb); });
-    bb.addEventListener('keydown', function(e){ if(e.key === 'ArrowRight' || e.key === 'Enter' && false){ e.preventDefault(); openAmSub(bb, true); } });
+    bb.addEventListener('keydown', function(e){ if(e.key === 'ArrowRight'){ e.preventDefault(); e.stopPropagation(); openAmSub(bb, true); } });
     Array.prototype.forEach.call(addMenu.querySelectorAll('.am-item:not([data-add="block"])'), function(o){ o.addEventListener('mouseenter', function(){ amSubT = setTimeout(closeAmSub, 120); }); o.addEventListener('focus', closeAmSub); });
     addMenu.addEventListener('mouseleave', function(){ amSubT = setTimeout(function(){ if(!(amSub && amSub.matches(':hover'))) closeAmSub(); }, 260); });
     var _closeAddMenu = closeAddMenu;
