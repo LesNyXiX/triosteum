@@ -1,0 +1,60 @@
+# Автопроверка: при каждой отправке на GitHub собирает сайт и прогоняет тесты в настоящем браузере.
+# Красный крестик у коммита — что-то сломалось; подробности — во вкладке Actions.
+name: Тесты
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: Сайт
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Зависимости
+        run: |
+          npm install --no-audit --no-fund
+          npx playwright install --with-deps chromium
+
+      - name: Сборка совпадает с исходниками
+        run: |
+          node build.mjs
+          git diff --exit-code -- docs/index.html || (echo "::error::docs/index.html не пересобран — запустите node build.mjs и закоммитьте"; exit 1)
+
+      - name: Модульные тесты
+        run: npm test
+
+      - name: Доска, окна, панели
+        run: |
+          npm run test:board
+          npm run test:docks
+          npm run test:snap
+          npm run test:tour
+
+      - name: Хранение и резервные копии
+        run: npm run test:storage
+
+      - name: Компилятор и ИИ
+        run: |
+          npm run test:compiler
+          npm run test:cross
+
+      - name: Среды
+        run: |
+          npm run test:envs
+          npm run test:office
+          npm run test:graphics
+          npm run test:universal
