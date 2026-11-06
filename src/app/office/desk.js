@@ -105,11 +105,25 @@
       var under = document.elementsFromPoint(e.clientX, e.clientY).filter(function(x){ return x.classList && x.classList.contains('fcard') && OF.sel.indexOf(x.dataset.fid) < 0; })[0];
       Array.prototype.forEach.call(document.querySelectorAll('.fcard.drop'), function(x){ x.classList.remove('drop'); });
       d.over = null;
-      if(under){ var uf = ofFile(under.dataset.fid); if(uf && uf.type === 'folder'){ under.classList.add('drop'); d.over = uf; } }
+      // корзина внизу рабочего стола
+      if(!d.trash){ d.trash = true; trashShow($('desk') || main); }
+      var hot = trashOver(e.clientX, e.clientY);
+      d.group.forEach(function(g){ if(g.el) g.el.classList.toggle('to-trash', hot); });
+      if(under && !hot){ var uf = ofFile(under.dataset.fid); if(uf && uf.type === 'folder'){ under.classList.add('drop'); d.over = uf; } }
     });
     function end(e){
       var d = OF.drag; OF.drag = null; clearTimeout(lp); if(!d) return;
       Array.prototype.forEach.call(document.querySelectorAll('.fcard.drag,.fcard.drop'), function(x){ x.classList.remove('drag', 'drop'); });
+      d.group.forEach(function(g){ if(g.el) g.el.classList.remove('to-trash'); });
+      if(d.moved && TRASH.hot){
+        var pel3 = d.group.filter(function(g){ return g.f === d.f; })[0]; jellyEnd(d, pel3 && pel3.el);
+        // вернуть координаты: если удаление отменят (Ctrl+Z), файлы встанут на прежние места
+        d.group.forEach(function(g){ g.f.x = g.x; g.f.y = g.y; });
+        var ids = d.group.map(function(g){ return g.f.id; });
+        trashEat(d.group.map(function(g){ return g.el; }), function(){ ofDelete(ids); });
+        return;
+      }
+      if(d.trash) trashHide();
       if(d.moved){
         var pel2 = d.group.filter(function(g){ return g.f === d.f; })[0]; jellyEnd(d, pel2 && pel2.el);
         if(d.over){ ofMoveTo(d.group.map(function(g){ return g.f.id; }), d.over.id); toast('Перемещено в «' + d.over.name + '»'); }
@@ -120,7 +134,7 @@
       if(lastTapId === d.f.id && now - lastTapT < 420){ lastTapT = 0; ofOpen(d.f.id); return; }
       lastTapT = now; lastTapId = d.f.id;
     }
-    main.addEventListener('pointerup', end); main.addEventListener('pointercancel', function(){ OF.drag = null; clearTimeout(lp); });
+    main.addEventListener('pointerup', end); main.addEventListener('pointercancel', function(){ var d = OF.drag; OF.drag = null; clearTimeout(lp); if(d){ d.group.forEach(function(g){ if(g.el) g.el.classList.remove('to-trash', 'drag'); }); if(d.trash) trashHide(); } });
     main.addEventListener('contextmenu', function(e){
       if(!e.target.closest('#desk')) return;
       e.preventDefault();

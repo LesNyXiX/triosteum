@@ -421,3 +421,27 @@
   .clp-diag .dg-row.ok i{color:#22c55e} .clp-diag .dg-row.warn i{color:#eab308} .clp-diag .dg-row.err i{color:var(--red)}
   .clp-diag code{font-family:var(--mono);font-size:11.5px;background:var(--bg);border:1px solid var(--line2);border-radius:5px;padding:0 4px;color:var(--ink);user-select:all}
   .clp-st.warn{border-color:#eab308}
+  /* корзина при перетаскивании */
+  .drop-trash{position:fixed;z-index:170;width:0;height:0;pointer-events:none;visibility:hidden}
+  .drop-trash.on,.drop-trash.out,.drop-trash.eat{visibility:visible}
+  .dt-ball{position:absolute;left:-34px;top:-34px;width:68px;height:68px;border-radius:50%;display:grid;place-items:center;color:var(--ink);
+    background:color-mix(in srgb,var(--panel) 88%,transparent);border:1.5px solid var(--line2);box-shadow:0 14px 36px rgba(0,0,0,.45);backdrop-filter:blur(8px);
+    transform:translateY(90px) scale(.5);opacity:0;transition:transform .34s cubic-bezier(.34,1.56,.64,1),opacity .2s ease,background .2s,border-color .2s,color .2s}
+  .drop-trash.on .dt-ball{transform:none;opacity:1}
+  .drop-trash.out .dt-ball{transform:translateY(90px) scale(.5);opacity:0;transition:transform .28s cubic-bezier(.5,0,.75,0),opacity .24s ease-in}
+  .drop-trash.hot .dt-ball{transform:scale(1.22);background:var(--red);border-color:var(--red);color:#fff;box-shadow:0 0 0 6px color-mix(in srgb,var(--red) 22%,transparent),0 16px 40px rgba(0,0,0,.5)}
+  .dt-lid{transform-origin:20px 6.5px;transition:transform .22s cubic-bezier(.34,1.56,.64,1)}
+  .drop-trash.hot .dt-lid{transform:rotate(-28deg) translate(-1px,-2px)}
+  .dt-ring{position:absolute;left:-34px;top:-34px;width:68px;height:68px;border-radius:50%;border:2px solid var(--red);opacity:0}
+  .drop-trash.hot .dt-ring{animation:dtRing 1.1s ease-out infinite}
+  @keyframes dtRing{0%{transform:scale(1.15);opacity:.55}100%{transform:scale(1.9);opacity:0}}
+  .drop-trash.eat .dt-ball{transform:none;opacity:1;background:var(--red);border-color:var(--red);color:#fff;animation:dtGulp .42s cubic-bezier(.34,1.56,.64,1)}
+  @keyframes dtGulp{0%{transform:scale(1.22)}35%{transform:scale(.86)}65%{transform:scale(1.12)}100%{transform:scale(1)}}
+  .dt-tip{position:absolute;left:0;bottom:46px;transform:translateX(-50%) translateY(8px);white-space:nowrap;font-size:12px;font-weight:600;color:var(--ink);
+    background:var(--panel);border:1px solid var(--line2);border-radius:8px;padding:4px 10px;opacity:0;transition:opacity .2s,transform .25s cubic-bezier(.16,1,.3,1);box-shadow:0 6px 18px rgba(0,0,0,.35)}
+  .drop-trash.on .dt-tip{opacity:1;transform:translateX(-50%)}
+  .drop-trash.hot .dt-tip{color:#fff;background:var(--red);border-color:var(--red)}
+  .drop-trash.eat .dt-tip,.drop-trash.out .dt-tip{opacity:0}
+  .to-trash{opacity:.55 !important;filter:saturate(.4);outline:2px dashed var(--red);outline-offset:3px}
+  .dt-fly{will-change:transform,opacity}
+  @media (prefers-reduced-motion: reduce){ .dt-ball,.dt-tip,.dt-lid{transition:none !important} .drop-trash.hot .dt-ring,.drop-trash.eat .dt-ball{animation:none} }

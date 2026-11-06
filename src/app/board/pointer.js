@@ -260,6 +260,9 @@
       // привязка к сетке: блок плавно идёт за курсором, а на сетку мягко встаёт после отпускания
       drag.snap = !!(UI.snap && !e.altKey);
       smoothMove(drag);
+      // корзина внизу доски: навели — элемент удалится при отпускании
+      if(!drag.trash){ drag.trash = true; trashShow(el.canvas); }
+      var hotT = trashOver(e.clientX, e.clientY); dragEls(drag).forEach(function(x){ x.classList.toggle('to-trash', hotT); });
       if(drag.type === 'node') shakeTrack(drag, e);
       jellyMove(drag, e, drag.el);
     } else if(drag.mode === 'edgegrab'){
@@ -376,6 +379,16 @@
     if(dd.mode === 'tlinkgrab'){ S.sel = { type:'tap', id:dd.tap.id, edge:dd.edge.id }; lastTap = { key:'tl:' + dd.tap.id + ':' + dd.node.id, t:Date.now() }; renderEdges(); applyCursor(); return; }
     if(dd.mode === 'move'){
       dd.el.classList.remove('dragging'); jellyEnd(dd, dd.el);
+      var toBin = dd.moved && !cancel && TRASH.hot, bEls = dragEls(dd);
+      bEls.forEach(function(x){ x.classList.remove('to-trash'); });
+      if(dd.trash && !toBin) trashHide();
+      if(toBin){
+        if(dd.pr){ cancelAnimationFrame(dd.pr); dd.pr = 0; }
+        lastTap = { key:null, t:0 };
+        var bin = [{ type:dd.type, id:dd.item.id }].concat(dd.group ? dd.group.items.map(function(gi){ return { type:gi.type, id:gi.obj.id }; }) : []);
+        trashEat(bEls, function(){ S.multi = bin; S.sel = null; deleteSel(); });
+        applyCursor(); return;
+      }
       if(dd.moved){
         lastTap = { key:null, t:0 };
         if(dd.pr){ cancelAnimationFrame(dd.pr); dd.pr = 0; }
@@ -490,3 +503,10 @@
     if(e.key === 'Enter' && S.sel && S.sel.type === 'node'){ openNode(S.sel.id); }
   });
   function applyCursor(){ el.canvas.style.cursor = S.tool === 'select' ? 'default' : (S.tool === 'text' ? 'text' : 'crosshair'); }
+
+  // элементы, которые сейчас тащат: сам блок или заметка и вся выделенная группа
+  function dragEls(dg){
+    var out = [dg.el];
+    if(dg.group) dg.group.items.forEach(function(gi){ var x = domOf(gi.type, gi.obj.id); if(x && out.indexOf(x) < 0) out.push(x); });
+    return out.filter(Boolean);
+  }

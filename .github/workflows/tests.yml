@@ -43,6 +43,7 @@ jobs:
           npm run test:docks
           npm run test:snap
           npm run test:tour
+          npm run test:trash
 
       - name: Хранение и резервные копии
         run: npm run test:storage

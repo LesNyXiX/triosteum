@@ -17,6 +17,7 @@
     "app/core/langs-plugins.js",
     "app/core/store.js",
     "app/ui/windows.js",
+    "app/ui/drop-trash.js",
     "app/core/merge.js",
     "app/core/server-adapter.js",
     "app/core/state.js",
