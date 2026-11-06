@@ -402,7 +402,7 @@
   /* панели инструментов у любого края */
   .row{position:relative}
   .tools.empty{display:none}
-  .tools.dock-top,.tools.dock-bottom,.tools.dock-right{position:absolute;z-index:30;width:auto;padding:5px;gap:4px;background:var(--panel);border:1px solid var(--line2);border-radius:14px;box-shadow:0 10px 28px rgba(0,0,0,.4)}
+  .tools.dock-top,.tools.dock-bottom,.tools.dock-right{position:absolute;z-index:30;width:max-content;min-width:0;height:auto;padding:5px;gap:4px;background:var(--panel);border:1px solid var(--line2);border-radius:14px;box-shadow:0 10px 28px rgba(0,0,0,.4)}
   .tools.dock-top,.tools.dock-bottom{flex-direction:row;flex-wrap:wrap;justify-content:center;left:50%;transform:translateX(-50%);max-width:calc(100% - 24px);overflow:visible}
   .tools.dock-top{top:10px} .tools.dock-bottom{bottom:10px}
   .tools.dock-right{flex-direction:column;right:10px;top:50%;transform:translateY(-50%);max-height:calc(100% - 24px);overflow:visible}
