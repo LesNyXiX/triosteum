@@ -18,7 +18,8 @@
     "test:compiler": "node tests/compiler-e2e.mjs",
     "test:docks": "node tests/docks-themes-e2e.mjs",
     "test:cross": "node tests/cross-e2e.mjs",
-    "test:snap": "node tests/snap-e2e.mjs"
+    "test:snap": "node tests/snap-e2e.mjs",
+    "test:storage": "node tests/storage-e2e.mjs"
   },
   "devDependencies": {
     "playwright": "^1.48.0"

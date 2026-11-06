@@ -54,6 +54,7 @@
     "app/ui/tooltips.js",
     "app/workspace/menu.js",
     "app/workspace/projects.js",
+    "app/workspace/backups.js",
     "app/workspace/files-io.js",
     "app/workspace/command-palette.js",
     "app/workspace/minimap.js",

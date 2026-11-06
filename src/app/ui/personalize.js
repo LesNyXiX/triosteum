@@ -162,6 +162,7 @@
     // очистка: те же действия, что в меню «Пространство → Очистка»
     var clr = h('div', { 'class':'clr-grid' });
     clearItems().forEach(function(it){ if(it.sep) return; clr.appendChild(h('button', { type:'button', 'class':'btn sm' + (it.danger ? ' danger' : ''), text:it.label, on:{ click:function(){ it.act(); setTimeout(function(){ if(!$('pers').hidden) renderPers(); }, 400); } } })); });
+    b.appendChild(section('Резервные копии — раз в день и перед каждой очисткой; ключи и пароли в копии не попадают', backupsSection()));
     b.appendChild(section('Очистка', clr));
     b.appendChild(h('button', { type:'button', 'class':'btn', text:'Вернуть всё по умолчанию', on:{ click:function(){
       UI = { scale:100, code:14, note:14 }; applyUI(); applyTheme(); updateGutter(); renderPers(); } } }));

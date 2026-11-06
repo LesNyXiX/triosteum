@@ -20,8 +20,55 @@
       window.addEventListener('storage', function(e){ try{ if(e.key && e.storageArea === localStorage) fn(e.key, e.newValue); }catch(x){} });
     }
   };
+  // localStorage + копия в IndexedDB (см. idb-boot.js). Что не влезло в localStorage — хранится только в IndexedDB.
+  // Ключи и пароли в копию не попадают: они остаются только в этом браузере, как и раньше.
+  function idbSecret(k){ return /^triosteum\.(secrets|claude\.key|ai\.key\.|claude\.on)/.test(k); }
+  var IDBK = (function(){
+    var I = window.__tsIDB || {}, chan = null;
+    try { chan = new BroadcastChannel('triosteum-idb'); } catch(e){}
+    function tx(fn){ try { var db = (window.__tsIDB || {}).db; if(!db) return; var t = db.transaction('kv', 'readwrite'); fn(t.objectStore('kv')); } catch(e){} }
+    return {
+      on:function(){ return !!(window.__tsIDB && window.__tsIDB.ok); },
+      map:function(){ return (window.__tsIDB && window.__tsIDB.map) || {}; },
+      put:function(k, v){ if(idbSecret(k)) return; this.map()[k] = v; tx(function(st){ st.put(v, k); }); },
+      del:function(k){ delete this.map()[k]; tx(function(st){ st.delete(k); }); },
+      chan:chan
+    };
+  })();
+  var idbAdapter = {
+    name:'local',
+    get:function(k){ var v = localAdapter.get(k); if(v != null) return v; var m = IDBK.map(); return Object.prototype.hasOwnProperty.call(m, k) ? m[k] : null; },
+    set:function(k, v){
+      var ok = localAdapter.set(k, v);
+      if(!IDBK.on() || idbSecret(k)) return ok;
+      IDBK.put(k, v);
+      if(!ok){ localAdapter.remove(k); if(IDBK.chan) try { IDBK.chan.postMessage({ k:k, v:v }); } catch(e){} }   // не влезло — живёт только в IndexedDB; другим вкладкам сообщаем сами
+      return true;
+    },
+    remove:function(k){ localAdapter.remove(k); if(IDBK.on()){ IDBK.del(k); if(IDBK.chan) try { IDBK.chan.postMessage({ k:k, v:null }); } catch(e){} } },
+    keys:function(prefix){
+      var out = localAdapter.keys(prefix), seen = {};
+      out.forEach(function(k){ seen[k] = 1; });
+      Object.keys(IDBK.map()).forEach(function(k){ if(!seen[k] && (!prefix || k.indexOf(prefix) === 0)) out.push(k); });
+      return out;
+    },
+    watch:function(fn){
+      // другая вкладка записала в localStorage — обновляем и свою копию в памяти
+      localAdapter.watch(function(k, v){ var m = IDBK.map(); if(v == null) delete m[k]; else if(!idbSecret(k)) m[k] = v; fn(k, v); });
+      if(IDBK.chan) IDBK.chan.onmessage = function(e){ var d = e.data || {}; if(!d.k) return; var m = IDBK.map(); if(d.v == null) delete m[d.k]; else m[d.k] = d.v; fn(d.k, d.v); };
+    }
+  };
+  // localStorage потерялся (очистка браузера, сбой) — возвращаем данные из копии
+  (function restoreFromIdb(){
+    if(!IDBK.on()) return;
+    var m = IDBK.map(), back = 0;
+    Object.keys(m).forEach(function(k){ if(localAdapter.get(k) == null && localAdapter.set(k, m[k])) back++; });
+    // и наоборот: то, что есть только в localStorage (записано до появления копии), кладём в копию
+    localAdapter.keys('triosteum.').forEach(function(k){ if(!idbSecret(k) && !Object.prototype.hasOwnProperty.call(m, k)){ var v = localAdapter.get(k); if(v != null) IDBK.put(k, v); } });
+    if(back) window.__tsRestored = back;
+  })();
   var Store = (function(){
-    var ad = localAdapter, subs = [], warned = 0;
+    var ad = IDBK.on() ? idbAdapter : localAdapter, subs = [], warned = 0;
     function fail(){
       // браузер не дал записать (закончилось место или запрещено хранилище) — сообщаем, но не чаще раза в минуту
       if(Date.now() - warned < 60000) return; warned = Date.now();

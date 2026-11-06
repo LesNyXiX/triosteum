@@ -18,10 +18,11 @@ export function build() {
   const tpl = read('index.template.html');
   if (!tpl.includes('<!--@@CSS@@-->') || !tpl.includes('<!--@@JS@@-->')) throw new Error('В шаблоне нет меток @@CSS@@ / @@JS@@');
   // функция-замена: иначе знаки $ в коде были бы поняты как шаблон замены
-  const html = tpl.replace('<!--@@CSS@@-->', () => css).replace('<!--@@JS@@-->', () => js);
+  const pre = read('app/core/idb-boot.js');
+  const html = tpl.replace('<!--@@CSS@@-->', () => css).replace('<!--@@PRE@@-->', () => pre).replace('<!--@@JS@@-->', () => js);
   mkdirSync(dirname(OUT), { recursive: true });
   writeFileSync(OUT, html);
-  return { files: man.css.length + man.js.length, bytes: Buffer.byteLength(html) };
+  return { files: man.css.length + man.js.length + 1, bytes: Buffer.byteLength(html) };
 }
 
 const run = () => {
