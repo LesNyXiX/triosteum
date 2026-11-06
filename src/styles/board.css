@@ -463,3 +463,7 @@
      Иначе браузер на каждом кадре перетаскивания заново раскладывает по слоям детали всех блоков. */
   .node{isolation:isolate}
   .node .xbtn,.node .cbtn{z-index:auto}
+  /* телефон: окна там на весь экран, «две среды рядом» не нужны — освобождаем шапку */
+  @media (max-width:640px){ #splitBtn{display:none} }
+  /* корзина при перетаскивании не накрывает кнопки масштаба */
+  body:has(.drop-trash.on) .zoom{opacity:0;pointer-events:none;transition:opacity .15s}
