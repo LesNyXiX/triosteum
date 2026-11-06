@@ -41,9 +41,10 @@
       { label:'Экспорт картинки (SVG)', icon:'map', act:exportSvg, k:'изображение скачать' },
       { label:'Скопировать схему (JSON)', icon:'copy', act:copyScheme },
       { label:'Горячие клавиши', icon:'keys', act:function(){ showTip($('bKeys'), 6000); }, k:'клавиши сочетания' },
+      PANE ? null : { label:'Две среды рядом', icon:'layout', act:function(){ setTimeout(function(){ splitPick($('splitBtn')); }, 120); }, k:'разделить экран окна рядом сплит две среды' },
       { label:'Тур по Triosteum', icon:'map', act:function(){ setTimeout(tourStart, 120); }, k:'обучение помощь подсказки знакомство' }
     ]);
-    return C.map(function(c){ c.group = 'Команды'; return c; });
+    return C.filter(Boolean).map(function(c){ c.group = 'Команды'; return c; });
   }
   function cmdAll(q){
     var rows = [];

@@ -111,5 +111,5 @@
     clrBackup = function(label, ids, ui){ backupNow('Перед очисткой: ' + label); return _clr.apply(this, arguments); };
   })();
   // ежедневная копия: через полминуты после запуска, если последней больше суток
-  setTimeout(function(){ if(bkDb() && Date.now() - (load('triosteum.backup.last', 0) || 0) > BK_DAY) backupNow('Ежедневная'); }, 30000);
+  setTimeout(function(){ if(!PANE && bkDb() && Date.now() - (load('triosteum.backup.last', 0) || 0) > BK_DAY) backupNow('Ежедневная'); }, 30000);
   if(window.__tsRestored) setTimeout(function(){ toast('localStorage браузера был очищен — данные возвращены из внутренней копии'); }, 1200);

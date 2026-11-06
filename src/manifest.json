@@ -109,6 +109,7 @@
     "app/workspace/live.js",
     "app/workspace/universal.js",
     "app/workspace/cross-run.js",
+    "app/workspace/split.js",
     "app/workspace/tour.js",
     "app/main.js"
   ]

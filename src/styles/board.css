@@ -445,3 +445,16 @@
   .to-trash{opacity:.55 !important;filter:saturate(.4);outline:2px dashed var(--red);outline-offset:3px}
   .dt-fly{will-change:transform,opacity}
   @media (prefers-reduced-motion: reduce){ .dt-ball,.dt-tip,.dt-lid{transition:none !important} .drop-trash.hot .dt-ring,.drop-trash.eat .dt-ball{animation:none} }
+  /* две среды рядом */
+  .split-w{display:flex;flex-direction:column;padding:0;overflow:hidden;width:min(760px,calc(100vw - 24px));height:calc(100vh - 80px);border-top:3px solid var(--split-c,var(--red))}
+  .split-w[hidden]{display:none}
+  .split-h{display:flex;align-items:center;gap:6px;padding:6px 8px 6px 12px;border-bottom:1px solid var(--line);cursor:grab;flex:none}
+  .split-h h2{margin:0;font-size:13px;font-weight:600;color:var(--ink-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .split-h .sp{flex:1}
+  .split-dot{width:8px;height:8px;border-radius:50%;background:var(--split-c,var(--red));flex:none}
+  .split-frame{flex:1;width:100%;border:0;background:var(--bg);display:block}
+  body.snap-dragging .split-frame{pointer-events:none}
+  #splitBtn.on{color:var(--red);border-color:var(--red)}
+  /* внутри второй среды — компактная шапка */
+  .in-pane .brand b,.in-pane #shareBtn,.in-pane #splitBtn{display:none}
+  .in-pane #cmdBtn .t,.in-pane #cmdKb,.in-pane .brand .logo + b{display:none} .in-pane #cmdBtn{padding:0 10px} .in-pane .brand{gap:6px}

@@ -609,6 +609,19 @@
   .to-trash{opacity:.55 !important;filter:saturate(.4);outline:2px dashed var(--red);outline-offset:3px}
   .dt-fly{will-change:transform,opacity}
   @media (prefers-reduced-motion: reduce){ .dt-ball,.dt-tip,.dt-lid{transition:none !important} .drop-trash.hot .dt-ring,.drop-trash.eat .dt-ball{animation:none} }
+  /* две среды рядом */
+  .split-w{display:flex;flex-direction:column;padding:0;overflow:hidden;width:min(760px,calc(100vw - 24px));height:calc(100vh - 80px);border-top:3px solid var(--split-c,var(--red))}
+  .split-w[hidden]{display:none}
+  .split-h{display:flex;align-items:center;gap:6px;padding:6px 8px 6px 12px;border-bottom:1px solid var(--line);cursor:grab;flex:none}
+  .split-h h2{margin:0;font-size:13px;font-weight:600;color:var(--ink-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .split-h .sp{flex:1}
+  .split-dot{width:8px;height:8px;border-radius:50%;background:var(--split-c,var(--red));flex:none}
+  .split-frame{flex:1;width:100%;border:0;background:var(--bg);display:block}
+  body.snap-dragging .split-frame{pointer-events:none}
+  #splitBtn.on{color:var(--red);border-color:var(--red)}
+  /* внутри второй среды — компактная шапка */
+  .in-pane .brand b,.in-pane #shareBtn,.in-pane #splitBtn{display:none}
+  .in-pane #cmdBtn .t,.in-pane #cmdKb,.in-pane .brand .logo + b{display:none} .in-pane #cmdBtn{padding:0 10px} .in-pane .brand{gap:6px}
 
   /* ---------- заметки ---------- */
   .note{position:absolute;width:max-content;min-width:140px;max-width:360px;min-height:22px;padding:10px 12px;border-radius:10px;
@@ -1382,6 +1395,7 @@
         </button>
         <button class="cl-more" type="button" id="claudeMore" aria-label="Выбор ИИ и настройки подключения" aria-haspopup="dialog" title="Ключ API и модель"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
       </div>
+      <button class="btn gear-btn" type="button" id="splitBtn" aria-label="Две среды рядом" aria-haspopup="menu" aria-pressed="false" title="Две среды рядом: открыть ещё одно пространство справа"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M12 4v16"/></svg></button>
       <button class="btn gear-btn" type="button" id="setBtn" aria-label="Настройки" aria-haspopup="dialog" title="Настройки: тема, цвета, панель инструментов, доска"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.34 1.87l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.7 1.7 0 00-1.87-.34 1.7 1.7 0 00-1 1.55V21a2 2 0 11-4 0v-.09a1.7 1.7 0 00-1.1-1.55 1.7 1.7 0 00-1.87.34l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.7 1.7 0 00.34-1.87 1.7 1.7 0 00-1.55-1H3a2 2 0 110-4h.09a1.7 1.7 0 001.55-1.1 1.7 1.7 0 00-.34-1.87l-.06-.06a2 2 0 112.83-2.83l.06.06a1.7 1.7 0 001.87.34H9a1.7 1.7 0 001-1.55V3a2 2 0 114 0v.09a1.7 1.7 0 001 1.55 1.7 1.7 0 001.87-.34l.06-.06a2 2 0 112.83 2.83l-.06.06a1.7 1.7 0 00-.34 1.87V9a1.7 1.7 0 001.55 1H21a2 2 0 110 4h-.09a1.7 1.7 0 00-1.55 1z"/></svg></button>
       <button class="btn cmdk-btn" type="button" id="cmdBtn" aria-label="Поиск и команды"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg><span class="t">Поиск и команды</span><kbd id="cmdKb">Ctrl K</kbd></button>
       <button class="btn" type="button" id="shareBtn" aria-haspopup="menu" aria-expanded="false">Поделиться</button>
@@ -2359,6 +2373,9 @@ public class MovingAverage : IBlock
   // Адаптер — объект с методами:
   //   get(key) → строка или null;  set(key, строка) → true/false;  remove(key);
   //   keys(prefix) → массив ключей;  watch(fn) — fn(key, новаяСтрока) при изменении извне (другая вкладка, сервер).
+  // вторая среда рядом: этот же Triosteum, открытый в окне главного (index.html?pane=<id пространства>)
+  var PANE = (function(){ try { var m = /[?&]pane=([^&#]+)/.exec(location.search); return m && window.parent !== window ? decodeURIComponent(m[1]) : null; } catch(e){ return null; } })();
+  if(PANE) document.documentElement.classList.add('in-pane');
   var localAdapter = {
     name:'local',
     get:function(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } },
@@ -2456,6 +2473,8 @@ public class MovingAverage : IBlock
     pref:function(name, d){ return Store.get(KEY + name, d); },
     setPref:function(name, v){ Store.set(KEY + name, v); }
   };
+  // во второй среде своё «текущее пространство» живёт только в памяти: главное окно после перезагрузки откроет своё
+  if(PANE){ var _saveList = Repo.saveSpaceList; Repo.saveSpaceList = function(v){ var st = Store.get(KEY + 'projects', null), cp = JSON.parse(JSON.stringify(v)); if(st && st.cur) cp.cur = st.cur; _saveList(cp); }; }
   // короткие имена для настроек; полный ключ — 'triosteum.<имя>'
   function load(k, d){ return Store.get(k, d); }
   function save(k, v){ Store.set(k, v); }
@@ -2478,7 +2497,7 @@ public class MovingAverage : IBlock
      её половину; в угол — четверть. Доска (и любая среда) ужимается в оставшуюся часть.
      Границу между окном и средой можно тянуть; потянуть окно за заголовок — оно отлипнет. */
   var SNAP_SIDES = ['l', 'r', 't', 'b', 'tl', 'tr', 'bl', 'br'];
-  var SNAP_WINS = [], SNAP_R = (function(){ var r = load('triosteum.snapR', null) || {}, o = {}; ['l', 'r', 't', 'b'].forEach(function(k){ var v = Number(r[k]); o[k] = isFinite(v) && v >= 0.15 && v <= 0.85 ? v : 0.5; }); return o; })();
+  var SNAP_WINS = [], SNAP_R = (function(){ var r = load(PANE ? 'triosteum.pane.snapR' : 'triosteum.snapR', null) || {}, o = {}; ['l', 'r', 't', 'b'].forEach(function(k){ var v = Number(r[k]); o[k] = isFinite(v) && v >= 0.15 && v <= 0.85 ? v : 0.5; }); return o; })();
   var snapRow = null, snapGhost = null, snapSplits = {}, snapBusy = false, snapSlots = [];
   function snapOn(){ return window.innerWidth > 640; }
   function snapArea(){
@@ -2547,13 +2566,13 @@ public class MovingAverage : IBlock
       SNAP_R[s] = Math.max(0.15, Math.min(0.85, v));
       if(!raf) raf = requestAnimationFrame(function(){ raf = 0; snapNotify(); });
     });
-    function end(){ if(!on) return; on = false; d.classList.remove('drag'); document.body.classList.remove('snap-resizing'); save('triosteum.snapR', SNAP_R); snapNotify(); }
+    function end(){ if(!on) return; on = false; d.classList.remove('drag'); document.body.classList.remove('snap-resizing'); save(PANE ? 'triosteum.pane.snapR' : 'triosteum.snapR', SNAP_R); snapNotify(); }
     d.addEventListener('pointerup', end); d.addEventListener('pointercancel', end);
-    d.addEventListener('dblclick', function(){ SNAP_R[s] = 0.5; save('triosteum.snapR', SNAP_R); snapNotify(); });
+    d.addEventListener('dblclick', function(){ SNAP_R[s] = 0.5; save(PANE ? 'triosteum.pane.snapR' : 'triosteum.snapR', SNAP_R); snapNotify(); });
     d.addEventListener('keydown', function(e){
       var grow = { l:'ArrowRight', r:'ArrowLeft', t:'ArrowDown', b:'ArrowUp' }[s], shrink = { l:'ArrowLeft', r:'ArrowRight', t:'ArrowUp', b:'ArrowDown' }[s];
       if(e.key !== grow && e.key !== shrink) return; e.preventDefault();
-      SNAP_R[s] = Math.max(0.15, Math.min(0.85, SNAP_R[s] + (e.key === grow ? 0.05 : -0.05))); save('triosteum.snapR', SNAP_R); snapNotify();
+      SNAP_R[s] = Math.max(0.15, Math.min(0.85, SNAP_R[s] + (e.key === grow ? 0.05 : -0.05))); save(PANE ? 'triosteum.pane.snapR' : 'triosteum.snapR', SNAP_R); snapNotify();
     });
     document.body.appendChild(d); return d;
   }
@@ -2584,8 +2603,8 @@ public class MovingAverage : IBlock
   window.addEventListener('resize', function(){ if(!snapBusy) snapLayout(); });
 
   function makeWindow(win, handleSel, key, mode, onReset){
-    var geo = cleanGeo(load('triosteum.win.' + key, null)), mv = null, rz = false, handleAt = 0, rz0 = null;
-    function persist(){ save('triosteum.win.' + key, geo); }
+    var wkey = (PANE ? 'triosteum.pane.win.' : 'triosteum.win.') + key, geo = cleanGeo(load(wkey, null)), mv = null, rz = false, handleAt = 0, rz0 = null;
+    function persist(){ save(wkey, geo); }
     var W = {
       win:win, trySnap:null,
       snap:function(){ return W.trySnap || (mode === 'fixed' && geo && geo.snap) || null; },
@@ -2682,7 +2701,7 @@ public class MovingAverage : IBlock
         var c = snapCol(geo.snap), A = snapArea();
         if(c === 'l' || c === 'r'){ if(Math.abs(win.offsetWidth - rz0.w) > 2) SNAP_R[c] = Math.max(0.15, Math.min(0.85, (win.offsetWidth + 8) / A.width)); }
         else if(Math.abs(win.offsetHeight - rz0.h) > 2) SNAP_R[c] = Math.max(0.15, Math.min(0.85, (win.offsetHeight + 8) / A.height));
-        save('triosteum.snapR', SNAP_R); snapNotify(); return;
+        save(PANE ? 'triosteum.pane.snapR' : 'triosteum.snapR', SNAP_R); snapNotify(); return;
       }
       geo = geo || {}; geo.w = win.offsetWidth; geo.h = win.offsetHeight;
       if(mode === 'fixed' && geo.l === undefined){ var r = win.getBoundingClientRect(); geo.l = r.left; geo.t = r.top; }
@@ -9683,6 +9702,7 @@ var Wobble=function(t){"use strict";var i=Object.assign||function(t){for(var i,e
   // ---------- пространства ----------
   var PROJ = Repo.spaceList();
   if(!PROJ || !PROJ.list || !PROJ.list.length){ PROJ = { cur:'p1', list:[{ id:'p1', name:'Новое пространство', t:Date.now() }] }; Repo.saveSpaceList(PROJ); }
+  if(PANE && PROJ.list.some(function(p){ return p.id === PANE; })) PROJ.cur = PANE;
   // каждое пространство хранится под своим ключом: вкладки с разными пространствами не перетирают друг друга
   function curId(){ return PROJ ? PROJ.cur : 'p1'; }
   function gKey(){ return 'triosteum.proj.' + curId(); }   // устарело: используйте Repo.space(curId())
@@ -10036,7 +10056,7 @@ var Wobble=function(t){"use strict";var i=Object.assign||function(t){for(var i,e
     clrBackup = function(label, ids, ui){ backupNow('Перед очисткой: ' + label); return _clr.apply(this, arguments); };
   })();
   // ежедневная копия: через полминуты после запуска, если последней больше суток
-  setTimeout(function(){ if(bkDb() && Date.now() - (load('triosteum.backup.last', 0) || 0) > BK_DAY) backupNow('Ежедневная'); }, 30000);
+  setTimeout(function(){ if(!PANE && bkDb() && Date.now() - (load('triosteum.backup.last', 0) || 0) > BK_DAY) backupNow('Ежедневная'); }, 30000);
   if(window.__tsRestored) setTimeout(function(){ toast('localStorage браузера был очищен — данные возвращены из внутренней копии'); }, 1200);
 
   // ---------- файлы: сохранить / открыть / картинка ----------
@@ -10207,9 +10227,10 @@ var Wobble=function(t){"use strict";var i=Object.assign||function(t){for(var i,e
       { label:'Экспорт картинки (SVG)', icon:'map', act:exportSvg, k:'изображение скачать' },
       { label:'Скопировать схему (JSON)', icon:'copy', act:copyScheme },
       { label:'Горячие клавиши', icon:'keys', act:function(){ showTip($('bKeys'), 6000); }, k:'клавиши сочетания' },
+      PANE ? null : { label:'Две среды рядом', icon:'layout', act:function(){ setTimeout(function(){ splitPick($('splitBtn')); }, 120); }, k:'разделить экран окна рядом сплит две среды' },
       { label:'Тур по Triosteum', icon:'map', act:function(){ setTimeout(tourStart, 120); }, k:'обучение помощь подсказки знакомство' }
     ]);
-    return C.map(function(c){ c.group = 'Команды'; return c; });
+    return C.filter(Boolean).map(function(c){ c.group = 'Команды'; return c; });
   }
   function cmdAll(q){
     var rows = [];
@@ -18013,6 +18034,112 @@ var Wobble=function(t){"use strict";var i=Object.assign||function(t){for(var i,e
     }, 60);
   };
 
+  /* ---------- две среды рядом ----------
+     Вторая среда — это ещё один живой Triosteum в окне справа (index.html?pane=<пространство>).
+     Окно прилипает к любому краю как обычное, граница тянется; правки в обеих средах сохраняются
+     в одно хранилище, как в двух вкладках. Кнопка в шапке окна меняет среды местами. */
+  var SPLIT = { win:null, frame:null, api:null, id:null, title:null };
+  function splitSpaces(){ return PROJ.list.filter(function(p){ return p.id !== PROJ.cur && p.id !== SPLIT.id; }).sort(function(a, b){ return (b.t || 0) - (a.t || 0); }); }
+  function splitPick(anchor){
+    if(PANE) return;
+    var list = splitSpaces(), r = (anchor || $('splitBtn')).getBoundingClientRect();
+    var items = [{ head:'Открыть рядом вторую среду' }];
+    if(!list.length) items.push({ label:'Других пространств пока нет — создайте ещё одно', disabled:true });
+    // по средам: сначала другие среды — ради них обычно и делят экран
+    var cur = ENV.id, sorted = list.filter(function(p){ return (p.env || 'code') !== cur; }).concat(list.filter(function(p){ return (p.env || 'code') === cur; }));
+    sorted.slice(0, 14).forEach(function(p){ var e = ENVS[p.env || 'code'] || ENVS.code; items.push({ label:p.name, kb:e.name, swatch:e.color, act:function(){ splitOpen(p.id); } }); });
+    if(SPLIT.id) items.push({ sep:true }, { label:'Закрыть вторую среду', icon:'x', act:splitClose });
+    openMenuAt(items, r.left, r.bottom + 6, anchor || $('splitBtn'));
+  }
+  function splitUrl(id){ return location.pathname + '?pane=' + encodeURIComponent(id); }
+  function splitBuild(){
+    if(SPLIT.win) return;
+    var w = h('div', { 'class':'pers split-w', id:'splitW', role:'region', 'aria-label':'Вторая среда', hidden:'hidden' });
+    var hd = h('div', { 'class':'pers-h split-h' });
+    SPLIT.title = h('h2', { text:'Вторая среда' });
+    hd.appendChild(h('span', { 'class':'split-dot', 'aria-hidden':'true' }));
+    hd.appendChild(SPLIT.title);
+    hd.appendChild(h('span', { 'class':'sp' }));
+    hd.appendChild(h('button', { type:'button', 'class':'icon-btn', title:'Поменять среды местами', 'aria-label':'Поменять среды местами', html:'<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 7h13l-4-4M17 17H4l4 4"/></svg>', on:{ click:splitSwap } }));
+    hd.appendChild(h('button', { type:'button', 'class':'icon-btn', title:'Другое пространство', 'aria-label':'Открыть рядом другое пространство', html:'<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>', on:{ click:function(e){ splitPick(e.currentTarget); } } }));
+    hd.appendChild(h('button', { type:'button', 'class':'icon-btn', title:'Открыть в отдельной вкладке', 'aria-label':'Открыть вторую среду в отдельной вкладке', html:'<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5"/></svg>', on:{ click:splitTab } }));
+    hd.appendChild(h('button', { type:'button', 'class':'icon-btn', title:'Закрыть вторую среду', 'aria-label':'Закрыть', html:'<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>', on:{ click:splitClose } }));
+    w.appendChild(hd);
+    SPLIT.frame = h('iframe', { 'class':'split-frame', title:'Вторая среда Triosteum' });
+    w.appendChild(SPLIT.frame);
+    document.body.appendChild(w);
+    SPLIT.win = w;
+    SPLIT.api = makeWindow(w, '.split-h', 'split', 'fixed', function(){ SPLIT.api.snap('r'); });
+  }
+  function splitOpen(id){
+    if(PANE || !id) return;
+    splitBuild();
+    var p = PROJ.list.filter(function(x){ return x.id === id; })[0]; if(!p) return;
+    stashCur();
+    SPLIT.id = id;
+    splitTitle(p);
+    var url = splitUrl(id);
+    if(SPLIT.frame.getAttribute('src') !== url) SPLIT.frame.setAttribute('src', url);
+    var first = SPLIT.win.hidden;
+    SPLIT.win.hidden = false;
+    // впервые — сразу половина справа; дальше окно помнит своё место
+    if(first && !SPLIT.api.pinned()) SPLIT.api.snap('r'); else SPLIT.api.apply();
+    Repo.setPref('split', { id:id });
+    $('splitBtn').classList.add('on'); $('splitBtn').setAttribute('aria-pressed', 'true');
+  }
+  function splitTitle(p){ var e = ENVS[p.env || 'code'] || ENVS.code; SPLIT.title.textContent = p.name + ' · ' + e.name; SPLIT.win.style.setProperty('--split-c', e.color || 'var(--red)'); }
+  function splitClose(){
+    if(!SPLIT.win || SPLIT.win.hidden) return;
+    splitAsk('stash', function(){
+      SPLIT.win.hidden = true; SPLIT.id = null;
+      SPLIT.frame.setAttribute('src', 'about:blank');
+      Repo.setPref('split', null);
+      $('splitBtn').classList.remove('on'); $('splitBtn').setAttribute('aria-pressed', 'false');
+    });
+  }
+  function splitTab(){ if(!SPLIT.id) return; var id = SPLIT.id; splitAsk('stash', function(){ window.open(location.pathname + '?space=' + encodeURIComponent(id), '_blank', 'noopener'); }); }
+  // попросить вторую среду сохраниться (ответит «готово»); не ответила за полсекунды — идём дальше
+  function splitAsk(what, cb){
+    var done = false, t = setTimeout(fin, 500);
+    function fin(){ if(done) return; done = true; clearTimeout(t); window.removeEventListener('message', on); cb(); }
+    function on(e){ if(e.source === (SPLIT.frame && SPLIT.frame.contentWindow) && e.data && e.data.ts === what + ':ok') fin(); }
+    window.addEventListener('message', on);
+    try { SPLIT.frame.contentWindow.postMessage({ ts:what }, '*'); } catch(e){ fin(); }
+  }
+  function splitSwap(){
+    if(!SPLIT.id) return;
+    var mine = PROJ.cur, theirs = SPLIT.id;
+    splitAsk('stash', function(){
+      switchProj(theirs);
+      SPLIT.id = mine; splitTitle(PROJ.list.filter(function(x){ return x.id === mine; })[0] || curProj());
+      SPLIT.frame.setAttribute('src', splitUrl(mine));
+      Repo.setPref('split', { id:mine });
+      toast('Среды поменялись местами');
+    });
+  }
+  // сообщения от второй среды: открыла другое пространство — обновляем заголовок
+  window.addEventListener('message', function(e){
+    if(!SPLIT.frame || e.source !== SPLIT.frame.contentWindow || !e.data) return;
+    if(e.data.ts === 'pane:space' && e.data.id){ SPLIT.id = e.data.id; var p = PROJ.list.filter(function(x){ return x.id === e.data.id; })[0]; if(p) splitTitle(p); Repo.setPref('split', { id:e.data.id }); }
+  });
+  /* ---------- сторона второй среды (внутри окна) ---------- */
+  if(PANE){
+    window.addEventListener('message', function(e){
+      if(e.source !== window.parent || !e.data) return;
+      if(e.data.ts === 'stash'){ try { stashCur(); } catch(x){} e.source.postMessage({ ts:'stash:ok' }, '*'); }
+    });
+    // открыли другое пространство во второй среде — сообщаем главному окну
+    var _show = showProjName, paneSent = PANE;
+    showProjName = function(){ _show.apply(this, arguments); try { var p = curProj(); if(p.id !== paneSent){ paneSent = p.id; window.parent.postMessage({ ts:'pane:space', id:p.id }, '*'); } } catch(x){} };
+  }
+  // ?space=<id> — открыть пространство сразу (кнопка «в отдельной вкладке»)
+  (function(){ if(PANE) return; var m = /[?&]space=([^&#]+)/.exec(location.search); if(m){ var id = decodeURIComponent(m[1]); if(id !== PROJ.cur && PROJ.list.some(function(p){ return p.id === id; })) setTimeout(function(){ switchProj(id); }, 0); } })();
+  if(!PANE){
+    $('splitBtn').addEventListener('click', function(e){ e.stopPropagation(); splitPick(e.currentTarget); });
+    // после перезагрузки вторая среда открывается снова
+    (function(){ var s = Repo.pref('split', null); if(s && s.id && s.id !== PROJ.cur && PROJ.list.some(function(p){ return p.id === s.id; })) setTimeout(function(){ splitOpen(s.id); }, 300); })();
+  }
+
   /* ---------- тур для новичка ----------
      Сразу после первого входа (после выбора среды) — несколько шагов с подсветкой главных мест.
      Повторить: Ctrl+K → «Тур по Triosteum». Esc — закрыть, ← → или Enter — листать. */
@@ -18102,7 +18229,7 @@ var Wobble=function(t){"use strict";var i=Object.assign||function(t){for(var i,e
   }
   // первый вход: тур начинается, когда закрыт выбор среды и открыта доска
   function tourMaybe(){
-    if(SERVER || TOUR) return;
+    if(SERVER || TOUR || PANE) return;
     var t = Repo.pref('tour', null); if(t && t.done) return;
     if(!Repo.pref('tourPending', false)) return;
     if($('welcome') || !$('eco').hidden || S.view !== 'canvas' || (typeof officeOn === 'function' && officeOn())) return;
@@ -18127,11 +18254,11 @@ var Wobble=function(t){"use strict";var i=Object.assign||function(t){for(var i,e
   render();
   ofLoad();
   // первый вход в облако: в этом браузере остались пространства — предложим перенести
-  if(SERVER && SERVER.localCount() && !Repo.pref('imported', false)){
+  if(SERVER && !PANE && SERVER.localCount() && !Repo.pref('imported', false)){
     setTimeout(function(){ toastAct('В этом браузере есть пространства (' + SERVER.localCount() + '). Перенести их в облако?', 'Перенести', function(){ Repo.setPref('imported', true); importLocal(); }); }, 1200);
   }
   // первый вход без сервера — экран «Добро пожаловать»
-  if(!SERVER && !localProfile()) showWelcome(false);
+  if(!SERVER && !PANE && !localProfile()) showWelcome(false);
   // совместная работа: подключаемся к комнате текущего пространства
   if(SERVER) liveConnect();
 

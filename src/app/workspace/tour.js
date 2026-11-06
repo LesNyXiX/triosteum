@@ -87,7 +87,7 @@
   }
   // первый вход: тур начинается, когда закрыт выбор среды и открыта доска
   function tourMaybe(){
-    if(SERVER || TOUR) return;
+    if(SERVER || TOUR || PANE) return;
     var t = Repo.pref('tour', null); if(t && t.done) return;
     if(!Repo.pref('tourPending', false)) return;
     if($('welcome') || !$('eco').hidden || S.view !== 'canvas' || (typeof officeOn === 'function' && officeOn())) return;

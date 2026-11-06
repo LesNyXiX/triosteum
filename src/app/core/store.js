@@ -6,6 +6,9 @@
   // Адаптер — объект с методами:
   //   get(key) → строка или null;  set(key, строка) → true/false;  remove(key);
   //   keys(prefix) → массив ключей;  watch(fn) — fn(key, новаяСтрока) при изменении извне (другая вкладка, сервер).
+  // вторая среда рядом: этот же Triosteum, открытый в окне главного (index.html?pane=<id пространства>)
+  var PANE = (function(){ try { var m = /[?&]pane=([^&#]+)/.exec(location.search); return m && window.parent !== window ? decodeURIComponent(m[1]) : null; } catch(e){ return null; } })();
+  if(PANE) document.documentElement.classList.add('in-pane');
   var localAdapter = {
     name:'local',
     get:function(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } },
@@ -103,6 +106,8 @@
     pref:function(name, d){ return Store.get(KEY + name, d); },
     setPref:function(name, v){ Store.set(KEY + name, v); }
   };
+  // во второй среде своё «текущее пространство» живёт только в памяти: главное окно после перезагрузки откроет своё
+  if(PANE){ var _saveList = Repo.saveSpaceList; Repo.saveSpaceList = function(v){ var st = Store.get(KEY + 'projects', null), cp = JSON.parse(JSON.stringify(v)); if(st && st.cur) cp.cur = st.cur; _saveList(cp); }; }
   // короткие имена для настроек; полный ключ — 'triosteum.<имя>'
   function load(k, d){ return Store.get(k, d); }
   function save(k, v){ Store.set(k, v); }

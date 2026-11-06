@@ -21,7 +21,8 @@
     "test:snap": "node tests/snap-e2e.mjs",
     "test:storage": "node tests/storage-e2e.mjs",
     "test:tour": "node tests/tour-e2e.mjs",
-    "test:trash": "node tests/trash-e2e.mjs"
+    "test:trash": "node tests/trash-e2e.mjs",
+    "test:split": "node tests/split-e2e.mjs"
   },
   "devDependencies": {
     "playwright": "^1.48.0"

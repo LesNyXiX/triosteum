@@ -5,7 +5,12 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 import { readFileSync } from 'node:fs';
 
-const URL = pathToFileURL(join(dirname(fileURLToPath(import.meta.url)), '..', 'docs', 'index.html')).href;
+// по http, как настоящий сайт: на file:// Chromium иногда теряет localStorage при перезагрузке
+import { createServer } from 'node:http';
+const HTML = join(dirname(fileURLToPath(import.meta.url)), '..', 'docs', 'index.html');
+const srv = createServer((q, r) => { if (q.url === '/' || q.url.startsWith('/?')) { r.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); r.end(readFileSync(HTML)); } else { r.writeHead(404); r.end(); } });
+await new Promise((ok) => srv.listen(0, '127.0.0.1', ok));
+const URL = 'http://127.0.0.1:' + srv.address().port + '/';
 const SHOTS = process.env.SHOTS;
 let failed = 0;
 const check = (ok, name) => { console.log((ok ? '  ✓ ' : '  ✗ ') + name); if (!ok) failed++; };
@@ -159,6 +164,6 @@ check(clean === 'нет доступа' || (clean && !/script|onclick|evil/.test
 if (SHOTS) { await page.locator('#otabs .otab.fixed[data-tab="desk"]').click(); await page.waitForTimeout(300); await page.screenshot({ path: SHOTS + '/vdesk.png' }); }
 
 check(errors.length === 0, 'ошибок в консоли нет' + (errors.length ? ': ' + errors.join(' | ') : ''));
-await browser.close();
+await browser.close(); srv.close();
 console.log(failed ? `\nНе прошло: ${failed}` : '\nВсё прошло');
 process.exit(failed ? 1 : 0);

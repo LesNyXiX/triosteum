@@ -16,7 +16,7 @@
      её половину; в угол — четверть. Доска (и любая среда) ужимается в оставшуюся часть.
      Границу между окном и средой можно тянуть; потянуть окно за заголовок — оно отлипнет. */
   var SNAP_SIDES = ['l', 'r', 't', 'b', 'tl', 'tr', 'bl', 'br'];
-  var SNAP_WINS = [], SNAP_R = (function(){ var r = load('triosteum.snapR', null) || {}, o = {}; ['l', 'r', 't', 'b'].forEach(function(k){ var v = Number(r[k]); o[k] = isFinite(v) && v >= 0.15 && v <= 0.85 ? v : 0.5; }); return o; })();
+  var SNAP_WINS = [], SNAP_R = (function(){ var r = load(PANE ? 'triosteum.pane.snapR' : 'triosteum.snapR', null) || {}, o = {}; ['l', 'r', 't', 'b'].forEach(function(k){ var v = Number(r[k]); o[k] = isFinite(v) && v >= 0.15 && v <= 0.85 ? v : 0.5; }); return o; })();
   var snapRow = null, snapGhost = null, snapSplits = {}, snapBusy = false, snapSlots = [];
   function snapOn(){ return window.innerWidth > 640; }
   function snapArea(){
@@ -85,13 +85,13 @@
       SNAP_R[s] = Math.max(0.15, Math.min(0.85, v));
       if(!raf) raf = requestAnimationFrame(function(){ raf = 0; snapNotify(); });
     });
-    function end(){ if(!on) return; on = false; d.classList.remove('drag'); document.body.classList.remove('snap-resizing'); save('triosteum.snapR', SNAP_R); snapNotify(); }
+    function end(){ if(!on) return; on = false; d.classList.remove('drag'); document.body.classList.remove('snap-resizing'); save(PANE ? 'triosteum.pane.snapR' : 'triosteum.snapR', SNAP_R); snapNotify(); }
     d.addEventListener('pointerup', end); d.addEventListener('pointercancel', end);
-    d.addEventListener('dblclick', function(){ SNAP_R[s] = 0.5; save('triosteum.snapR', SNAP_R); snapNotify(); });
+    d.addEventListener('dblclick', function(){ SNAP_R[s] = 0.5; save(PANE ? 'triosteum.pane.snapR' : 'triosteum.snapR', SNAP_R); snapNotify(); });
     d.addEventListener('keydown', function(e){
       var grow = { l:'ArrowRight', r:'ArrowLeft', t:'ArrowDown', b:'ArrowUp' }[s], shrink = { l:'ArrowLeft', r:'ArrowRight', t:'ArrowUp', b:'ArrowDown' }[s];
       if(e.key !== grow && e.key !== shrink) return; e.preventDefault();
-      SNAP_R[s] = Math.max(0.15, Math.min(0.85, SNAP_R[s] + (e.key === grow ? 0.05 : -0.05))); save('triosteum.snapR', SNAP_R); snapNotify();
+      SNAP_R[s] = Math.max(0.15, Math.min(0.85, SNAP_R[s] + (e.key === grow ? 0.05 : -0.05))); save(PANE ? 'triosteum.pane.snapR' : 'triosteum.snapR', SNAP_R); snapNotify();
     });
     document.body.appendChild(d); return d;
   }
@@ -122,8 +122,8 @@
   window.addEventListener('resize', function(){ if(!snapBusy) snapLayout(); });
 
   function makeWindow(win, handleSel, key, mode, onReset){
-    var geo = cleanGeo(load('triosteum.win.' + key, null)), mv = null, rz = false, handleAt = 0, rz0 = null;
-    function persist(){ save('triosteum.win.' + key, geo); }
+    var wkey = (PANE ? 'triosteum.pane.win.' : 'triosteum.win.') + key, geo = cleanGeo(load(wkey, null)), mv = null, rz = false, handleAt = 0, rz0 = null;
+    function persist(){ save(wkey, geo); }
     var W = {
       win:win, trySnap:null,
       snap:function(){ return W.trySnap || (mode === 'fixed' && geo && geo.snap) || null; },
@@ -220,7 +220,7 @@
         var c = snapCol(geo.snap), A = snapArea();
         if(c === 'l' || c === 'r'){ if(Math.abs(win.offsetWidth - rz0.w) > 2) SNAP_R[c] = Math.max(0.15, Math.min(0.85, (win.offsetWidth + 8) / A.width)); }
         else if(Math.abs(win.offsetHeight - rz0.h) > 2) SNAP_R[c] = Math.max(0.15, Math.min(0.85, (win.offsetHeight + 8) / A.height));
-        save('triosteum.snapR', SNAP_R); snapNotify(); return;
+        save(PANE ? 'triosteum.pane.snapR' : 'triosteum.snapR', SNAP_R); snapNotify(); return;
       }
       geo = geo || {}; geo.w = win.offsetWidth; geo.h = win.offsetHeight;
       if(mode === 'fixed' && geo.l === undefined){ var r = win.getBoundingClientRect(); geo.l = r.left; geo.t = r.top; }

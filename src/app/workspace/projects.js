@@ -1,6 +1,7 @@
   // ---------- пространства ----------
   var PROJ = Repo.spaceList();
   if(!PROJ || !PROJ.list || !PROJ.list.length){ PROJ = { cur:'p1', list:[{ id:'p1', name:'Новое пространство', t:Date.now() }] }; Repo.saveSpaceList(PROJ); }
+  if(PANE && PROJ.list.some(function(p){ return p.id === PANE; })) PROJ.cur = PANE;
   // каждое пространство хранится под своим ключом: вкладки с разными пространствами не перетирают друг друга
   function curId(){ return PROJ ? PROJ.cur : 'p1'; }
   function gKey(){ return 'triosteum.proj.' + curId(); }   // устарело: используйте Repo.space(curId())
