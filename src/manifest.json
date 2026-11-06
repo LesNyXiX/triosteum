@@ -16,6 +16,7 @@
   "js": [
     "app/core/langs-plugins.js",
     "app/core/store.js",
+    "app/ui/windows.js",
     "app/core/merge.js",
     "app/core/server-adapter.js",
     "app/core/state.js",
@@ -36,7 +37,6 @@
     "app/vendor/wobble.js",
     "app/ui/jelly.js",
     "app/ui/text-style.js",
-    "app/ui/windows.js",
     "app/ui/context-menu.js",
     "app/ui/personalize.js",
     "app/ui/font-size.js",
