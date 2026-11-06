@@ -459,3 +459,7 @@
   .in-pane .brand b,.in-pane #shareBtn,.in-pane #splitBtn{display:none}
   .in-pane #cmdKb,.in-pane .brand .logo + b{display:none}
   .in-pane #cmdBtn .t{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap} .in-pane #cmdBtn{padding:0 10px} .in-pane .brand{gap:6px}
+  /* скорость на больших досках: каждый блок — отдельная группа отрисовки, кнопкам внутри не нужен свой z-index.
+     Иначе браузер на каждом кадре перетаскивания заново раскладывает по слоям детали всех блоков. */
+  .node{isolation:isolate}
+  .node .xbtn,.node .cbtn{z-index:auto}
