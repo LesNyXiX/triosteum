@@ -165,6 +165,33 @@ await page.click('#persBody .theme-w:has-text("Утро") .theme-ed'); await pag
 await page.click('#themeEdBody button:has-text("Удалить тему")'); await page.waitForTimeout(200);
 check(!/Утро/.test(await page.$eval('#persBody .themes', (x) => x.textContent)), 'свою тему можно удалить');
 
+console.log('Свои горячие клавиши');
+{
+  if (!(await page.isVisible('#pers'))) { await page.click('#setBtn'); await page.waitForTimeout(400); }
+  const libKey = page.locator('.docks-grid .tgl', { hasText: 'Библиотека плагинов' }).locator('.key-set');
+  await libKey.scrollIntoViewIfNeeded(); await libKey.click(); await page.waitForTimeout(100);
+  check(/нажмите/.test(await libKey.textContent()), 'нажали на клавишу — ждёт новую');
+  await page.keyboard.press('k'); await page.waitForTimeout(300);
+  check((await page.locator('.docks-grid .tgl', { hasText: 'Библиотека плагинов' }).locator('.key-set').textContent()).trim() === 'K', 'библиотеке задали K');
+  const bldKey = page.locator('.docks-grid .tgl', { hasText: 'Конструктор' }).locator('.key-set');
+  await bldKey.click(); await page.keyboard.press('v'); await page.waitForTimeout(300);
+  check((await page.locator('.docks-grid .tgl', { hasText: 'Выбор и перемещение' }).locator('.key-set').textContent()).trim() === '—', 'отдали V конструктору — у «Выбора» клавиша снята');
+  const k3 = page.locator('.docks-grid .tgl', { hasText: 'Сетка доски' }).locator('.key-set');
+  await k3.click(); await page.keyboard.press('Control+z'); await page.waitForTimeout(200);
+  check(/нажмите/.test(await k3.textContent()), 'занятое Ctrl+Z не принимается — ждёт другую');
+  await page.keyboard.press('Escape'); await page.waitForTimeout(200);
+  await page.click('#pers button[aria-label="Закрыть"]'); await page.waitForTimeout(400);
+  await page.mouse.click(row.x + row.width / 2, row.y + row.height / 2); await page.keyboard.press('Escape');
+  await page.keyboard.press('k'); await page.waitForTimeout(500);
+  check(await page.isVisible('#lib'), 'K на доске открывает библиотеку');
+  await page.keyboard.press('Escape'); await page.waitForTimeout(400);
+  check(/K/.test(await page.getAttribute('#bLib', 'data-key')), 'клавиша видна в подсказке кнопки');
+  await page.click('#setBtn'); await page.waitForTimeout(400);
+  const rs = page.locator('button', { hasText: 'Вернуть клавиши по умолчанию' }); await rs.scrollIntoViewIfNeeded(); await rs.click(); await page.waitForTimeout(300);
+  check((await page.locator('.docks-grid .tgl', { hasText: 'Библиотека плагинов' }).locator('.key-set').textContent()).trim() === 'L', 'сброс — снова L');
+  await page.click('#pers button[aria-label="Закрыть"]'); await page.waitForTimeout(300);
+}
+
 console.log('Ошибки');
 check(errors.length === 0, 'ошибок в консоли нет' + (errors.length ? ': ' + errors.join(' | ') : ''));
 await browser.close();

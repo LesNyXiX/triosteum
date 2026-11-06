@@ -558,6 +558,11 @@
   .bk-t b{font-size:13px;color:var(--ink-strong);font-weight:600}
   .bk-t small{font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .bk-empty{margin:4px 0;font-size:12.5px;color:var(--muted)}
+  .tgl-key.key-set{cursor:pointer;font-family:var(--mono,monospace)}
+  .tgl-key.key-set:hover{border-color:var(--red);color:var(--ink)}
+  .tgl-key.key-set.none{opacity:.6}
+  .tgl-key.key-set.wait{border-color:var(--red);color:var(--ink);background:color-mix(in srgb,var(--red) 14%,var(--bg));font-family:inherit;animation:keyWait 1s ease-in-out infinite}
+  @keyframes keyWait{50%{box-shadow:0 0 0 3px color-mix(in srgb,var(--red) 25%,transparent)}}
 
   /* ---------- заметки ---------- */
   .note{position:absolute;width:max-content;min-width:140px;max-width:360px;min-height:22px;padding:10px 12px;border-radius:10px;
@@ -5827,7 +5832,9 @@ var Wobble=function(t){"use strict";var i=Object.assign||function(t){for(var i,e
       var tools = UI.tools || {}, on = tools[t.id] === undefined ? !!t.core : !!tools[t.id];
       var btn = t.btn ? $(t.btn) : document.querySelector(t.sel), key = btn && btn._dk;
       var row = toggleRow(t.name, on, function(v){ UI.tools = UI.tools || {}; UI.tools[t.id] = v; applyTheme(); renderPers(); });
-      if(btn && btn.dataset.key){ row.firstChild.appendChild(h('kbd', { 'class':'tgl-key', text:btn.dataset.key, title:'Горячая клавиша' })); }
+      var tk = btn && typeof toolKeyFor === 'function' ? toolKeyFor(t.btn ? '#' + t.btn : t.sel) : null;
+      if(tk && !tk.shown) row.firstChild.appendChild(keyCatcher(tk, t.name));
+      else if(btn && btn.dataset.key) row.firstChild.appendChild(h('kbd', { 'class':'tgl-key', text:btn.dataset.key, title:'Стандартное сочетание' }));
       if(key){
         var sel = h('select', { 'class':'dock-sel', 'aria-label':'Где кнопка «' + t.name + '»', on:{ change:function(){ dockSet(key, sel.value); } } });
         Object.keys(DOCK_SIDES).forEach(function(s){ var o = h('option', { value:s, text:DOCK_SIDES[s] }); if(dockSideOf(btn) === s) o.selected = true; sel.appendChild(o); });
@@ -5840,8 +5847,9 @@ var Wobble=function(t){"use strict";var i=Object.assign||function(t){for(var i,e
       }
       tgrid.appendChild(row);
     });
-    b.appendChild(section('Кнопки панелей инструментов — включите, выберите край и место стрелками (или просто перетащите кнопку: к любому краю или между другими кнопками)', h('div', null, [ tgrid,
-      h('button', { type:'button', 'class':'btn sm', style:'margin-top:8px', text:'Вернуть все кнопки на панель слева', on:{ click:function(){ dockReset(); renderPers(); } } }) ])));
+    var keysReset = h('button', { type:'button', 'class':'btn sm', style:'margin-top:8px;margin-left:6px', text:'Вернуть клавиши по умолчанию', on:{ click:function(){ toolKeysReset(); renderPers(); toast('Горячие клавиши — как по умолчанию'); } } });
+    b.appendChild(section('Кнопки панелей инструментов — включите, выберите край и место стрелками (или просто перетащите кнопку к любому краю). Нажмите на клавишу рядом с названием, чтобы задать свою', h('div', null, [ tgrid,
+      h('button', { type:'button', 'class':'btn sm', style:'margin-top:8px', text:'Вернуть все кнопки на панель слева', on:{ click:function(){ dockReset(); renderPers(); } } }), keysReset ])));
     var txt = h('div', null, [
       fsRow('Окна и меню', fsControl(UI.scale, 80, 160, function(v){ UI.scale = v; applyUI(); }, 'масштаб окон', '%')),
       fsRow('Редактор кода', fsControl(UI.code, 10, 28, function(v){ UI.code = v; applyUI(); updateGutter(); }, 'шрифт кода')),
@@ -5883,6 +5891,33 @@ var Wobble=function(t){"use strict";var i=Object.assign||function(t){for(var i,e
   var setWasOpen = false;
   $('setBtn').addEventListener('pointerdown', function(){ setWasOpen = !$('pers').hidden; });
   $('setBtn').addEventListener('click', function(e){ var open = e.detail ? setWasOpen : !$('pers').hidden; if(open) $('pers').hidden = true; else openPers(); $('setBtn').setAttribute('aria-expanded', $('pers').hidden ? 'false' : 'true'); });
+
+  // клавиша кнопки в Персонализации: нажать — затем нажать новую клавишу (Esc — отмена, Backspace — без клавиши)
+  function keyCatcher(tk, name){
+    var b = h('button', { type:'button', 'class':'tgl-key key-set' + (tk.label ? '' : ' none'), text:tk.label || '—', title:'Горячая клавиша — нажмите, чтобы задать свою', 'aria-label':'Клавиша для «' + name + '»: ' + (tk.label || 'нет') + '. Нажмите, чтобы изменить' });
+    b.addEventListener('click', function(e){
+      e.preventDefault(); e.stopPropagation();
+      if(b.classList.contains('wait')) return;
+      b.classList.add('wait'); b.textContent = 'нажмите клавишу…';
+      function done(){ document.removeEventListener('keydown', on, true); document.removeEventListener('pointerdown', off, true); b.classList.remove('wait'); }
+      function off(ev){ if(ev.target === b) return; done(); b.textContent = tk.label || '—'; }
+      function on(ev){
+        if(/^(Shift|Control|Alt|Meta)/.test(ev.code)) return;
+        ev.preventDefault(); ev.stopPropagation();
+        if(ev.key === 'Escape'){ done(); b.textContent = tk.label || '—'; return; }
+        if(ev.code === 'Backspace' || ev.code === 'Delete'){ done(); toolKeySet(tk.sel, null); toast('«' + name + '» — без клавиши'); renderPers(); return; }
+        var c = { code:ev.code, shift:ev.shiftKey, mod:ev.ctrlKey || ev.metaKey };
+        if(ev.altKey){ toast('Alt не используется — браузер занимает его сочетания'); return; }
+        var bad = keyFree(c); if(bad){ toast(bad); return; }
+        done();
+        var taken = toolKeySet(tk.sel, c);
+        toast('«' + name + '» — ' + keyLabel(c) + (taken ? '. У «' + taken.name + '» клавиша снята' : ''));
+        renderPers();
+      }
+      document.addEventListener('keydown', on, true); document.addEventListener('pointerdown', off, true);
+    });
+    return b;
+  }
 
   /* ---------- размер шрифта, как в Word ---------- */
   var FS_PRESETS = [8, 9, 10, 10.5, 11, 12, 13, 14, 16, 18, 20, 22, 24, 26, 28, 32, 36, 40, 48, 56, 64, 72];
@@ -6408,7 +6443,45 @@ var Wobble=function(t){"use strict";var i=Object.assign||function(t){for(var i,e
     { sel:'#bPers', mod:true, code:'Comma', label:IS_MAC ? '⌘,' : 'Ctrl+,', name:'персонализация' },
     { sel:'#bKeys', code:'Slash', shift:true, label:'?', name:'горячие клавиши' }
   ];
-  TOOL_KEYS.forEach(function(k){ var b = document.querySelector(k.sel); if(b){ b.dataset.key = k.label; k.btn = b; } });
+  /* свои клавиши: Персонализация → нажать на клавишу у кнопки. Хранятся в UI.keys: { sel:{code,shift,mod} | null } */
+  TOOL_KEYS.forEach(function(k){ k.def = { code:k.code, shift:!!k.shift, mod:!!k.mod, label:k.label }; var b = document.querySelector(k.sel); if(b) k.btn = b; });
+  var KEY_NAMES = { Comma:',', Period:'.', Slash:'/', Semicolon:';', Quote:"'", BracketLeft:'[', BracketRight:']', Backslash:'\\', Minus:'-', Equal:'=', Backquote:'`', Space:'Пробел' };
+  function keyLabel(c){
+    if(!c || !c.code) return '';
+    var base = /^Key[A-Z]$/.test(c.code) ? c.code.slice(3) : /^Digit\d$/.test(c.code) ? c.code.slice(5) : /^F\d+$/.test(c.code) ? c.code : KEY_NAMES[c.code] || c.code;
+    if(c.code === 'Slash' && c.shift && !c.mod) return '?';
+    return (c.mod ? MOD : '') + (c.shift ? (IS_MAC ? '⇧' : 'Shift+') : '') + base;
+  }
+  // сочетания, которые уже заняты самой доской и браузером, — их кнопкам не отдаём
+  var KEY_RESERVED = ['KeyA', 'KeyC', 'KeyV', 'KeyX', 'KeyZ', 'KeyY', 'KeyR', 'KeyK', 'KeyS', 'KeyO', 'KeyD', 'KeyP', 'KeyF', 'KeyW', 'KeyT', 'KeyN', 'KeyL', 'KeyQ', 'Tab'];
+  function keyFree(c){
+    if(!c || !c.code) return 'Нажмите букву, цифру или знак';
+    if(/^(Escape|Enter|Backspace|Delete|Tab|Space|Arrow|Shift|Control|Alt|Meta|CapsLock|Context)/.test(c.code)) return 'Эта клавиша уже работает на доске — выберите другую';
+    if(c.mod && KEY_RESERVED.indexOf(c.code) >= 0) return keyLabel(c) + ' уже занято (копирование, отмена, поиск и т. п.)';
+    return '';
+  }
+  function toolKeysApply(){
+    var over = (UI && UI.keys) || {};
+    TOOL_KEYS.forEach(function(k){
+      if(k.shown) return;
+      var o = Object.prototype.hasOwnProperty.call(over, k.sel) ? over[k.sel] : undefined, c = o === undefined ? k.def : o;
+      if(c){ k.code = c.code; k.shift = !!c.shift; k.mod = !!c.mod; k.label = keyLabel(c) || k.def.label; } else { k.code = null; k.label = ''; }
+    });
+    TOOL_KEYS.forEach(function(k){ if(k.btn){ if(k.label) k.btn.dataset.key = k.label; else delete k.btn.dataset.key; } });
+    var kb = $('bKeys'); if(kb && typeof KEYS_TEXT !== 'undefined'){ KEYS_TEXT = keysText(); kb.setAttribute('data-tip', 'Горячие клавиши|' + KEYS_TEXT); }
+  }
+  // задать клавишу кнопке sel; c = {code,shift,mod} или null (без клавиши). Тот, у кого она была, остаётся без неё.
+  function toolKeySet(sel, c){
+    UI.keys = UI.keys || {};
+    var taken = null;
+    if(c) TOOL_KEYS.forEach(function(k){ if(k.sel !== sel && k.code === c.code && !!k.shift === !!c.shift && !!k.mod === !!c.mod) taken = k; });
+    if(taken){ UI.keys[taken.sel] = null; }
+    UI.keys[sel] = c;
+    save('triosteum.ui', UI); toolKeysApply();
+    return taken;
+  }
+  function toolKeysReset(){ delete UI.keys; save('triosteum.ui', UI); toolKeysApply(); }
+  function toolKeyFor(sel){ var k = TOOL_KEYS.filter(function(x){ return x.sel === sel; })[0]; return k || null; }
   function toolKeyOf(btn){ return btn && btn.dataset ? btn.dataset.key || '' : ''; }
   document.addEventListener('keydown', function(e){
     if(e.defaultPrevented || e.repeat || e.altKey) return;
@@ -6429,8 +6502,8 @@ var Wobble=function(t){"use strict";var i=Object.assign||function(t){for(var i,e
     if(k.btn.id === 'bKeys'){ showTip(k.btn, 8000); return; }
     k.btn.click();
   });
-  var KEYS_TEXT = [
-    'Кнопки инструментов: ' + TOOL_KEYS.filter(function(k){ return !k.shown; }).map(function(k){ return k.label + ' — ' + k.name; }).join(', '),
+  function keysText(){ return [
+    'Кнопки инструментов: ' + TOOL_KEYS.filter(function(k){ return !k.shown && k.label; }).map(function(k){ return k.label + ' — ' + k.name; }).join(', ') + ' (свои — в Персонализации)',
     MOD + 'A — выделить всё',
     MOD + 'C / ' + MOD + 'V — копировать / вставить (между любыми пространствами и средами; картинки, текст и код из системного буфера)',
     MOD + 'Z — отменить',
@@ -6446,8 +6519,9 @@ var Wobble=function(t){"use strict";var i=Object.assign||function(t){for(var i,e
     'Стрелки — сдвинуть (Shift — на 10)',
     'Delete / Backspace — удалить',
     'Esc — закрыть окно или снять выделение'
-  ].join('\n');
-  $('bKeys').setAttribute('data-tip', 'Горячие клавиши|' + KEYS_TEXT);
+  ].join('\n'); }
+  var KEYS_TEXT = keysText();
+  toolKeysApply();
   $('bKeys').addEventListener('click', function(){ showTip($('bKeys'), 5000); });
   // Esc закрывает верхнее открытое окно (библиотеку, экосистему, ИИ, шаблоны и т. п.) его же кнопкой «Закрыть»
   document.addEventListener('keydown', function(e){

@@ -137,7 +137,9 @@
       var tools = UI.tools || {}, on = tools[t.id] === undefined ? !!t.core : !!tools[t.id];
       var btn = t.btn ? $(t.btn) : document.querySelector(t.sel), key = btn && btn._dk;
       var row = toggleRow(t.name, on, function(v){ UI.tools = UI.tools || {}; UI.tools[t.id] = v; applyTheme(); renderPers(); });
-      if(btn && btn.dataset.key){ row.firstChild.appendChild(h('kbd', { 'class':'tgl-key', text:btn.dataset.key, title:'Горячая клавиша' })); }
+      var tk = btn && typeof toolKeyFor === 'function' ? toolKeyFor(t.btn ? '#' + t.btn : t.sel) : null;
+      if(tk && !tk.shown) row.firstChild.appendChild(keyCatcher(tk, t.name));
+      else if(btn && btn.dataset.key) row.firstChild.appendChild(h('kbd', { 'class':'tgl-key', text:btn.dataset.key, title:'Стандартное сочетание' }));
       if(key){
         var sel = h('select', { 'class':'dock-sel', 'aria-label':'Где кнопка «' + t.name + '»', on:{ change:function(){ dockSet(key, sel.value); } } });
         Object.keys(DOCK_SIDES).forEach(function(s){ var o = h('option', { value:s, text:DOCK_SIDES[s] }); if(dockSideOf(btn) === s) o.selected = true; sel.appendChild(o); });
@@ -150,8 +152,9 @@
       }
       tgrid.appendChild(row);
     });
-    b.appendChild(section('Кнопки панелей инструментов — включите, выберите край и место стрелками (или просто перетащите кнопку: к любому краю или между другими кнопками)', h('div', null, [ tgrid,
-      h('button', { type:'button', 'class':'btn sm', style:'margin-top:8px', text:'Вернуть все кнопки на панель слева', on:{ click:function(){ dockReset(); renderPers(); } } }) ])));
+    var keysReset = h('button', { type:'button', 'class':'btn sm', style:'margin-top:8px;margin-left:6px', text:'Вернуть клавиши по умолчанию', on:{ click:function(){ toolKeysReset(); renderPers(); toast('Горячие клавиши — как по умолчанию'); } } });
+    b.appendChild(section('Кнопки панелей инструментов — включите, выберите край и место стрелками (или просто перетащите кнопку к любому краю). Нажмите на клавишу рядом с названием, чтобы задать свою', h('div', null, [ tgrid,
+      h('button', { type:'button', 'class':'btn sm', style:'margin-top:8px', text:'Вернуть все кнопки на панель слева', on:{ click:function(){ dockReset(); renderPers(); } } }), keysReset ])));
     var txt = h('div', null, [
       fsRow('Окна и меню', fsControl(UI.scale, 80, 160, function(v){ UI.scale = v; applyUI(); }, 'масштаб окон', '%')),
       fsRow('Редактор кода', fsControl(UI.code, 10, 28, function(v){ UI.code = v; applyUI(); updateGutter(); }, 'шрифт кода')),
@@ -193,3 +196,30 @@
   var setWasOpen = false;
   $('setBtn').addEventListener('pointerdown', function(){ setWasOpen = !$('pers').hidden; });
   $('setBtn').addEventListener('click', function(e){ var open = e.detail ? setWasOpen : !$('pers').hidden; if(open) $('pers').hidden = true; else openPers(); $('setBtn').setAttribute('aria-expanded', $('pers').hidden ? 'false' : 'true'); });
+
+  // клавиша кнопки в Персонализации: нажать — затем нажать новую клавишу (Esc — отмена, Backspace — без клавиши)
+  function keyCatcher(tk, name){
+    var b = h('button', { type:'button', 'class':'tgl-key key-set' + (tk.label ? '' : ' none'), text:tk.label || '—', title:'Горячая клавиша — нажмите, чтобы задать свою', 'aria-label':'Клавиша для «' + name + '»: ' + (tk.label || 'нет') + '. Нажмите, чтобы изменить' });
+    b.addEventListener('click', function(e){
+      e.preventDefault(); e.stopPropagation();
+      if(b.classList.contains('wait')) return;
+      b.classList.add('wait'); b.textContent = 'нажмите клавишу…';
+      function done(){ document.removeEventListener('keydown', on, true); document.removeEventListener('pointerdown', off, true); b.classList.remove('wait'); }
+      function off(ev){ if(ev.target === b) return; done(); b.textContent = tk.label || '—'; }
+      function on(ev){
+        if(/^(Shift|Control|Alt|Meta)/.test(ev.code)) return;
+        ev.preventDefault(); ev.stopPropagation();
+        if(ev.key === 'Escape'){ done(); b.textContent = tk.label || '—'; return; }
+        if(ev.code === 'Backspace' || ev.code === 'Delete'){ done(); toolKeySet(tk.sel, null); toast('«' + name + '» — без клавиши'); renderPers(); return; }
+        var c = { code:ev.code, shift:ev.shiftKey, mod:ev.ctrlKey || ev.metaKey };
+        if(ev.altKey){ toast('Alt не используется — браузер занимает его сочетания'); return; }
+        var bad = keyFree(c); if(bad){ toast(bad); return; }
+        done();
+        var taken = toolKeySet(tk.sel, c);
+        toast('«' + name + '» — ' + keyLabel(c) + (taken ? '. У «' + taken.name + '» клавиша снята' : ''));
+        renderPers();
+      }
+      document.addEventListener('keydown', on, true); document.addEventListener('pointerdown', off, true);
+    });
+    return b;
+  }
