@@ -457,4 +457,5 @@
   #splitBtn.on{color:var(--red);border-color:var(--red)}
   /* внутри второй среды — компактная шапка */
   .in-pane .brand b,.in-pane #shareBtn,.in-pane #splitBtn{display:none}
-  .in-pane #cmdBtn .t,.in-pane #cmdKb,.in-pane .brand .logo + b{display:none} .in-pane #cmdBtn{padding:0 10px} .in-pane .brand{gap:6px}
+  .in-pane #cmdKb,.in-pane .brand .logo + b{display:none}
+  .in-pane #cmdBtn .t{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap} .in-pane #cmdBtn{padding:0 10px} .in-pane .brand{gap:6px}

@@ -6,7 +6,7 @@
   .proj-in{width:220px;min-height:32px;padding:0 8px;border-radius:8px;border:1px solid var(--red);background:var(--bg);color:var(--ink-strong);font:500 14px Inter,system-ui,sans-serif;outline:none}
   .cmdk-btn{display:flex;align-items:center;gap:8px;color:var(--muted);font-weight:500}
   .cmdk-btn kbd,.cmdk kbd{padding:1px 6px;border-radius:5px;border:1px solid var(--line2);background:var(--bg);font:600 11px Inter,system-ui,sans-serif;color:var(--dim)}
-  @media (max-width:760px){ .cmdk-btn .t,.cmdk-btn kbd{display:none} .cmdk-btn{padding:0 10px} }
+  @media (max-width:760px){ .cmdk-btn kbd{display:none} .cmdk-btn .t{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap} .cmdk-btn{padding:0 10px} }
   @media (max-width:480px){ .saved{display:none} .proj-btn{max-width:170px} }
   .cmdk-back{position:fixed;inset:0;z-index:80;display:flex;justify-content:center;align-items:flex-start;padding-top:12vh;background:rgba(0,0,0,.45)}
   .cmdk-back[hidden]{display:none}

@@ -12,7 +12,7 @@
   }
   function openEco(){
     closeCtx(); hidePop(); renderEco(); $('eco').hidden = false;
-    var f = $('eco').querySelector('.eco-card.go'); if(f) f.focus();
+    var f = $('eco').querySelector('.eco-card.go .eco-open'); if(f) f.focus();
   }
   function closeEco(){ $('eco').hidden = true; }
   function renderEco(){
@@ -20,10 +20,10 @@
     Object.keys(ENVS).forEach(function(k){
       var e = ENVS[k], n = envProjects(k).length, here = ENV.id === k;
       var ic = e.ic || (k === 'code' ? '<path d="M8 7l-5 5 5 5M16 7l5 5-5 5M14 4l-4 16"/>' : '<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h6"/>');
-      var card = h('article', { 'class':'eco-card go' + (here ? ' here' : ''), style:'--ec:' + e.color, role:'button', tabindex:'0', 'aria-label':'Открыть среду «' + e.name + '»' }, [
+      var card = h('article', { 'class':'eco-card go' + (here ? ' here' : ''), style:'--ec:' + e.color }, [
         h('div', { 'class':'eco-top' }, [ h('span', { 'class':'eco-ic', html:'<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ic + '</svg>' }),
           here ? h('span', { 'class':'eco-tag', text:'вы здесь' }) : null ].filter(Boolean)),
-        h('h3', { text:e.name }), h('p', { text:e.desc }),
+        h('h3', null, [ h('button', { type:'button', 'class':'eco-open', text:e.name, title:'Открыть среду «' + e.name + '»' }) ]), h('p', { text:e.desc }),
         h('div', { 'class':'eco-meta', text:'Пространств: ' + n + ' · типов блоков: ' + e.langs.length + ' · в библиотеке: ' + e.plugins.length }),
         h('div', { 'class':'eco-acts' }, [
           h('button', { type:'button', 'class':'btn', text:'Новое пространство', on:{ click:function(ev){ ev.stopPropagation(); closeEco(); newProj(envNewName(k), null, k); } } }),
@@ -33,7 +33,6 @@
         ].filter(Boolean))
       ]);
       card.addEventListener('click', function(){ goEnv(k); });
-      card.addEventListener('keydown', function(ev){ if(ev.target === card && (ev.key === 'Enter' || ev.key === ' ')){ ev.preventDefault(); goEnv(k); } });
       g.appendChild(card);
     });
     FUTURE_ENVS.forEach(function(f){

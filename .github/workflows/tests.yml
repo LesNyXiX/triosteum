@@ -45,6 +45,7 @@ jobs:
           npm run test:tour
           npm run test:trash
           npm run test:split
+          npm run test:a11y
 
       - name: Хранение и резервные копии
         run: npm run test:storage

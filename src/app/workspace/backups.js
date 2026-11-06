@@ -78,7 +78,7 @@
   }
   // раздел в Персонализации
   function backupsSection(){
-    var box = h('div', { 'class':'bk-box' }), list = h('div', { 'class':'bk-list', role:'list' });
+    var box = h('div', { 'class':'bk-box' }), list = h('div', { 'class':'bk-list' });
     var bar = h('div', { 'class':'bk-bar' }, [
       h('button', { type:'button', 'class':'btn sm', text:'Сделать копию сейчас', disabled:bkDb() ? null : 'disabled', on:{ click:function(){ backupNow('Вручную', function(ok){ toast(ok ? 'Копия сохранена' : 'Не удалось сохранить копию'); fill(); }); } } }),
       h('button', { type:'button', 'class':'btn sm', text:'Скачать всё файлом', on:{ click:bkDownloadNow } }),
@@ -92,7 +92,7 @@
         list.innerHTML = '';
         if(!l.length){ list.appendChild(h('p', { 'class':'bk-empty', text:'Копий пока нет. Первая появится сама в течение минуты, дальше — раз в день и перед каждой очисткой.' })); return; }
         l.forEach(function(s){
-          list.appendChild(h('div', { 'class':'bk-row', role:'listitem' }, [
+          list.appendChild(h('div', { 'class':'bk-row' }, [
             h('div', { 'class':'bk-t' }, [ h('b', { text:bkFmtDate(s.t) }), h('small', { text:s.reason + ' · ' + (s.spaces || 0) + ' простр. · ' + bkFmtSize(s.size || 0) }) ]),
             h('button', { type:'button', 'class':'btn sm', text:'Вернуть', 'aria-label':'Вернуть копию от ' + bkFmtDate(s.t), on:{ click:function(){ bkRestore(s.id); } } }),
             h('button', { type:'button', 'class':'icon-btn', title:'Скачать файлом', 'aria-label':'Скачать копию от ' + bkFmtDate(s.t), html:'<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>', on:{ click:function(){ bkGet(s.id, function(x){ if(x) bkDownload(bkFileOf(x.data, x.t)); }); } } }),

@@ -22,9 +22,11 @@
     "test:storage": "node tests/storage-e2e.mjs",
     "test:tour": "node tests/tour-e2e.mjs",
     "test:trash": "node tests/trash-e2e.mjs",
-    "test:split": "node tests/split-e2e.mjs"
+    "test:split": "node tests/split-e2e.mjs",
+    "test:a11y": "node tests/a11y-e2e.mjs"
   },
   "devDependencies": {
+    "axe-core": "^4.14.0",
     "playwright": "^1.48.0"
   }
 }

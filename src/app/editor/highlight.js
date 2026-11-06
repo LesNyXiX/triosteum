@@ -213,9 +213,22 @@
     } catch(e){ return hlEsc(src); }
   }
   // цвета среды — CSS-переменные на контейнере
+  // читаемость: цвет текста, который сливается с фоном (контраст ниже 4.5:1 — норма WCAG AA),
+  // чуть высветляется (на тёмном) или затемняется (на светлом). Оттенок темы IDE сохраняется.
+  function hexRgb(c){ var m = /^#?([0-9a-f]{6})$/i.exec(String(c || '').trim()); if(!m) return null; var n = parseInt(m[1], 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; }
+  function relLum(rgb){ return rgb.map(function(v){ v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }).reduce(function(a, v, i){ return a + v * [0.2126, 0.7152, 0.0722][i]; }, 0); }
+  function contrastOf(a, b){ var la = relLum(a), lb = relLum(b); return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05); }
+  function readable(fg, bg, need){
+    var f = hexRgb(fg), b = hexRgb(bg); if(!f || !b) return fg;
+    need = need || 4.5;
+    if(contrastOf(f, b) >= need) return fg;
+    var to = relLum(b) < 0.4 ? 255 : 0, c = f;
+    for(var t = 0.05; t <= 1.0001 && contrastOf(c, b) < need; t += 0.05) c = f.map(function(v){ return Math.round(v + (to - v) * t); });
+    return '#' + c.map(function(v){ return ('0' + v.toString(16)).slice(-2); }).join('');
+  }
   function ideVars(lang){
-    var p = ideFor(lang), v = { '--ide-bg':p.bg, '--ide-fg':p.fg, '--ide-gut-bg':p.gutBg, '--ide-gut-fg':p.gutFg, '--ide-line':p.line, '--ide-sel':p.sel, '--ide-caret':p.caret, '--ide-border':p.border, '--ide-bar':p.bar, '--ide-bar-fg':p.barFg, '--ide-font':p.font };
-    for(var k in p.c) v['--h-' + k] = p.c[k];
+    var p = ideFor(lang), v = { '--ide-bg':p.bg, '--ide-fg':readable(p.fg, p.bg), '--ide-gut-bg':p.gutBg, '--ide-gut-fg':readable(p.gutFg, p.gutBg), '--ide-line':p.line, '--ide-sel':p.sel, '--ide-caret':p.caret, '--ide-border':p.border, '--ide-bar':p.bar, '--ide-bar-fg':readable(p.barFg, p.bar, 7), '--ide-font':p.font };
+    for(var k in p.c) v['--h-' + k] = readable(p.c[k], p.bg);
     return v;
   }
   function applyIde(node, lang){

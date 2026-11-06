@@ -44,7 +44,7 @@
     }
     var maxY = 0;
     items.forEach(function(f){
-      var c = h('div', { 'class':'fcard' + (OF.sel.indexOf(f.id) >= 0 ? ' sel' : ''), 'data-fid':f.id, tabindex:'0', role:'button', 'aria-label':FT[f.type].name + ' «' + f.name + '»', style:'left:' + f.x + 'px;top:' + f.y + 'px;--fc:' + FT[f.type].color }, [
+      var c = h('div', { 'class':'fcard' + (OF.sel.indexOf(f.id) >= 0 ? ' sel' : ''), 'data-fid':f.id, tabindex:'0', role:'button', style:'left:' + f.x + 'px;top:' + f.y + 'px;--fc:' + FT[f.type].color }, [
         h('div', { 'class':'fc-top' }, [ h('span', { 'class':'fc-ic', html:ofIcon(f.type, 22) }), fileThumb(f) || h('span', { 'class':'fc-prev', text:filePreview(f) }) ]),
         h('div', { 'class':'fc-name', text:f.name }),
         h('div', { 'class':'fc-meta', text:FT[f.type].name + (f.type === 'folder' ? ' · ' + ofChildren(f.id).length + ' объектов' : ' · ' + fmtAgo(f.t)) })

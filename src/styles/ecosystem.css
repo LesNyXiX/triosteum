@@ -21,7 +21,7 @@
   .eco-ic{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--ec) 18%,transparent);color:var(--ec)}
   .eco-tag{padding:2px 8px;border-radius:999px;border:1px solid var(--line2);font-size:11px;color:var(--muted)}
   .eco-card.here .eco-tag{border-color:var(--ec);color:var(--ink-strong)}
-  .eco-meta{font-size:11.5px;color:var(--dim)}
+  .eco-meta{font-size:11.5px;color:var(--muted)}
   .eco-acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:auto;padding-top:6px}
   .eco-card.soon{opacity:.62}
   .eco-sub{margin:20px 0 8px;font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--dim)}
@@ -82,4 +82,10 @@
   .res-view{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px}
   .res-view .bld-acts{margin-top:0}
   .res-frame{flex:1;width:100%;min-height:320px;border:1px solid var(--line);border-radius:10px;background:#EEE}
-  @media (max-width:760px){ .res-wrap{flex-direction:column} .res-list{width:auto;max-height:170px} #resW{left:0 !important;top:0 !important;width:100vw !important;height:100% !important;border-radius:0} }
+  @media (max-width:760px){ .res-wrap{flex-direction:column} .res-list{width:auto;max-height:170px} #resW{left:0 !important;top:0 !important;width:100vw !important;height:100% !important;border-radius:0} }  /* вся карточка нажимается, а для клавиатуры и экранного диктора — одна кнопка в заголовке */
+  .eco-card.go{position:relative}
+  .eco-open{all:unset;cursor:pointer;color:inherit;font:inherit}
+  .eco-open::after{content:"";position:absolute;inset:0;border-radius:inherit}
+  .eco-open:focus-visible{outline:none}
+  .eco-card.go:has(.eco-open:focus-visible){outline:2px solid var(--ec,var(--red));outline-offset:2px}
+  .eco-acts{position:relative;z-index:1}

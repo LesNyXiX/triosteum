@@ -127,7 +127,7 @@
   .ide-bar{flex:none;display:flex;align-items:flex-end;gap:10px;height:32px;padding:0 10px;background:var(--ide-bar,var(--panel));color:var(--ide-bar-fg,var(--ink));font:12px/1 Inter,system-ui,sans-serif;border-bottom:1px solid var(--ide-border,var(--line))}
   .ide-file{align-self:flex-end;padding:8px 14px 7px;border-radius:7px 7px 0 0;background:var(--ide-bg);color:var(--ide-fg);font-family:var(--ide-font,var(--mono));font-size:12px;border:1px solid var(--ide-border);border-bottom:0;margin-bottom:-1px;position:relative}
   .ide-file::before{content:"";display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:8px;background:var(--h-kw,var(--red));vertical-align:1px}
-  .ide-name{margin-left:auto;align-self:center;opacity:.7;letter-spacing:.02em}
+  .ide-name{margin-left:auto;align-self:center;opacity:.85;letter-spacing:.02em}
   .code-body{flex:1;min-height:0;display:flex;overflow:hidden}
   @media (max-width:900px){ .code-box{height:auto;min-height:55vh} .code-body{contain:size} }
   .gutter{flex:none;margin:0;padding:16px 12px 16px 16px;text-align:right;font-family:var(--ide-font,var(--mono));font-size:var(--code-fs,14px);line-height:calc(var(--code-fs,14px) * 1.57);color:var(--ide-gut-fg,var(--dim));background:var(--ide-gut-bg,transparent);user-select:none;border-right:1px solid var(--ide-border,var(--line));overflow:hidden;white-space:pre}
@@ -621,7 +621,8 @@
   #splitBtn.on{color:var(--red);border-color:var(--red)}
   /* внутри второй среды — компактная шапка */
   .in-pane .brand b,.in-pane #shareBtn,.in-pane #splitBtn{display:none}
-  .in-pane #cmdBtn .t,.in-pane #cmdKb,.in-pane .brand .logo + b{display:none} .in-pane #cmdBtn{padding:0 10px} .in-pane .brand{gap:6px}
+  .in-pane #cmdKb,.in-pane .brand .logo + b{display:none}
+  .in-pane #cmdBtn .t{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap} .in-pane #cmdBtn{padding:0 10px} .in-pane .brand{gap:6px}
 
   /* ---------- заметки ---------- */
   .note{position:absolute;width:max-content;min-width:140px;max-width:360px;min-height:22px;padding:10px 12px;border-radius:10px;
@@ -729,7 +730,7 @@
   .proj-in{width:220px;min-height:32px;padding:0 8px;border-radius:8px;border:1px solid var(--red);background:var(--bg);color:var(--ink-strong);font:500 14px Inter,system-ui,sans-serif;outline:none}
   .cmdk-btn{display:flex;align-items:center;gap:8px;color:var(--muted);font-weight:500}
   .cmdk-btn kbd,.cmdk kbd{padding:1px 6px;border-radius:5px;border:1px solid var(--line2);background:var(--bg);font:600 11px Inter,system-ui,sans-serif;color:var(--dim)}
-  @media (max-width:760px){ .cmdk-btn .t,.cmdk-btn kbd{display:none} .cmdk-btn{padding:0 10px} }
+  @media (max-width:760px){ .cmdk-btn kbd{display:none} .cmdk-btn .t{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap} .cmdk-btn{padding:0 10px} }
   @media (max-width:480px){ .saved{display:none} .proj-btn{max-width:170px} }
   .cmdk-back{position:fixed;inset:0;z-index:80;display:flex;justify-content:center;align-items:flex-start;padding-top:12vh;background:rgba(0,0,0,.45)}
   .cmdk-back[hidden]{display:none}
@@ -832,7 +833,7 @@
   .eco-ic{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--ec) 18%,transparent);color:var(--ec)}
   .eco-tag{padding:2px 8px;border-radius:999px;border:1px solid var(--line2);font-size:11px;color:var(--muted)}
   .eco-card.here .eco-tag{border-color:var(--ec);color:var(--ink-strong)}
-  .eco-meta{font-size:11.5px;color:var(--dim)}
+  .eco-meta{font-size:11.5px;color:var(--muted)}
   .eco-acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:auto;padding-top:6px}
   .eco-card.soon{opacity:.62}
   .eco-sub{margin:20px 0 8px;font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--dim)}
@@ -893,7 +894,14 @@
   .res-view{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px}
   .res-view .bld-acts{margin-top:0}
   .res-frame{flex:1;width:100%;min-height:320px;border:1px solid var(--line);border-radius:10px;background:#EEE}
-  @media (max-width:760px){ .res-wrap{flex-direction:column} .res-list{width:auto;max-height:170px} #resW{left:0 !important;top:0 !important;width:100vw !important;height:100% !important;border-radius:0} }
+  @media (max-width:760px){ .res-wrap{flex-direction:column} .res-list{width:auto;max-height:170px} #resW{left:0 !important;top:0 !important;width:100vw !important;height:100% !important;border-radius:0} }  /* вся карточка нажимается, а для клавиатуры и экранного диктора — одна кнопка в заголовке */
+  .eco-card.go{position:relative}
+  .eco-open{all:unset;cursor:pointer;color:inherit;font:inherit}
+  .eco-open::after{content:"";position:absolute;inset:0;border-radius:inherit}
+  .eco-open:focus-visible{outline:none}
+  .eco-card.go:has(.eco-open:focus-visible){outline:2px solid var(--ec,var(--red));outline-offset:2px}
+  .eco-acts{position:relative;z-index:1}
+
   /* --- офис --- */
   body[data-mode=office] .tools > .tool:not(.ofr):not(#bKeys):not(#bPers):not(#bTextSize),body[data-mode=office] .tools > .div{display:none !important}
   body:not([data-mode=office]) .tools > .ofr{display:none !important}
@@ -909,6 +917,7 @@
   .otab .x{display:flex;align-items:center;justify-content:center;width:20px;height:20px;padding:0;border:0;border-radius:5px;background:transparent;color:var(--dim);cursor:pointer}
   .otab .x:hover{background:var(--line2);color:var(--ink-strong)}
   .otab-files{display:flex;gap:2px;min-width:0}
+  .otab-list{display:flex;align-items:stretch;gap:2px;min-width:0;flex:0 1 auto}
   .otab-ai{flex:none;margin-left:auto;align-self:center;display:flex;align-items:center;gap:6px;height:30px;padding:0 12px;border:1px solid var(--line2);border-radius:8px;background:transparent;color:var(--ink-strong);font-size:12.5px;font-weight:600;cursor:pointer}
   /* кнопка ИИ всегда видна справа, даже когда вкладок много и полоса прокручивается */
   .otab-ai{position:sticky;right:0;z-index:1;background:var(--panel);box-shadow:-14px 0 12px -6px var(--panel)}
@@ -1397,17 +1406,17 @@
       </div>
       <button class="btn gear-btn" type="button" id="splitBtn" aria-label="Две среды рядом" aria-haspopup="menu" aria-pressed="false" title="Две среды рядом: открыть ещё одно пространство справа"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M12 4v16"/></svg></button>
       <button class="btn gear-btn" type="button" id="setBtn" aria-label="Настройки" aria-haspopup="dialog" title="Настройки: тема, цвета, панель инструментов, доска"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.34 1.87l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.7 1.7 0 00-1.87-.34 1.7 1.7 0 00-1 1.55V21a2 2 0 11-4 0v-.09a1.7 1.7 0 00-1.1-1.55 1.7 1.7 0 00-1.87.34l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.7 1.7 0 00.34-1.87 1.7 1.7 0 00-1.55-1H3a2 2 0 110-4h.09a1.7 1.7 0 001.55-1.1 1.7 1.7 0 00-.34-1.87l-.06-.06a2 2 0 112.83-2.83l.06.06a1.7 1.7 0 001.87.34H9a1.7 1.7 0 001-1.55V3a2 2 0 114 0v.09a1.7 1.7 0 001 1.55 1.7 1.7 0 001.87-.34l.06-.06a2 2 0 112.83 2.83l-.06.06a1.7 1.7 0 00-.34 1.87V9a1.7 1.7 0 001.55 1H21a2 2 0 110 4h-.09a1.7 1.7 0 00-1.55 1z"/></svg></button>
-      <button class="btn cmdk-btn" type="button" id="cmdBtn" aria-label="Поиск и команды"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg><span class="t">Поиск и команды</span><kbd id="cmdKb">Ctrl K</kbd></button>
+      <button class="btn cmdk-btn" type="button" id="cmdBtn" aria-keyshortcuts="Control+K"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg><span class="t">Поиск и команды</span><kbd id="cmdKb" aria-hidden="true">Ctrl K</kbd></button>
       <button class="btn" type="button" id="shareBtn" aria-haspopup="menu" aria-expanded="false">Поделиться</button>
       <button class="btn primary" type="button" id="topRun" title="Ctrl+R">Запустить</button>
     </div>
   </header>
 
-  <div class="otabs" id="otabs" role="tablist" aria-label="Вкладки офиса" hidden>
+  <div class="otabs" id="otabs" hidden><div class="otab-list" role="tablist" aria-label="Вкладки офиса">
     <button class="otab fixed" type="button" role="tab" data-tab="desk"><span class="ic"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-7 9 7v9a1 1 0 01-1 1h-5v-6H9v6H4a1 1 0 01-1-1z"/></svg></span><span class="nm">Рабочий стол</span></button>
     <button class="otab fixed" type="button" role="tab" data-tab="map"><span class="ic"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="9" width="7" height="6" rx="1"/><rect x="15" y="3" width="7" height="6" rx="1"/><rect x="15" y="15" width="7" height="6" rx="1"/><path d="M9 12h3M12 6v12M12 6h3M12 18h3"/></svg></span><span class="nm">Схема файлов</span></button>
     <button class="otab fixed" type="button" role="tab" data-tab="auto"><span class="ic"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="6" height="5" rx="1"/><rect x="15" y="4" width="6" height="5" rx="1"/><rect x="15" y="15" width="6" height="5" rx="1"/><path d="M9 6.5h6M18 9v6"/></svg></span><span class="nm">Автоматизация</span></button>
-    <div class="otab-files" id="otabFiles"></div>
+    <div class="otab-files" id="otabFiles"></div></div>
     <button class="otab-ai" type="button" id="ofAiBtn" aria-pressed="false"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M12 2l1.9 5.6L19.5 9.5l-5.6 1.9L12 17l-1.9-5.6L4.5 9.5l5.6-1.9zM19 14l.9 2.6 2.6.9-2.6.9L19 21l-.9-2.6-2.6-.9 2.6-.9z"/></svg>AI-помощник</button>
   </div>
   <div class="row">
@@ -6961,9 +6970,22 @@ var Wobble=function(t){"use strict";var i=Object.assign||function(t){for(var i,e
     } catch(e){ return hlEsc(src); }
   }
   // цвета среды — CSS-переменные на контейнере
+  // читаемость: цвет текста, который сливается с фоном (контраст ниже 4.5:1 — норма WCAG AA),
+  // чуть высветляется (на тёмном) или затемняется (на светлом). Оттенок темы IDE сохраняется.
+  function hexRgb(c){ var m = /^#?([0-9a-f]{6})$/i.exec(String(c || '').trim()); if(!m) return null; var n = parseInt(m[1], 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; }
+  function relLum(rgb){ return rgb.map(function(v){ v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }).reduce(function(a, v, i){ return a + v * [0.2126, 0.7152, 0.0722][i]; }, 0); }
+  function contrastOf(a, b){ var la = relLum(a), lb = relLum(b); return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05); }
+  function readable(fg, bg, need){
+    var f = hexRgb(fg), b = hexRgb(bg); if(!f || !b) return fg;
+    need = need || 4.5;
+    if(contrastOf(f, b) >= need) return fg;
+    var to = relLum(b) < 0.4 ? 255 : 0, c = f;
+    for(var t = 0.05; t <= 1.0001 && contrastOf(c, b) < need; t += 0.05) c = f.map(function(v){ return Math.round(v + (to - v) * t); });
+    return '#' + c.map(function(v){ return ('0' + v.toString(16)).slice(-2); }).join('');
+  }
   function ideVars(lang){
-    var p = ideFor(lang), v = { '--ide-bg':p.bg, '--ide-fg':p.fg, '--ide-gut-bg':p.gutBg, '--ide-gut-fg':p.gutFg, '--ide-line':p.line, '--ide-sel':p.sel, '--ide-caret':p.caret, '--ide-border':p.border, '--ide-bar':p.bar, '--ide-bar-fg':p.barFg, '--ide-font':p.font };
-    for(var k in p.c) v['--h-' + k] = p.c[k];
+    var p = ideFor(lang), v = { '--ide-bg':p.bg, '--ide-fg':readable(p.fg, p.bg), '--ide-gut-bg':p.gutBg, '--ide-gut-fg':readable(p.gutFg, p.gutBg), '--ide-line':p.line, '--ide-sel':p.sel, '--ide-caret':p.caret, '--ide-border':p.border, '--ide-bar':p.bar, '--ide-bar-fg':readable(p.barFg, p.bar, 7), '--ide-font':p.font };
+    for(var k in p.c) v['--h-' + k] = readable(p.c[k], p.bg);
     return v;
   }
   function applyIde(node, lang){
@@ -10023,7 +10045,7 @@ var Wobble=function(t){"use strict";var i=Object.assign||function(t){for(var i,e
   }
   // раздел в Персонализации
   function backupsSection(){
-    var box = h('div', { 'class':'bk-box' }), list = h('div', { 'class':'bk-list', role:'list' });
+    var box = h('div', { 'class':'bk-box' }), list = h('div', { 'class':'bk-list' });
     var bar = h('div', { 'class':'bk-bar' }, [
       h('button', { type:'button', 'class':'btn sm', text:'Сделать копию сейчас', disabled:bkDb() ? null : 'disabled', on:{ click:function(){ backupNow('Вручную', function(ok){ toast(ok ? 'Копия сохранена' : 'Не удалось сохранить копию'); fill(); }); } } }),
       h('button', { type:'button', 'class':'btn sm', text:'Скачать всё файлом', on:{ click:bkDownloadNow } }),
@@ -10037,7 +10059,7 @@ var Wobble=function(t){"use strict";var i=Object.assign||function(t){for(var i,e
         list.innerHTML = '';
         if(!l.length){ list.appendChild(h('p', { 'class':'bk-empty', text:'Копий пока нет. Первая появится сама в течение минуты, дальше — раз в день и перед каждой очисткой.' })); return; }
         l.forEach(function(s){
-          list.appendChild(h('div', { 'class':'bk-row', role:'listitem' }, [
+          list.appendChild(h('div', { 'class':'bk-row' }, [
             h('div', { 'class':'bk-t' }, [ h('b', { text:bkFmtDate(s.t) }), h('small', { text:s.reason + ' · ' + (s.spaces || 0) + ' простр. · ' + bkFmtSize(s.size || 0) }) ]),
             h('button', { type:'button', 'class':'btn sm', text:'Вернуть', 'aria-label':'Вернуть копию от ' + bkFmtDate(s.t), on:{ click:function(){ bkRestore(s.id); } } }),
             h('button', { type:'button', 'class':'icon-btn', title:'Скачать файлом', 'aria-label':'Скачать копию от ' + bkFmtDate(s.t), html:'<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>', on:{ click:function(){ bkGet(s.id, function(x){ if(x) bkDownload(bkFileOf(x.data, x.t)); }); } } }),
@@ -13482,7 +13504,7 @@ var Wobble=function(t){"use strict";var i=Object.assign||function(t){for(var i,e
   }
   function openEco(){
     closeCtx(); hidePop(); renderEco(); $('eco').hidden = false;
-    var f = $('eco').querySelector('.eco-card.go'); if(f) f.focus();
+    var f = $('eco').querySelector('.eco-card.go .eco-open'); if(f) f.focus();
   }
   function closeEco(){ $('eco').hidden = true; }
   function renderEco(){
@@ -13490,10 +13512,10 @@ var Wobble=function(t){"use strict";var i=Object.assign||function(t){for(var i,e
     Object.keys(ENVS).forEach(function(k){
       var e = ENVS[k], n = envProjects(k).length, here = ENV.id === k;
       var ic = e.ic || (k === 'code' ? '<path d="M8 7l-5 5 5 5M16 7l5 5-5 5M14 4l-4 16"/>' : '<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h6"/>');
-      var card = h('article', { 'class':'eco-card go' + (here ? ' here' : ''), style:'--ec:' + e.color, role:'button', tabindex:'0', 'aria-label':'Открыть среду «' + e.name + '»' }, [
+      var card = h('article', { 'class':'eco-card go' + (here ? ' here' : ''), style:'--ec:' + e.color }, [
         h('div', { 'class':'eco-top' }, [ h('span', { 'class':'eco-ic', html:'<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ic + '</svg>' }),
           here ? h('span', { 'class':'eco-tag', text:'вы здесь' }) : null ].filter(Boolean)),
-        h('h3', { text:e.name }), h('p', { text:e.desc }),
+        h('h3', null, [ h('button', { type:'button', 'class':'eco-open', text:e.name, title:'Открыть среду «' + e.name + '»' }) ]), h('p', { text:e.desc }),
         h('div', { 'class':'eco-meta', text:'Пространств: ' + n + ' · типов блоков: ' + e.langs.length + ' · в библиотеке: ' + e.plugins.length }),
         h('div', { 'class':'eco-acts' }, [
           h('button', { type:'button', 'class':'btn', text:'Новое пространство', on:{ click:function(ev){ ev.stopPropagation(); closeEco(); newProj(envNewName(k), null, k); } } }),
@@ -13503,7 +13525,6 @@ var Wobble=function(t){"use strict";var i=Object.assign||function(t){for(var i,e
         ].filter(Boolean))
       ]);
       card.addEventListener('click', function(){ goEnv(k); });
-      card.addEventListener('keydown', function(ev){ if(ev.target === card && (ev.key === 'Enter' || ev.key === ' ')){ ev.preventDefault(); goEnv(k); } });
       g.appendChild(card);
     });
     FUTURE_ENVS.forEach(function(f){
@@ -13834,7 +13855,7 @@ var Wobble=function(t){"use strict";var i=Object.assign||function(t){for(var i,e
     }
     var maxY = 0;
     items.forEach(function(f){
-      var c = h('div', { 'class':'fcard' + (OF.sel.indexOf(f.id) >= 0 ? ' sel' : ''), 'data-fid':f.id, tabindex:'0', role:'button', 'aria-label':FT[f.type].name + ' «' + f.name + '»', style:'left:' + f.x + 'px;top:' + f.y + 'px;--fc:' + FT[f.type].color }, [
+      var c = h('div', { 'class':'fcard' + (OF.sel.indexOf(f.id) >= 0 ? ' sel' : ''), 'data-fid':f.id, tabindex:'0', role:'button', style:'left:' + f.x + 'px;top:' + f.y + 'px;--fc:' + FT[f.type].color }, [
         h('div', { 'class':'fc-top' }, [ h('span', { 'class':'fc-ic', html:ofIcon(f.type, 22) }), fileThumb(f) || h('span', { 'class':'fc-prev', text:filePreview(f) }) ]),
         h('div', { 'class':'fc-name', text:f.name }),
         h('div', { 'class':'fc-meta', text:FT[f.type].name + (f.type === 'folder' ? ' · ' + ofChildren(f.id).length + ' объектов' : ' · ' + fmtAgo(f.t)) })
