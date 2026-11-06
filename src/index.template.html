@@ -216,14 +216,20 @@
           <button class="icon-btn" type="button" id="libClose" aria-label="Закрыть библиотеку"><svg class="i" viewBox="0 0 24 24" style="width:16px;height:16px;stroke-width:2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
         </div>
       </div>
-      <div class="lib-tools">
-        <div class="field">
-          <label for="libSearch">Поиск</label>
-          <input class="input" id="libSearch" type="search" placeholder="Название или задача…">
+      <div class="lib-body">
+        <nav class="lib-cats" id="libCats" aria-label="Разделы библиотеки"></nav>
+        <div class="lib-main">
+          <div class="lib-tools">
+            <div class="field">
+              <label for="libSearch" class="sr-only">Поиск</label>
+              <input class="input" id="libSearch" type="search" placeholder="Найти: «маржа», «склад», «график», «Telegram»…">
+            </div>
+            <div class="chips" id="chips" role="group" aria-label="Язык"></div>
+          </div>
+          <div class="lib-hint" id="libHint" role="status"></div>
+          <div class="plist" id="plist"></div>
         </div>
-        <div class="chips" id="chips" role="group" aria-label="Язык"></div>
       </div>
-      <div class="plist" id="plist"></div>
       <svg class="lib-grip" viewBox="0 0 14 14" aria-hidden="true"><path d="M13 5L5 13M13 9l-4 4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>
     </aside>
 
@@ -310,8 +316,11 @@
   <div class="cmdk" role="dialog" aria-label="Поиск и команды">
     <div class="cmdk-in"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg>
       <input id="cmdQ" type="text" placeholder="Найти блок, плагин, пространство или команду…" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true" aria-controls="cmdList" aria-label="Поиск"></div>
-    <div class="cmdk-list" id="cmdList" role="listbox" aria-label="Результаты"></div>
-    <div class="cmdk-foot">↑ ↓ — выбор · Enter — выполнить · Esc — закрыть</div>
+    <div class="cmdk-body">
+      <nav class="cmdk-nav" id="cmdNav" role="tablist" aria-label="Разделы"></nav>
+      <div class="cmdk-list" id="cmdList" role="listbox" aria-label="Результаты"></div>
+    </div>
+    <div class="cmdk-foot"><span><kbd>↑</kbd><kbd>↓</kbd> выбор</span><span><kbd>Enter</kbd> выполнить</span><span><kbd>Tab</kbd> следующий раздел</span><span><kbd>Esc</kbd> закрыть</span><span class="cmdk-count" id="cmdCount" role="status"></span></div>
   </div>
 </div>
 <section class="runp" id="runp" role="dialog" aria-label="Компилятор" hidden>

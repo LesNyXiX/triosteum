@@ -86,3 +86,37 @@
     font:var(--code-fs,13px)/1.55 'JetBrains Mono',ui-monospace,Menlo,Consolas,monospace;font-size:calc(var(--code-fs,14px) - 1px);white-space:pre;overflow:auto;tab-size:4}
   .sc-out{margin:0;padding:10px 12px;max-height:220px;overflow:auto;border-radius:10px;background:var(--bg);border:1px solid var(--line);font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;color:var(--ink);white-space:pre-wrap}
   @media (max-width:640px){ .ai-fab{left:10px;top:10px} }
+  /* поиск и команды: крупнее, с разделами слева и пояснениями */
+  .cmdk-back{padding-top:9vh}
+  .cmdk{width:min(900px,calc(100vw - 24px));height:min(640px,80vh);max-height:none}
+  .cmdk-in input{height:58px;font-size:16px}
+  .cmdk-body{flex:1;min-height:0;display:grid;grid-template-columns:200px minmax(0,1fr)}
+  .cmdk-nav{overflow:auto;padding:8px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:2px;background:color-mix(in srgb,var(--bg) 40%,transparent)}
+  .cmdk-s{display:flex;align-items:center;gap:8px;width:100%;min-height:34px;padding:6px 10px;border:0;border-radius:9px;background:transparent;color:var(--ink);font-size:13px;text-align:left;cursor:pointer}
+  .cmdk-s .ic{flex:none;display:flex;color:var(--muted)}
+  .cmdk-s .nm{flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  .cmdk-s .n{flex:none;font-size:11.5px;color:var(--dim);font-variant-numeric:tabular-nums}
+  .cmdk-s:hover{background:var(--wine)}
+  .cmdk-s.on{background:var(--wine2);color:var(--ink-strong);box-shadow:inset 3px 0 0 var(--red)}
+  .cmdk-s.on .ic{color:var(--red-soft)}
+  .cmdk-list{padding:6px 10px 10px}
+  .cmdk-g{position:sticky;top:-6px;z-index:1;margin:0 -10px;padding:12px 20px 6px;background:var(--panel)}
+  .cmdk-i{gap:12px;min-height:44px;padding:7px 12px}
+  .cmdk-i.two{min-height:54px}
+  .cmdk-i .ic{width:30px;height:30px;border-radius:9px;background:color-mix(in srgb,var(--red) 10%,var(--bg));border:1px solid var(--line)}
+  .cmdk-i .tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+  .cmdk-i .tx .lbl{font-size:14px;font-weight:500}
+  .cmdk-i .tx .d{font-size:12px;color:var(--muted);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  .cmdk-i mark{background:color-mix(in srgb,var(--red) 30%,transparent);color:inherit;border-radius:3px;padding:0 1px}
+  .cmdk-i .kb{flex:none;padding:2px 7px;border-radius:6px;border:1px solid var(--line2);background:var(--bg);font:600 11.5px Inter,system-ui,sans-serif;color:var(--muted)}
+  .cmdk-empty{display:flex;flex-direction:column;gap:6px;align-items:center;padding:60px 20px}
+  .cmdk-empty b{color:var(--ink-strong);font-size:15px}
+  .cmdk-foot{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center}
+  .cmdk-foot kbd{margin-right:3px}
+  .cmdk-count{margin-left:auto}
+  @media (max-width:640px){
+    .cmdk-body{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr)}
+    .cmdk-nav{flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid var(--line)}
+    .cmdk-s{width:auto;flex:none}
+    .cmdk-foot span:not(.cmdk-count){display:none}
+  }

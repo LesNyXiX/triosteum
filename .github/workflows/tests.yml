@@ -20,6 +20,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -46,6 +50,7 @@ jobs:
           npm run test:trash
           npm run test:split
           npm run test:a11y
+          npm run test:library
 
       - name: Хранение и резервные копии
         run: npm run test:storage

@@ -19,6 +19,9 @@ export function build() {
   if (!tpl.includes('<!--@@CSS@@-->') || !tpl.includes('<!--@@JS@@-->')) throw new Error('В шаблоне нет меток @@CSS@@ / @@JS@@');
   // функция-замена: иначе знаки $ в коде были бы поняты как шаблон замены
   const pre = read('app/core/idb-boot.js');
+  // «</script» внутри кода закрыл бы тег скрипта раньше времени — страница не запустится
+  const bad = /<\/script/i.exec(js + pre);
+  if (bad) throw new Error('В коде есть «</script» (около: ' + JSON.stringify((js + pre).slice(Math.max(0, bad.index - 60), bad.index + 10)) + ') — напишите <\\/script>');
   const html = tpl.replace('<!--@@CSS@@-->', () => css).replace('<!--@@PRE@@-->', () => pre).replace('<!--@@JS@@-->', () => js);
   mkdirSync(dirname(OUT), { recursive: true });
   writeFileSync(OUT, html);

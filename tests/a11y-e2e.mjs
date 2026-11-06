@@ -38,6 +38,7 @@ async function audit(name, include) {
 console.log('Экраны');
 await audit('доска разработки');
 await page.click('#bAdd'); await audit('меню добавления', '#addMenu'); await page.keyboard.press('Escape');
+await page.click('#bLib'); await audit('библиотека плагинов', '#lib'); await page.click('#libClose');
 await page.click('#setBtn'); await audit('персонализация', '#pers'); await page.click('#pers button[aria-label="Закрыть"]');
 await page.click('#claudeMore'); await audit('выбор ИИ', '#claudeP'); await page.keyboard.press('Escape'); await page.mouse.click(700, 600);
 await page.keyboard.press('Control+k'); await audit('поиск и команды', '.cmdk'); await page.keyboard.press('Escape');

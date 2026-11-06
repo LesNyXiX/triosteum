@@ -15,6 +15,7 @@
   ],
   "js": [
     "app/core/langs-plugins.js",
+    "app/core/plugins-more.js",
     "app/core/store.js",
     "app/ui/windows.js",
     "app/ui/drop-trash.js",
