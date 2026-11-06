@@ -7,6 +7,7 @@
     if(btn.dataset.tool === 'block') sub = 'Нажмите на доску, чтобы поставить (' + shortName(langById(S.lang)) + ')';
     tipEl.innerHTML = '<b></b><span></span>';
     tipEl.querySelector('b').textContent = parts[0];
+    if(btn.dataset.key && btn.id !== 'bKeys'){ var kb = document.createElement('kbd'); kb.className = 'tip-key'; kb.textContent = btn.dataset.key; tipEl.querySelector('b').appendChild(kb); }
     tipEl.querySelector('span').textContent = sub;
     var r = btn.getBoundingClientRect(), side = typeof dockSideOf === 'function' ? dockSideOf(btn) : 'left';
     tipEl.className = 'tip' + (side === 'left' ? '' : ' s-' + side);

@@ -137,6 +137,7 @@
       var tools = UI.tools || {}, on = tools[t.id] === undefined ? !!t.core : !!tools[t.id];
       var btn = t.btn ? $(t.btn) : document.querySelector(t.sel), key = btn && btn._dk;
       var row = toggleRow(t.name, on, function(v){ UI.tools = UI.tools || {}; UI.tools[t.id] = v; applyTheme(); renderPers(); });
+      if(btn && btn.dataset.key){ row.firstChild.appendChild(h('kbd', { 'class':'tgl-key', text:btn.dataset.key, title:'Горячая клавиша' })); }
       if(key){
         var sel = h('select', { 'class':'dock-sel', 'aria-label':'Где кнопка «' + t.name + '»', on:{ change:function(){ dockSet(key, sel.value); } } });
         Object.keys(DOCK_SIDES).forEach(function(s){ var o = h('option', { value:s, text:DOCK_SIDES[s] }); if(dockSideOf(btn) === s) o.selected = true; sel.appendChild(o); });

@@ -356,3 +356,7 @@
   .clp-how>summary::before{content:"";width:7px;height:7px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(-45deg);transition:transform .2s ease;margin-right:2px}
   .clp-how[open]>summary::before{transform:rotate(45deg)}
   .clp-how>div{padding:0 12px 12px;display:flex;flex-direction:column;gap:8px}
+
+  /* клавиша кнопки инструмента — в подсказке и в Персонализации */
+  .tip-key,.tgl-key{display:inline-block;margin-left:8px;padding:0 6px;min-width:18px;height:18px;line-height:17px;border-radius:5px;border:1px solid var(--line2);background:var(--bg);color:var(--muted);font:600 11px/17px var(--mono,monospace);text-align:center;vertical-align:1px}
+  .tools > #bKeys{margin-top:0 !important}

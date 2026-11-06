@@ -521,6 +521,10 @@
   .clp-how[open]>summary::before{transform:rotate(45deg)}
   .clp-how>div{padding:0 12px 12px;display:flex;flex-direction:column;gap:8px}
 
+  /* клавиша кнопки инструмента — в подсказке и в Персонализации */
+  .tip-key,.tgl-key{display:inline-block;margin-left:8px;padding:0 6px;min-width:18px;height:18px;line-height:17px;border-radius:5px;border:1px solid var(--line2);background:var(--bg);color:var(--muted);font:600 11px/17px var(--mono,monospace);text-align:center;vertical-align:1px}
+  .tools > #bKeys{margin-top:0 !important}
+
   /* ---------- заметки ---------- */
   .note{position:absolute;width:max-content;min-width:140px;max-width:360px;min-height:22px;padding:10px 12px;border-radius:10px;
     background:var(--tint,rgba(170,160,165,.16));border:1px solid rgba(255,255,255,.14);
@@ -5521,6 +5525,7 @@ var Wobble=function(t){"use strict";var i=Object.assign||function(t){for(var i,e
       var tools = UI.tools || {}, on = tools[t.id] === undefined ? !!t.core : !!tools[t.id];
       var btn = t.btn ? $(t.btn) : document.querySelector(t.sel), key = btn && btn._dk;
       var row = toggleRow(t.name, on, function(v){ UI.tools = UI.tools || {}; UI.tools[t.id] = v; applyTheme(); renderPers(); });
+      if(btn && btn.dataset.key){ row.firstChild.appendChild(h('kbd', { 'class':'tgl-key', text:btn.dataset.key, title:'Горячая клавиша' })); }
       if(key){
         var sel = h('select', { 'class':'dock-sel', 'aria-label':'Где кнопка «' + t.name + '»', on:{ change:function(){ dockSet(key, sel.value); } } });
         Object.keys(DOCK_SIDES).forEach(function(s){ var o = h('option', { value:s, text:DOCK_SIDES[s] }); if(dockSideOf(btn) === s) o.selected = true; sel.appendChild(o); });
@@ -6067,7 +6072,48 @@ var Wobble=function(t){"use strict";var i=Object.assign||function(t){for(var i,e
   /* ---------- горячие клавиши (Windows: Ctrl, Mac: ⌘) ---------- */
   var IS_MAC = /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent || '');
   var MOD = IS_MAC ? '⌘' : 'Ctrl+';
+  // клавиши кнопок панелей инструментов: по физической клавише (e.code), поэтому работают и в русской раскладке
+  var TOOL_KEYS = [
+    { sel:'[data-tool=select]', code:'KeyV', label:'V', name:'выбор и перемещение' },
+    { sel:'#bAdd', code:'KeyA', label:'A', name:'добавление элементов' },
+    { sel:'[data-tool=text]', code:'KeyT', label:'T', name:'текст (заметка)' },
+    { sel:'#bTextSize', code:'KeyT', shift:true, label:'Shift+T', name:'размер текста' },
+    { sel:'#bBuild', code:'KeyB', label:'B', name:'конструктор схемы' },
+    { sel:'#bLib', code:'KeyL', label:'L', name:'библиотека плагинов' },
+    { sel:'#bScheme', code:'KeyC', label:'C', name:'целостный код схемы' },
+    { sel:'#bCreate', code:'KeyP', label:'P', name:'создать плагин' },
+    { sel:'#bFit', code:'KeyF', label:'F', name:'вписать всё в экран' },
+    { sel:'#bGrid', code:'KeyG', label:'G', name:'сетка доски' },
+    { sel:'#bRun', mod:true, code:'KeyR', label:MOD + 'R', name:'компиляция доски', shown:true },
+    { sel:'#bUndo', mod:true, code:'KeyZ', label:MOD + 'Z', name:'отменить', shown:true },
+    { sel:'#bRedo', mod:true, code:'KeyY', label:IS_MAC ? '⌘⇧Z' : 'Ctrl+Y', name:'повторить', shown:true },
+    { sel:'#bAll', mod:true, code:'KeyA', label:MOD + 'A', name:'выделить всё', shown:true },
+    { sel:'#bPers', mod:true, code:'Comma', label:IS_MAC ? '⌘,' : 'Ctrl+,', name:'персонализация' },
+    { sel:'#bKeys', code:'Slash', shift:true, label:'?', name:'горячие клавиши' }
+  ];
+  TOOL_KEYS.forEach(function(k){ var b = document.querySelector(k.sel); if(b){ b.dataset.key = k.label; k.btn = b; } });
+  function toolKeyOf(btn){ return btn && btn.dataset ? btn.dataset.key || '' : ''; }
+  document.addEventListener('keydown', function(e){
+    if(e.defaultPrevented || e.repeat || e.altKey) return;
+    var mod = e.ctrlKey || e.metaKey, code = e.code || '';
+    var k = null;
+    TOOL_KEYS.forEach(function(x){ if(!k && !x.shown && x.code === code && !!x.mod === mod && !!x.shift === e.shiftKey) k = x; });
+    if(!k || !k.btn) return;
+    var t = e.target;
+    if(!k.mod && t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+    // однобуквенные — только на доске разработки, когда не открыто окно поверх
+    if(!k.mod){
+      if(typeof officeOn === 'function' && officeOn()) return;
+      if(typeof cmdOpen === 'function' && cmdOpen()) return;
+      if(S.view !== 'canvas' || (el.modal && !el.modal.hidden)) return;
+      if(document.querySelector('.eco-back:not([hidden]),.modal-back:not([hidden]),#askModal:not([hidden])')) return;
+    }
+    e.preventDefault();
+    if(k.btn.id === 'bKeys'){ showTip(k.btn, 8000); return; }
+    k.btn.click();
+  });
   var KEYS_TEXT = [
+    'Кнопки инструментов: ' + TOOL_KEYS.filter(function(k){ return !k.shown; }).map(function(k){ return k.label + ' — ' + k.name; }).join(', '),
     MOD + 'A — выделить всё',
     MOD + 'C / ' + MOD + 'V — копировать / вставить (между любыми пространствами и средами; картинки, текст и код из системного буфера)',
     MOD + 'Z — отменить',
@@ -9008,6 +9054,7 @@ var Wobble=function(t){"use strict";var i=Object.assign||function(t){for(var i,e
     if(btn.dataset.tool === 'block') sub = 'Нажмите на доску, чтобы поставить (' + shortName(langById(S.lang)) + ')';
     tipEl.innerHTML = '<b></b><span></span>';
     tipEl.querySelector('b').textContent = parts[0];
+    if(btn.dataset.key && btn.id !== 'bKeys'){ var kb = document.createElement('kbd'); kb.className = 'tip-key'; kb.textContent = btn.dataset.key; tipEl.querySelector('b').appendChild(kb); }
     tipEl.querySelector('span').textContent = sub;
     var r = btn.getBoundingClientRect(), side = typeof dockSideOf === 'function' ? dockSideOf(btn) : 'left';
     tipEl.className = 'tip' + (side === 'left' ? '' : ' s-' + side);
