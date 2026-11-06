@@ -239,9 +239,9 @@
   .row{position:relative}
   .tools.empty{display:none}
   .tools.dock-top,.tools.dock-bottom,.tools.dock-right{position:absolute;z-index:30;width:auto;padding:5px;gap:4px;background:var(--panel);border:1px solid var(--line2);border-radius:14px;box-shadow:0 10px 28px rgba(0,0,0,.4)}
-  .tools.dock-top,.tools.dock-bottom{flex-direction:row;left:50%;transform:translateX(-50%);max-width:calc(100% - 24px);overflow-x:auto}
+  .tools.dock-top,.tools.dock-bottom{flex-direction:row;flex-wrap:wrap;justify-content:center;left:50%;transform:translateX(-50%);max-width:calc(100% - 24px);overflow:visible}
   .tools.dock-top{top:10px} .tools.dock-bottom{bottom:10px}
-  .tools.dock-right{flex-direction:column;right:10px;top:50%;transform:translateY(-50%);max-height:calc(100% - 24px);overflow-y:auto}
+  .tools.dock-right{flex-direction:column;right:10px;top:50%;transform:translateY(-50%);max-height:calc(100% - 24px);overflow:visible}
   .tools.dock > .tool{flex:none}
   .tools.dock-top > .tool,.tools.dock-bottom > .tool,.tools.dock-right > .tool{margin:0 !important}
   .tools.dock > .tool{touch-action:none}
@@ -256,6 +256,10 @@
   .dock-zone.hot span{color:var(--ink)}
   .dz-left{left:4px;top:8px;bottom:8px;width:64px} .dz-right{right:4px;top:8px;bottom:8px;width:72px}
   .dz-top{top:4px;left:80px;right:90px;height:62px} .dz-bottom{bottom:4px;left:80px;right:90px;height:62px}
+  /* подписи зон — в стороне от кнопок, чтобы не закрывать их */
+  .dz-top,.dz-bottom{place-items:center start;padding-left:14px}
+  .dz-left span,.dz-right span{position:absolute;top:50%;transform:translateY(-50%);white-space:nowrap}
+  .dz-left span{left:calc(100% + 8px)} .dz-right span{right:calc(100% + 8px)}
   body.docking .tools.empty{display:flex;min-width:56px}
   body.docking{cursor:grabbing}
   .tip.s-top{transform:translate(-50%,0)} .tip.s-bottom{transform:translate(-50%,-100%)} .tip.s-right{transform:translate(-100%,-50%)}
@@ -263,6 +267,12 @@
   .addmenu.above::before{left:calc(50% - 5px);top:auto;bottom:-6px;transform:rotate(-45deg)}
   .addmenu.leftof::before{left:auto;right:-6px;transform:rotate(-135deg)}
   .dock-sel{height:28px;border-radius:7px;border:1px solid var(--line2);background:var(--bg);color:var(--ink);font:inherit;font-size:12px;padding:0 4px;margin-left:auto;margin-right:8px}
+  /* строки кнопок в Персонализации: название | край | стрелки | переключатель — ровными колонками */
+  .toolgrid.docks-grid{grid-template-columns:repeat(auto-fill,minmax(min(100%,360px),1fr));gap:0 24px}
+  .docks-grid .tgl{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;gap:10px;padding:4px 0;border-bottom:1px solid var(--line)}
+  .docks-grid .tgl > span:first-child{min-width:0;overflow-wrap:anywhere;line-height:1.25}
+  .docks-grid .dock-sel{margin:0;width:96px}
+  .docks-grid .tgl input{justify-self:end;grid-column:4}
   .dock-sel:disabled{opacity:.4}
   /* редактор тем */
   .pers.th-ed{left:auto;right:16px;top:64px;width:460px;height:calc(100vh - 92px);z-index:48}

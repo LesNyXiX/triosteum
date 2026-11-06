@@ -132,7 +132,7 @@
       eseg.appendChild(h('button', { type:'button', 'class':'btn sm' + (on ? ' on' : ''), 'aria-pressed':on ? 'true' : 'false', text:o[1], on:{ click:function(){ UI.edgeW = o[0]; applyTheme(); renderPers(); } } }));
     });
     b.appendChild(section('Линии связей', eseg));
-    var tgrid = h('div', { 'class':'toolgrid' });
+    var tgrid = h('div', { 'class':'toolgrid docks-grid' });
     TOOL_OPTS.forEach(function(t){
       var tools = UI.tools || {}, on = tools[t.id] === undefined ? !!t.core : !!tools[t.id];
       var btn = t.btn ? $(t.btn) : document.querySelector(t.sel), key = btn && btn._dk;
