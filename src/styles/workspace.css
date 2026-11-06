@@ -120,3 +120,4 @@
     .cmdk-s{width:auto;flex:none}
     .cmdk-foot span:not(.cmdk-count){display:none}
   }
+  .cmdk-s .n{color:var(--muted)}
