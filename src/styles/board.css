@@ -415,3 +415,9 @@
   .tour.leaving{opacity:0;transition:opacity .2s}
   @keyframes tourIn{from{opacity:0;transform:translateY(6px)}}
   .btn.ghost{background:transparent;border-color:transparent;color:var(--muted)} .btn.ghost:hover{color:var(--ink)}
+  .clp-diag{display:flex;flex-direction:column;gap:5px}
+  .clp-diag .dg-row{display:grid;grid-template-columns:16px minmax(0,1fr);gap:6px;font-size:12.5px;line-height:1.45;color:var(--ink)}
+  .clp-diag .dg-row i{font-style:normal;font-weight:700;text-align:center}
+  .clp-diag .dg-row.ok i{color:#22c55e} .clp-diag .dg-row.warn i{color:#eab308} .clp-diag .dg-row.err i{color:var(--red)}
+  .clp-diag code{font-family:var(--mono);font-size:11.5px;background:var(--bg);border:1px solid var(--line2);border-radius:5px;padding:0 4px;color:var(--ink);user-select:all}
+  .clp-st.warn{border-color:#eab308}

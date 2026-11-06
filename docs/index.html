@@ -579,6 +579,12 @@
   .tour.leaving{opacity:0;transition:opacity .2s}
   @keyframes tourIn{from{opacity:0;transform:translateY(6px)}}
   .btn.ghost{background:transparent;border-color:transparent;color:var(--muted)} .btn.ghost:hover{color:var(--ink)}
+  .clp-diag{display:flex;flex-direction:column;gap:5px}
+  .clp-diag .dg-row{display:grid;grid-template-columns:16px minmax(0,1fr);gap:6px;font-size:12.5px;line-height:1.45;color:var(--ink)}
+  .clp-diag .dg-row i{font-style:normal;font-weight:700;text-align:center}
+  .clp-diag .dg-row.ok i{color:#22c55e} .clp-diag .dg-row.warn i{color:#eab308} .clp-diag .dg-row.err i{color:var(--red)}
+  .clp-diag code{font-family:var(--mono);font-size:11.5px;background:var(--bg);border:1px solid var(--line2);border-radius:5px;padding:0 4px;color:var(--ink);user-select:all}
+  .clp-st.warn{border-color:#eab308}
 
   /* ---------- заметки ---------- */
   .note{position:absolute;width:max-content;min-width:140px;max-width:360px;min-height:22px;padding:10px 12px;border-radius:10px;
@@ -4391,6 +4397,60 @@ public class MovingAverage : IBlock
     var inp = p.querySelector('input[type=password]'); if(inp && !inp.value) setTimeout(function(){ inp.focus(); }, 30);
   }
   function clCheck(fn){ CL.status = { cls:'', text:'Проверяю связь…' }; clRenderPanel(); fn().then(function(r){ CL.status = { cls:'ok', text:'Связь есть: ' + (CL.prov === 'claude' ? clModelName() : clProvName() + ' · ' + (CL.cfg[CL.prov].model || '')) + ' ответил «' + String(r.text || '').trim().slice(0, 40) + '».' }; clRenderPanel(); }, function(err){ CL.status = { cls:'err', text:err.message }; clRenderPanel(); }); }
+  /* Проверка Ollama по шагам: запущена ли, пускает ли страницу (CORS), есть ли модели, как быстро отвечает
+     и помещается ли модель в видеопамять. Каждый шаг — с понятным советом, что сделать. */
+  function clOllamaDiag(){
+    var c = CL.cfg.ollama, root = String(c.url || 'http://localhost:11434').trim().replace(/\/+$/, '').replace(/\/v1$/, ''), steps = [];
+    function show(cls, text){ CL.status = { cls:cls, text:text, steps:steps.slice() }; clRenderPanel(); }
+    function step(s, text, html){ steps.push({ s:s, text:text, html:html }); }
+    var origin = location.origin && location.origin !== 'null' ? location.origin : '*';
+    origin = origin.replace(/[<>&"]/g, '');
+    var corsHelp = 'Разрешите запросы со страницы: Windows — в терминале <code>setx OLLAMA_ORIGINS "' + origin + '"</code>, macOS — <code>launchctl setenv OLLAMA_ORIGINS "' + origin + '"</code>, затем полностью закройте Ollama (значок у часов → Quit) и запустите снова.';
+    show('', 'Проверяю Ollama…');
+    var t0 = Date.now();
+    fetch(root + '/api/version').then(function(r){ return r.json(); }).then(function(v){
+      step('ok', 'Ollama запущена' + (v && v.version ? ' (версия ' + v.version + ')' : '') + ' и пускает запросы с этой страницы');
+      show('', 'Проверяю модели…');
+      return fetch(root + '/api/tags').then(function(r){ return r.json(); });
+    }, function(){
+      // разбираем, почему нет ответа: «no-cors» дойдёт до запущенной Ollama даже без разрешения
+      return fetch(root + '/api/version', { mode:'no-cors' }).then(function(){
+        step('err', '', 'Ollama запущена, но не пускает запросы с этой страницы. ' + corsHelp);
+        throw 'stop';
+      }, function(){
+        step('err', '', 'Ollama не отвечает по адресу <code>' + root.replace(/[<>&"]/g, '') + '</code>. Запустите программу Ollama (или установите с <a href="https://ollama.com/download" target="_blank" rel="noopener">ollama.com</a>). Если браузер спросит доступ к устройствам локальной сети — разрешите. Если Ollama точно запущена — значит, она не пускает страницу: ' + corsHelp);
+        throw 'stop';
+      });
+    }).then(function(tags){
+      var ms = (tags && tags.models || []).map(function(m){ return { name:m.name, size:m.size || 0 }; });
+      var chat = ms.filter(function(m){ return !/embed/i.test(m.name); });
+      if(!chat.length){ step('err', '', 'Моделей нет. Скачайте: в терминале <code>ollama pull qwen2.5-coder:3b</code> (быстрая) или <code>ollama pull qwen2.5-coder:7b</code> (умнее, нужна видеокарта от 6 ГБ).'); throw 'stop'; }
+      CL.models.ollama = ms.map(function(m){ return m.name; }).sort();
+      if(!c.model || CL.models.ollama.indexOf(c.model) < 0){ c.model = clPickModel(CL.models.ollama); clSaveCfg(); }
+      step('ok', 'Моделей: ' + chat.length + ' — ' + chat.map(function(m){ return m.name; }).join(', ') + '. Выбрана ' + c.model);
+      show('', 'Пробую модель ' + c.model + ' — первый ответ может занять до минуты, пока она загружается…');
+      return fetch(root + '/api/generate', { method:'POST', headers:{ 'content-type':'application/json' }, body:JSON.stringify({ model:c.model, prompt:'Ответь одним словом: готово', stream:false, options:{ num_predict:24 } }) }).then(function(r){ if(!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+    }).then(function(g){
+      var tps = g.eval_count && g.eval_duration ? g.eval_count / (g.eval_duration / 1e9) : 0, load = g.load_duration ? g.load_duration / 1e9 : 0;
+      var slow = tps && tps < 8;
+      step(slow ? 'warn' : 'ok', 'Модель ответила «' + String(g.response || '').trim().slice(0, 30) + '»' + (tps ? ' · скорость ' + tps.toFixed(1).replace('.', ',') + ' слов/с' : '') + (load > 1 ? ' · загрузка ' + Math.round(load) + ' с' : '') + (slow ? ' — медленно: схема из 5 блоков будет собираться несколько минут' : ''));
+      return fetch(root + '/api/ps').then(function(r){ return r.json(); }).then(function(ps){
+        var m = (ps && ps.models || []).filter(function(x){ return x.name === c.model || x.model === c.model; })[0];
+        if(m && m.size){
+          var part = (m.size_vram || 0) / m.size, gb = function(b){ return (b / 1073741824).toFixed(1).replace('.', ','); };
+          if(part < 0.95){
+            var smaller = /7b|8b/i.test(c.model) ? c.model.replace(/7b|8b/i, '3b') : 'qwen2.5-coder:3b';
+            step('warn', '', 'В видеопамять поместилось ' + gb(m.size_vram || 0) + ' из ' + gb(m.size) + ' ГБ модели — остальное считает процессор, поэтому медленно. Возьмите модель поменьше: <code>ollama pull ' + smaller + '</code>, затем «Найти модели» и выберите её.');
+          } else step('ok', 'Модель целиком в видеопамяти (' + gb(m.size) + ' ГБ)');
+        }
+      }, function(){}).then(function(){ return slow; });
+    }).then(function(slow){
+      show(slow ? 'warn' : 'ok', slow ? 'Ollama работает, но медленно' : 'Ollama работает — можно включать');
+    }, function(e){
+      if(e !== 'stop') step('err', 'Модель не ответила: ' + (e && e.message || e) + '. Проверьте, что она скачана целиком.');
+      show('err', 'Ollama пока не готова');
+    });
+  }
   function clRenderPanel(){
     var b = $('claudePBody'); b.textContent = '';
     b.appendChild(h('div', { 'class':'clp-src' }, [ h('i', { 'class':CL.on ? 'on' : '' }), h('span', { text:CL.on ? 'Включено: ИИ Triosteum работает через ' + clSourceText() : (AI.api ? 'Выключено: работает встроенный ИИ Triosteum' : 'Выключено: встроенный ИИ Triosteum не подключён') }) ]));
@@ -4404,7 +4464,11 @@ public class MovingAverage : IBlock
     b.appendChild(seg);
     if(CL.prov === 'claude') clPanelClaude(b); else clPanelOai(b, CL.prov);
     if(CL.prov === 'ollama' && !CL.models.ollama && !CL.autoFind){ CL.autoFind = true; clListModels('ollama').then(function(ms){ CL.models.ollama = ms; var c = CL.cfg.ollama; if(ms.length && ms.indexOf(c.model) < 0){ c.model = clPickModel(ms); clSaveCfg(); } if(!$('claudeP').hidden && CL.prov === 'ollama') clRenderPanel(); }, function(){}); }
-    if(CL.status) b.appendChild(h('div', { 'class':'clp-st ' + (CL.status.cls || ''), text:CL.status.text, role:'status' }));
+    if(CL.status && CL.status.steps){
+      var dg = h('div', { 'class':'clp-st clp-diag ' + (CL.status.cls || ''), role:'status' }, [ h('b', { text:CL.status.text }) ]);
+      CL.status.steps.forEach(function(st){ dg.appendChild(h('div', { 'class':'dg-row ' + st.s }, [ h('i', { text:st.s === 'ok' ? '✓' : st.s === 'warn' ? '!' : st.s === 'wait' ? '…' : '✗', 'aria-hidden':'true' }), h('span', st.html ? { html:st.html } : { text:st.text }) ])); });
+      b.appendChild(dg);
+    } else if(CL.status) b.appendChild(h('div', { 'class':'clp-st ' + (CL.status.cls || ''), text:CL.status.text, role:'status' }));
     b.appendChild(h('p', { text:'Пока переключатель включён, помощник блока, архитектор, конструктор, бэкенд и ИИ офиса работают через выбранный ИИ. Выключите — вернётся прежний. После закрытия вкладки переключатель выключается.' }));
   }
   function clRemember(k){ var rem = h('input', { type:'checkbox' }); try { var l = clStore('local'); rem.checked = !!(l && l.getItem(k)); } catch(e){} return rem; }
@@ -4474,7 +4538,7 @@ public class MovingAverage : IBlock
         CL.status = { cls:'ok', text:'Настройки сохранены.' };
         (CL.on ? clReconnect() : clEnable(true)).then(function(ok){ if(ok) toast('ИИ Triosteum: ' + clSourceText()); clRenderPanel(); });
       } } }),
-      h('button', { type:'button', 'class':'btn sm', text:'Проверить', on:{ click:function(){ grab(); clCheck(function(){ return oaiHttp('Ответь одним словом: готово', {}, { prov:p, max:16 }); }); } } })
+      h('button', { type:'button', 'class':'btn sm', text:isO ? 'Проверить подключение' : 'Проверить', on:{ click:function(){ grab(); if(isO) clOllamaDiag(); else clCheck(function(){ return oaiHttp('Ответь одним словом: готово', {}, { prov:p, max:16 }); }); } } })
     ]));
     if(isO){
       // инструкция остаётся на месте, её можно свернуть и развернуть; положение запоминается
