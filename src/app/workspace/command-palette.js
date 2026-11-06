@@ -40,7 +40,8 @@
       { label:'Открыть файл…', icon:'upload', kb:MOD + 'O', act:function(){ fileIn.click(); }, k:'импорт загрузить' },
       { label:'Экспорт картинки (SVG)', icon:'map', act:exportSvg, k:'изображение скачать' },
       { label:'Скопировать схему (JSON)', icon:'copy', act:copyScheme },
-      { label:'Горячие клавиши', icon:'keys', act:function(){ showTip($('bKeys'), 6000); }, k:'клавиши сочетания' }
+      { label:'Горячие клавиши', icon:'keys', act:function(){ showTip($('bKeys'), 6000); }, k:'клавиши сочетания' },
+      { label:'Тур по Triosteum', icon:'map', act:function(){ setTimeout(tourStart, 120); }, k:'обучение помощь подсказки знакомство' }
     ]);
     return C.map(function(c){ c.group = 'Команды'; return c; });
   }
