@@ -14,6 +14,8 @@
     { id:'docs', name:'Документы', color:'#9333EA', ic:'<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h6"/>', re:/договор|акт\b|акт |письм|записк|приказ|накладн|документ|заявлен|доверен|протокол|положени|регламент|инструкци|согласован|подписан|эцп|журнал|реестр|статус/i },
     { id:'other', name:'Прочее', color:'#78716C', ic:'<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>' }
   ];
+  var LIB_DIRTY = true;
+  new MutationObserver(function(){ if(!el.lib.hidden && LIB_DIRTY){ LIB_DIRTY = false; renderChips(); renderList(); } }).observe(el.lib, { attributes:true, attributeFilter:['hidden'] });
   var LIB_CAT_ORDER_GUESS = ['integr', 'hr', 'docs', 'prod', 'stock', 'fin', 'sales', 'analytics', 'viz', 'data'];
   function libCatOf(p){
     if(p.cat && LIB_CATS.some(function(c){ return c.id === p.cat; })) return p.cat;
@@ -35,6 +37,7 @@
   function libLangOk(p){ return S.libLang === 'all' || p.lang === S.libLang; }
   // слева — разделы с количеством, сверху — языки
   function renderChips(){
+    if(el.lib.hidden){ LIB_DIRTY = true; return; }      // закрытая библиотека не строится — догонит при открытии
     var q = S.q.trim().toLowerCase(), base = libAll().filter(function(p){ return libMatch(p, q); });
     if(S.libLang !== 'all' && !LANGS.some(function(l){ return l.id === S.libLang; })) S.libLang = 'all';
     var nav = $('libCats'); nav.innerHTML = '';
@@ -85,6 +88,7 @@
     return card;
   }
   function renderList(){
+    if(el.lib.hidden){ LIB_DIRTY = true; return; }
     var q = S.q.trim().toLowerCase();
     var items = libAll().filter(function(p){ return libLangOk(p) && libMatch(p, q) && (S.libCat === 'all' || (S.libCat === 'my' ? p.my : libCatOf(p) === S.libCat)); });
     el.plist.innerHTML = '';

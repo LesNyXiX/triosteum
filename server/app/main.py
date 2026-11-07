@@ -201,6 +201,18 @@ def index(request: Request):
 
 
 BRAND_DIR = Path(__file__).parent / "static" / "brand"
+VENDOR_DIR = settings.client_html.parent / "vendor"
+
+
+@app.get("/vendor/{rel:path}")
+def vendor_file(rel: str):
+    """Шрифты и Python для браузера (Pyodide) — рядом с index.html, только чтение и только внутри папки vendor."""
+    root = VENDOR_DIR.resolve()
+    path = (root / rel).resolve()
+    if root not in path.parents or not path.is_file():
+        raise HTTPException(404, "Нет такого файла")
+    return FileResponse(path, headers={"Cache-Control": "public, max-age=2592000"})
+
 
 
 @app.get("/brand/{name}")

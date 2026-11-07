@@ -5,6 +5,7 @@
 import { readFileSync, writeFileSync, mkdirSync, watch } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { transformSync } from 'esbuild';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const SRC = join(ROOT, 'src');
@@ -22,7 +23,16 @@ export function build() {
   // «</script» внутри кода закрыл бы тег скрипта раньше времени — страница не запустится
   const bad = /<\/script/i.exec(js + pre);
   if (bad) throw new Error('В коде есть «</script» (около: ' + JSON.stringify((js + pre).slice(Math.max(0, bad.index - 60), bad.index + 10)) + ') — напишите <\\/script>');
-  const html = tpl.replace('<!--@@CSS@@-->', () => css).replace('<!--@@PRE@@-->', () => pre).replace('<!--@@JS@@-->', () => js);
+  // сжатие: без комментариев и отступов, короткие внутренние имена — файл меньше, браузер разбирает быстрее.
+  // TRIOSTEUM_DEV=1 node build.mjs — собрать без сжатия (удобно читать в отладчике)
+  const DEV = process.env.TRIOSTEUM_DEV === '1';
+  const WRAP = 'window.__tsBoot(function(){\n<!--@@JS@@-->\n});';
+  if (!tpl.includes(WRAP)) throw new Error('В шаблоне нет обёртки window.__tsBoot(function(){ <!--@@JS@@--> });');
+  const appJs = DEV ? WRAP.replace('<!--@@JS@@-->', () => js) : transformSync('window.__tsBoot(function(){\n' + js + '\n});', { minify: true, target: 'es2018', charset: 'utf8', legalComments: 'none' }).code.trim();
+  const appCss = DEV ? css : transformSync(css, { loader: 'css', minify: true, charset: 'utf8' }).code;
+  const prePacked = DEV ? pre : transformSync(pre, { minify: true, target: 'es2018', charset: 'utf8' }).code.trim();
+  if (/<\/script/i.test(appJs + prePacked)) throw new Error('После сжатия в коде появилось «</script»');
+  const html = tpl.replace(WRAP, () => appJs).replace('<!--@@CSS@@-->', () => appCss).replace('<!--@@PRE@@-->', () => prePacked);
   mkdirSync(dirname(OUT), { recursive: true });
   writeFileSync(OUT, html);
   return { files: man.css.length + man.js.length + 1, bytes: Buffer.byteLength(html) };

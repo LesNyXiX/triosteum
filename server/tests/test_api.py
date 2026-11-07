@@ -227,3 +227,12 @@ def test_forwarded_for_not_trusted_by_default(client):
     codes = [client.post("/api/auth/login", json={"email": email, "password": "bad-pass-1"},
                          headers={"X-Forwarded-For": f"10.0.0.{i}"}).status_code for i in range(12)]
     assert 429 in codes
+
+
+def test_vendor_files_served_safely(client):
+    """Шрифты из vendor/ отдаются; выйти за пределы папки нельзя."""
+    r = client.get("/vendor/fonts/inter-latin-wght-normal.woff2")
+    assert r.status_code == 200 and len(r.content) > 10_000
+    assert "max-age" in r.headers.get("cache-control", "")
+    for bad in ("/vendor/../index.html", "/vendor/%2e%2e/index.html", "/vendor/fonts/../../index.html", "/vendor/nope.woff2"):
+        assert client.get(bad).status_code == 404, bad
