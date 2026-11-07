@@ -135,11 +135,11 @@
     });
     b.appendChild(section('Линии связей', eseg));
     var dseg = h('div', { 'class':'seg' });
-    [['on', 'Показывать'], ['auto', 'Прятать, пока не нужен'], ['off', 'Выключить']].forEach(function(o){
-      var on = (UI.envDock || 'on') === o[0];
+    [['mini', 'Сворачивать в полоску'], ['on', 'Всегда показывать'], ['auto', 'Прятать, пока не нужен'], ['off', 'Выключить']].forEach(function(o){
+      var on = (UI.envDock || 'mini') === o[0];
       dseg.appendChild(h('button', { type:'button', 'class':'btn sm' + (on ? ' on' : ''), 'aria-pressed':on ? 'true' : 'false', text:o[1], on:{ click:function(){ UI.envDock = o[0]; save('triosteum.ui', UI); if(typeof envDockRender === 'function') envDockRender(); renderPers(); } } }));
     });
-    b.appendChild(section('Док сред внизу — значки сред, как на Mac (при «Прятать» выезжает, если подвести курсор к нижнему краю)', dseg));
+    b.appendChild(section('Док сред внизу — значки сред, как на Mac. «Сворачивать»: через 3 секунды без наведения превращается в полоску, наведите — развернётся. «Прятать»: выезжает у нижнего края', dseg));
     var tgrid = h('div', { 'class':'toolgrid docks-grid' });
     TOOL_OPTS.forEach(function(t){
       var tools = UI.tools || {}, on = tools[t.id] === undefined ? !!t.core : !!tools[t.id];

@@ -506,10 +506,10 @@
   @media (prefers-reduced-motion: reduce){ .ed-i,.env-dock{transition:none} .ed-i.jump .ed-tile{animation:none} }
   @media (max-width:640px){ .ed-shelf{height:54px;gap:4px;padding:5px 6px 7px} .ed-i{--sz:40px !important} .ed-tip{display:none} .env-dock{max-width:calc(100vw - 16px)} .ed-shelf{overflow-x:auto} }
   /* в открытом файле и в редакторе кода док не занимает место — выезжает, когда курсор у нижнего края */
-  body.ed-away .env-dock:not(.peek){transform:translateX(-50%) translateY(calc(100% + 16px));opacity:0;pointer-events:none}
-  body.ed-away .env-dock.peek{transform:translateX(-50%);opacity:1}
+  body.ed-away:not(.ed-mm) .env-dock:not(.peek){transform:translateX(-50%) translateY(calc(100% + 16px));opacity:0;pointer-events:none}
+  body.ed-away:not(.ed-mm) .env-dock.peek{transform:translateX(-50%);opacity:1}
   .ed-handle{display:none}
-  body.ed-away.has-envdock .ed-handle{display:block;position:absolute;left:50%;bottom:0;width:120px;height:12px;transform:translateX(-50%);z-index:27;cursor:pointer}
+  body.ed-away.has-envdock:not(.ed-mm) .ed-handle{display:block;position:absolute;left:50%;bottom:0;width:120px;height:12px;transform:translateX(-50%);z-index:27;cursor:pointer}
   body.ed-away.has-envdock .ed-handle::after{content:"";position:absolute;left:30px;right:30px;bottom:4px;height:4px;border-radius:3px;background:var(--line2);opacity:.9;transition:background .15s,transform .15s}
   body.ed-away.has-envdock .ed-handle:hover::after{background:var(--muted);transform:scaleX(1.15)}
   body.ed-away.has-envdock .tools.dock-bottom{bottom:calc(10px + var(--snap-b,0px))}
@@ -539,3 +539,34 @@
   /* тень значка в доке — по контуру (дёшево), а не фильтром по картинке */
   .ed-i .ed-tile.art{filter:none;border-radius:23%;box-shadow:0 3px 8px rgba(0,0,0,.35)}
   .ed-i:active .ed-tile.art{filter:brightness(.82)}
+
+  /* ---------- док свёрнут в полоску: «стекает» вниз, на его месте — сегменты сред ---------- */
+  .env-dock{transform-origin:50% 100%}
+  .env-dock.mini{transform:translateX(-50%) translateY(34px) scale(.5,.18);opacity:0;
+    transition:transform .5s cubic-bezier(.6,0,.35,1),opacity .32s ease .14s}
+  .env-dock.mini .ed-shelf{pointer-events:none}
+  .ed-mini{position:absolute;z-index:28;bottom:calc(10px + var(--snap-b,0px));left:calc(var(--snap-l,0px) + (100% - var(--snap-l,0px) - var(--snap-r,0px)) / 2);
+    display:flex;align-items:center;gap:6px;padding:6px 10px 6px 7px;border-radius:16px;cursor:pointer;
+    background:color-mix(in srgb,var(--panel) 90%,transparent);border:1px solid var(--line2);
+    box-shadow:0 10px 28px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.06);
+    transform:translateX(-50%) translateY(18px) scale(.92);opacity:0;pointer-events:none;
+    transition:transform .3s cubic-bezier(.4,0,.6,1),opacity .18s ease}
+  .ed-mini.on{transform:translateX(-50%);opacity:1;pointer-events:auto;
+    transition:transform .55s cubic-bezier(.34,1.45,.64,1) .3s,opacity .3s ease .3s}
+  .ed-mini.on:hover{transform:translateX(-50%) translateY(-3px);transition-delay:0s}
+  .edm-grip{width:6px;height:18px;margin-right:2px;border-radius:2px;opacity:.75;
+    background:radial-gradient(circle,var(--muted) 1.1px,transparent 1.5px) 0 0/6px 5px}
+  .edm-seg{flex:none;width:30px;height:10px;border-radius:5px;opacity:.5;
+    background:linear-gradient(180deg,color-mix(in srgb,var(--ec) 70%,#fff),var(--ec));box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 1px 3px rgba(0,0,0,.3);
+    transition:opacity .2s,transform .2s}
+  .edm-seg.has{opacity:.9}
+  .ed-mini:hover .edm-seg{opacity:1}
+  .edm-seg.here{width:auto;height:28px;display:flex;align-items:center;gap:7px;padding:0 12px 0 4px;margin:0 3px;border-radius:10px;opacity:1;
+    background:linear-gradient(160deg,color-mix(in srgb,var(--ec) 80%,#fff),var(--ec) 55%,color-mix(in srgb,var(--ec) 75%,#000));
+    box-shadow:0 0 0 2px color-mix(in srgb,var(--ec) 40%,transparent),0 6px 18px color-mix(in srgb,var(--ec) 45%,transparent),inset 0 1px 0 rgba(255,255,255,.35)}
+  .edm-seg.here b{font-size:12.5px;font-weight:600;color:#fff;white-space:nowrap;text-shadow:0 1px 2px rgba(0,0,0,.35)}
+  .edm-ic{display:block;width:22px;height:22px}
+  .edm-ic svg{display:block;width:100%;height:100%}
+  body.noanim .env-dock,body.noanim .ed-mini{transition:none !important}
+  @media (prefers-reduced-motion: reduce){ .ed-mini{transition:none !important} }
+  @media (max-width:640px){ .edm-seg{width:16px} .edm-seg.here b{display:none} }

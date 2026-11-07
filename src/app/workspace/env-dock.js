@@ -5,7 +5,8 @@
   var EDOCK = { el:null, items:[], raf:0, mx:null, hideT:0 };
   var ED_BASE = 46, ED_MAX = 76, ED_RANGE = 150;
   function envIc(k){ var e = ENVS[k]; return e.ic || (k === 'code' ? '<path d="M8 7l-5 5 5 5M16 7l5 5-5 5M14 4l-4 16"/>' : '<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h6"/>'); }
-  function envDockMode(){ return UI.envDock || 'on'; }
+  function envDockMode(){ return UI.envDock || 'mini'; }
+  var ED_IDLE = 3000;
   function envDockBuild(){
     if(EDOCK.el || PANE) return;
     var d = h('nav', { 'class':'env-dock', id:'envDock', 'aria-label':'Среды работы' });
@@ -13,6 +14,16 @@
     d.appendChild(shelf);
     document.querySelector('.row').appendChild(d);
     EDOCK.el = d; EDOCK.shelf = shelf;
+    // свёрнутый вид: полоска из цветных сегментов сред, текущая — крупная плашка с названием
+    var mini = h('div', { 'class':'ed-mini', role:'button', tabindex:'-1', 'aria-hidden':'true' });
+    mini.addEventListener('mouseenter', envDockExpand);
+    mini.addEventListener('click', envDockExpand);
+    document.querySelector('.row').appendChild(mini);
+    EDOCK.mini = mini;
+    shelf.addEventListener('mouseenter', function(){ clearTimeout(EDOCK.idleT); });
+    shelf.addEventListener('mouseleave', edIdle);
+    d.addEventListener('focusin', function(){ if(EDOCK.el.classList.contains('mini')) envDockMini(false); clearTimeout(EDOCK.idleT); });
+    d.addEventListener('focusout', function(){ setTimeout(function(){ if(!EDOCK.el.contains(document.activeElement)) edIdle(); }, 0); });
     // в открытом файле док спрятан — у нижнего края остаётся тонкая полоска: навели — док выезжает
     var hd = h('div', { 'class':'ed-handle', 'aria-hidden':'true', title:'Среды — наведите, чтобы показать' });
     hd.addEventListener('mouseenter', function(){ clearTimeout(EDOCK.hideT); EDOCK.hideT = 0; d.classList.add('peek'); });
@@ -27,12 +38,12 @@
     });
     // автоскрытие: док выезжает, когда курсор у нижнего края рабочей области
     document.addEventListener('mousemove', function(e){
-      if(!EDOCK.el || envDockMode() === 'off' || (envDockMode() !== 'auto' && !document.body.classList.contains('ed-away'))) return;
+      var md = envDockMode(); if(!EDOCK.el || md === 'off' || md === 'mini' || (md !== 'auto' && !document.body.classList.contains('ed-away'))) return;
       var r = document.querySelector('.row').getBoundingClientRect(), near = e.clientY > r.bottom - 14 && e.clientY <= r.bottom + 4;
       if(near || EDOCK.el.matches(':hover') || EDOCK.el.contains(document.activeElement)){ clearTimeout(EDOCK.hideT); EDOCK.el.classList.add('peek'); }
       else if(EDOCK.el.classList.contains('peek') && !EDOCK.hideT){ EDOCK.hideT = setTimeout(function(){ EDOCK.hideT = 0; if(!EDOCK.el.matches(':hover') && !EDOCK.el.contains(document.activeElement)) EDOCK.el.classList.remove('peek'); }, 700); }
     });
-    d.addEventListener('focusin', function(){ if(envDockMode() === 'auto' || document.body.classList.contains('ed-away')) EDOCK.el.classList.add('peek'); });
+    d.addEventListener('focusin', function(){ var md = envDockMode(); if(md === 'auto' || (md !== 'mini' && document.body.classList.contains('ed-away'))) EDOCK.el.classList.add('peek'); });
   }
   function envDockItem(opt){
     var b = h('button', { type:'button', 'class':'ed-i' + (opt.cls ? ' ' + opt.cls : ''), style:'--ec:' + (opt.color || 'var(--red)'), 'aria-label':opt.label + (opt.here ? ' — открыта' : ''), 'aria-current':opt.here ? 'true' : null });
@@ -50,14 +61,15 @@
     b.addEventListener('focus', function(){ b.classList.add('kb'); });
     b.addEventListener('blur', function(){ b.classList.remove('kb'); });
     EDOCK.shelf.appendChild(b);
-    EDOCK.items.push({ b:b });
+    EDOCK.items.push({ b:b, here:!!opt.here });
     return b;
   }
   function envDockRender(){
     if(PANE) return;
     envDockBuild();
     var mode = envDockMode();
-    document.body.classList.toggle('has-envdock', mode === 'on');
+    document.body.classList.toggle('has-envdock', mode === 'on' || mode === 'mini');
+    document.body.classList.toggle('ed-mm', mode === 'mini');
     EDOCK.el.hidden = mode === 'off';
     EDOCK.el.classList.toggle('auto', mode === 'auto');
     EDOCK.shelf.innerHTML = ''; EDOCK.items = [];
@@ -67,7 +79,38 @@
     });
     EDOCK.shelf.appendChild(h('span', { 'class':'ed-sep', 'aria-hidden':'true' }));
     envDockItem({ key:'_all', menu:envDockAllMenu, label:'Все среды', color:'#64748B', cls:'ed-all', ic:'<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>', act:openEco });
+    envDockMiniRender();
+    if(mode !== 'mini') envDockMini(false); else if(!EDOCK.el.classList.contains('mini')) edIdle();
     edFrame();
+  }
+  function envDockMiniRender(){
+    var m = EDOCK.mini; if(!m) return;
+    m.innerHTML = ''; m.appendChild(h('span', { 'class':'edm-grip' }));
+    var cur = '';
+    Object.keys(ENVS).forEach(function(k){
+      var e = ENVS[k], here = ENV.id === k;
+      var seg = h('span', { 'class':'edm-seg' + (here ? ' here' : envProjects(k).length ? ' has' : ''), style:'--ec:' + (e.color || 'var(--red)') });
+      if(here){ cur = e.name; seg.appendChild(h('i', { 'class':'edm-ic', html:envIconSvg(k, true) })); seg.appendChild(h('b', { text:e.name })); }
+      m.appendChild(seg);
+    });
+    m.setAttribute('title', 'Сейчас: ' + cur + ' — наведите, чтобы показать все среды');
+  }
+  // свернуть / развернуть док; сворачивается сам через 3 секунды без наведения
+  function envDockMini(on){
+    if(!EDOCK.el) return;
+    on = !!on && envDockMode() === 'mini';
+    EDOCK.el.classList.toggle('mini', on); EDOCK.mini.classList.toggle('on', on);
+    if(on){ EDOCK.mx = null; edFrame(); }
+  }
+  function envDockExpand(){ envDockMini(false); edIdle(); }
+  function edIdle(){
+    clearTimeout(EDOCK.idleT);
+    if(!EDOCK.el || envDockMode() !== 'mini') return;
+    EDOCK.idleT = setTimeout(function(){
+      var busy = EDOCK.shelf.matches(':hover') || EDOCK.el.contains(document.activeElement) || (typeof TOUR !== 'undefined' && TOUR) || EDOCK.shelf.querySelector('.ed-i.menu') || document.body.classList.contains('docking');
+      if(busy){ edIdle(); return; }
+      envDockMini(true);
+    }, ED_IDLE);
   }
   /* ---------- меню значка: открыть, создать, очистить, удалить пространства среды ---------- */
   function spWord(n){ return n + ' ' + plural(n, 'пространство', 'пространства', 'пространств'); }
@@ -129,8 +172,8 @@
       // сначала все замеры, потом все изменения — иначе браузер пересчитывает раскладку на каждом значке
       var centers = on ? EDOCK.items.map(function(it){ var r = it.b.getBoundingClientRect(); return r.left + r.width / 2; }) : null;
       EDOCK.items.forEach(function(it, i){
-        var size = ED_BASE;
-        if(on){ var d = Math.abs(EDOCK.mx - centers[i]); if(d < ED_RANGE){ var t = Math.cos(d / ED_RANGE * Math.PI / 2); size = ED_BASE + (ED_MAX - ED_BASE) * t * t; } }
+        var size = it.here ? ED_BASE + 6 : ED_BASE;     // открытая среда чуть крупнее — видно, где вы работаете
+        if(on){ var d = Math.abs(EDOCK.mx - centers[i]); if(d < ED_RANGE){ var t = Math.cos(d / ED_RANGE * Math.PI / 2); size = Math.max(size, ED_BASE + (ED_MAX - ED_BASE) * t * t); } }
         var v = size.toFixed(1);
         if(it.sz !== v){ it.sz = v; it.b.style.setProperty('--sz', v + 'px'); }
       });
@@ -146,7 +189,7 @@
   // в редакторе кода и в открытом файле Офиса док не закрывает консоль и текст — он виден на досках и рабочих столах
   function envDockScene(){
     var off = S.view === 'editor' || (typeof OF === 'object' && OF && isOffice() && ['desk', 'map', 'auto'].indexOf(OF.tab) < 0);
-    if(document.body.classList.contains('ed-away') !== !!off && EDOCK.el) EDOCK.el.classList.remove('peek');
+    if(document.body.classList.contains('ed-away') !== !!off && EDOCK.el){ EDOCK.el.classList.remove('peek'); if(off) envDockMini(true); }
     document.body.classList.toggle('ed-away', !!off);
   }
   (function(){

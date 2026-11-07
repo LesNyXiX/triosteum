@@ -35,6 +35,7 @@
   }
   function tourGo(d){ if(!TOUR) return; var j = TOUR.i + d; if(j < 0) return; if(j >= TOUR.steps.length) return tourEnd(true); TOUR.i = j; tourShow(); }
   function tourShow(){
+    if(typeof envDockExpand === 'function') envDockExpand();   // свёрнутый док разворачиваем, чтобы шаг про него было видно
     var T = TOUR, s = T.steps[T.i], n = T.steps.length, last = T.i === n - 1;
     T.card.innerHTML = '';
     T.card.appendChild(h('div', { 'class':'tour-n', text:(T.i + 1) + ' из ' + n }));

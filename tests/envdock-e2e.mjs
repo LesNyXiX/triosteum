@@ -11,8 +11,31 @@ const browser = await chromium.launch();
 const page = await (await browser.newContext({ viewport: { width: 1600, height: 900 } })).newPage();
 const errors = [];
 page.on('pageerror', (e) => { if (!/sandboxed/.test(e.message)) errors.push(e.message); });
-await page.addInitScript(() => { localStorage.setItem('triosteum.profile', JSON.stringify({ name: 'Т', org: 'З' })); localStorage.setItem('triosteum.tour', '{"done":true}'); });
+await page.addInitScript(() => { localStorage.setItem('triosteum.profile', JSON.stringify({ name: 'Т', org: 'З' })); localStorage.setItem('triosteum.tour', '{"done":true}'); if (!localStorage.getItem('triosteum.ui')) localStorage.setItem('triosteum.ui', JSON.stringify({ envDock: 'on' })); });
 await page.goto(URL); await page.waitForTimeout(900);
+
+console.log('Свёрнутый вид (по умолчанию)');
+{
+  const pg = await (await browser.newContext({ viewport: { width: 1600, height: 900 } })).newPage();
+  await pg.addInitScript(() => { localStorage.setItem('triosteum.profile', JSON.stringify({ name: 'Т', org: 'З' })); localStorage.setItem('triosteum.tour', '{"done":true}'); });
+  await pg.goto(URL); await pg.waitForTimeout(900); await pg.mouse.move(800, 300);
+  const st = () => pg.evaluate(() => [document.querySelector('#envDock').classList.contains('mini'), document.querySelector('.ed-mini').classList.contains('on')].join());
+  check(await st() === 'false,false', 'сначала док развёрнут');
+  await pg.waitForTimeout(3700);
+  check(await st() === 'true,true', 'через 3 секунды без наведения — полоска');
+  check(await pg.locator('.ed-mini .edm-seg').count() >= 8 && /Разработка/.test(await pg.textContent('.ed-mini .edm-seg.here')), 'в полоске — все среды, открытая — плашкой с названием');
+  const segs = await pg.$$eval('.ed-mini .edm-seg', (x) => x.map((e) => e.getBoundingClientRect().width));
+  check(Math.max(...segs) > 2 * Math.min(...segs), 'открытая среда заметно крупнее');
+  const mb = await pg.locator('.ed-mini').boundingBox(); await pg.mouse.move(mb.x + 30, mb.y + mb.height / 2, { steps: 3 }); await pg.waitForTimeout(700);
+  check(await st() === 'false,false', 'навели — док развернулся');
+  await pg.mouse.move(800, 300, { steps: 3 }); await pg.waitForTimeout(3700);
+  check(await st() === 'true,true', 'увели — снова свернулся');
+  await pg.keyboard.press('Tab'); await pg.locator('#envDock .ed-i').first().focus(); await pg.waitForTimeout(400);
+  check(await st() === 'false,false', 'фокус с клавиатуры разворачивает док');
+  const cur = await pg.locator('#envDock .ed-i[aria-current="true"]').boundingBox(), oth = await pg.locator('#envDock .ed-i').nth(4).boundingBox();
+  check(cur.width > oth.width + 3, 'в доке значок открытой среды чуть крупнее');
+  await pg.context().close();
+}
 
 console.log('Вид');
 const n = await page.locator('#envDock .ed-i').count();
