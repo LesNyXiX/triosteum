@@ -58,6 +58,7 @@
     var r = ARC.res, box = h('div', { 'class':'bld-res' });
     box.appendChild(h('div', { 'class':'bld-t', text:r.title }));
     if(r.summary) box.appendChild(h('p', { 'class':'bld-sum', text:r.summary }));
+    if(r.cut) box.appendChild(h('p', { 'class':'bld-sum', style:'color:var(--warn,#FBBF24)', text:'Ответ ИИ оборвался на полуслове — собраны блоки, которые он успел написать. Проверьте код или соберите ещё раз.' }));
     var ol = h('ol', { 'class':'arc-blocks' });
     r.blocks.forEach(function(bk){
       var l = langById(bk.lang) || { id:bk.lang, name:bk.lang };
@@ -78,12 +79,25 @@
     ]));
     return box;
   }
+  /* Каталог для запроса. Маленьким локальным моделям весь каталог мешает: запрос раздувается, и модель хуже держит
+     формат ответа. Для Ollama оставляем 30 плагинов, ближайших к задаче по словам; облачным — весь каталог. */
+  function arcCatalog(list, q){
+    list = list.filter(function(p){ return langById(p.lang); });
+    var local = typeof CL !== 'undefined' && CL.on && CL.prov === 'ollama';
+    if(!local || list.length <= 30) return list;
+    var words = String(q).toLowerCase().split(/[^a-zа-яё0-9]+/).filter(function(w){ return w.length > 3; }).map(function(w){ return w.slice(0, 5); });
+    return list.map(function(p, i){
+      var t = (p.name + ' ' + (p.desc || '') + ' ' + (p.tags || []).join(' ')).toLowerCase(), sc = 0;
+      words.forEach(function(w){ if(t.indexOf(w) >= 0) sc++; });
+      return { p:p, sc:sc, i:i };
+    }).sort(function(a, b){ return b.sc - a.sc || a.i - b.i; }).slice(0, 30).map(function(x){ return x.p; });
+  }
   function buildArc(){
     var q = (ARC.prompt || '').trim();
     if(!AI.api || ARC.busy) return;
     if(!q){ toast('Опишите задачу для ИИ'); return; }
     ARC.busy = true; ARC.chars = 0; ARC.res = null; ARC.err = null; renderArc();
-    var catalog = PLUGINS.concat(myVis()).map(function(p){ return '- ' + p.id + ' | ' + langById(p.lang).name + ' | ' + p.name + ' — ' + (p.desc || ''); }).join('\n');
+    var catalog = arcCatalog(PLUGINS.concat(myVis()), q).map(function(p){ return '- ' + p.id + ' | ' + langById(p.lang).name + ' | ' + p.name + ' — ' + (p.desc || ''); }).join('\n');
     var fmts = LANGS.map(function(l){ return '#### ' + l.name + ' (lang="' + l.id + '")\n' + FENCE + langTag(l.id) + '\n' + l.tpl.replace(/\s+$/, '') + '\n' + FENCE; }).join('\n');
     var ctxBoard = !ARC.fresh && G.nodes.length ? 'На доске уже есть блоки (новые ставятся рядом, связывать с ними нельзя): ' + G.nodes.map(function(n){ return n.name; }).join(', ') : '';
     ARC.xhits = xFind(q);
@@ -94,7 +108,7 @@
       'По задаче пользователя спроектируй схему:',
       '1) В первую очередь используй готовые плагины из каталога (указывай их id).',
       '2) Чего нет в каталоге — создай новый плагин сам: полный рабочий код в формате Triosteum для выбранного языка (образцы ниже). У Python-плагинов задай sample — тестовые данные, чтобы блок работал и без входа; функция run должна принимать данные предыдущего блока.',
-      '3) Связи — по реальному потоку данных. 3–8 блоков. Названия блоков — по-русски, по смыслу.',
+      '3) Связи — по реальному потоку данных. 1–8 блоков: для простой задачи хватит одного-двух. Названия блоков — по-русски, по смыслу.',
       '4) Напиши целостный бэкенд всей схемы. ' + BACKEND_RULES,
       'Ответь ТОЛЬКО одним блоком JSON (без текста до и после):',
       FENCE + 'json',
@@ -112,8 +126,9 @@
     AI.api(prompt, { task:'architect', cache:false, onText:function(ev){ ARC.chars = ev.text.length; var s = $('arcBody').querySelector('.arc-pt'); if(s) s.textContent = 'ИИ подбирает плагины, пишет недостающие и собирает бэкенд… ' + ARC.chars + ' симв.'; } })
       .then(function(r){
         ARC.busy = false;
-        try{ ARC.res = parseArc(r.text); if(!ARC.res.blocks.length) throw new Error('empty'); }
-        catch(e){ ARC.res = null; ARC.err = 'ИИ ответил в неожиданном формате. Нажмите «Собрать схему» ещё раз или уточните задачу.'; }
+        var cut = r && (r.stop === 'length' || r.stop === 'max_tokens');
+        try{ ARC.res = parseArc(r.text, q); if(!ARC.res.blocks.length) throw new Error('empty'); if(cut) ARC.res.cut = true; }
+        catch(e){ ARC.res = null; ARC.err = cut ? 'Ответ ИИ оборвался: модель упёрлась в предел длины. Упростите задачу или выберите модель побольше.' : 'ИИ ответил в неожиданном формате. Нажмите «Собрать схему» ещё раз или уточните задачу.'; }
         if(!$('arcW').hidden) renderArc();
       }, function(err){ ARC.busy = false; ARC.err = aiFail(err); if(!$('arcW').hidden) renderArc(); });
   }
@@ -142,10 +157,83 @@
       '', 'Задача пользователя: ' + q
     ]).join('\n');
   }
-  function parseArc(text){
+  /* ---------- терпимый разбор JSON от ИИ ----------
+     Локальные модели часто пишут почти-JSON: переводы строк и кавычки внутри "code" без экранирования,
+     запятые перед скобкой, комментарии, а длинный ответ может оборваться на полуслове. Исправляем что можно
+     и, если ответ обрезан, закрываем скобки — чтобы спасти уже написанные блоки. */
+  function jsonLoose(src){
+    src = String(src || '');
+    try { return JSON.parse(src); } catch(e){}
+    var out = '', inStr = false, esc = false, kind = '', ctx = [], last = '';
+    // где кончается строка: у ключа — перед «:», у значения — перед «,» «}» «]»; для «,» ещё смотрим, что дальше похоже на JSON
+    function endsHere(i){
+      var j = i + 1; while(j < src.length && /\s/.test(src[j])) j++;
+      var nx = src[j];
+      if(nx === undefined) return true;
+      if(kind === 'key') return nx === ':';
+      if(nx === '}' || nx === ']'){ var m = j + 1; while(m < src.length && /\s/.test(src[m])) m++; return m >= src.length || /[,}\]]/.test(src[m]) || src.slice(m, m + 3) === FENCE; }
+      if(nx !== ',') return false;
+      var k = j + 1; while(k < src.length && /\s/.test(src[k])) k++;
+      var c2 = src[k];
+      if(c2 === '{' || c2 === '[') return true;
+      if(c2 !== '"') return /[-\d tfn]/.test(c2 || '') && ctx[ctx.length - 1] === ']';
+      var e = src.indexOf('"', k + 1); if(e < 0) return false;
+      var w = e + 1; while(w < src.length && /\s/.test(src[w])) w++;
+      return ctx[ctx.length - 1] === '}' ? src[w] === ':' : /[,\]]/.test(src[w] || '');
+    }
+    for(var i = 0; i < src.length; i++){
+      var c = src[i];
+      if(inStr){
+        if(esc){ out += c; esc = false; continue; }
+        if(c === '\\'){ out += c; esc = true; continue; }
+        if(c === '"'){ if(endsHere(i)){ inStr = false; out += c; last = '"'; } else out += '\\"'; continue; }
+        if(c === '\n'){ out += '\\n'; continue; } if(c === '\r') continue; if(c === '\t'){ out += '\\t'; continue; }
+        out += c; continue;
+      }
+      if(c === '"'){ inStr = true; kind = (last === '{' || (last === ',' && ctx[ctx.length - 1] === '}')) ? 'key' : 'val'; out += c; continue; }
+      if(c === '/' && src[i + 1] === '/'){ while(i < src.length && src[i] !== '\n') i++; continue; }
+      if(c === '{') ctx.push('}'); else if(c === '[') ctx.push(']'); else if(c === '}' || c === ']') ctx.pop();
+      if(!/\s/.test(c)) last = c;
+      out += c;
+    }
+    if(inStr) out += '"';
+    function close(t){
+      var st = [], s2 = false, e2 = false;
+      for(var q = 0; q < t.length; q++){ var ch = t[q];
+        if(s2){ if(e2) e2 = false; else if(ch === '\\') e2 = true; else if(ch === '"') s2 = false; continue; }
+        if(ch === '"') s2 = true; else if(ch === '{') st.push('}'); else if(ch === '[') st.push(']'); else if(ch === '}' || ch === ']') st.pop();
+      }
+      t = t.replace(/[,:\s]+$/, ''); if(/"\s*$/.test(t) && /[{,]\s*"[^"]*"$/.test(t)) t = t.replace(/,?\s*"[^"]*"$/, '');
+      return (t + st.reverse().join('')).replace(/,\s*([}\]])/g, '$1');
+    }
+    try { return JSON.parse(close(out)); } catch(e){}
+    // оборвалось внутри значения: отступаем до последнего законченного объекта
+    for(var k = out.lastIndexOf('}'); k > 0; k = out.lastIndexOf('}', k - 1)){
+      try { return JSON.parse(close(out.slice(0, k + 1))); } catch(e){}
+    }
+    throw new Error('json');
+  }
+  // ответ без JSON, но с блоками кода — каждый блок кода становится блоком схемы
+  var ARC_FENCE_LANG = { python:'python', py:'python', html:'html', cpp:'cpp', 'c++':'cpp', csharp:'csharp', cs:'csharp', 'c#':'csharp', bsl:'1c', '1c':'1c' };
+  function arcFromFences(text, q){
+    var parts = String(text).split(FENCE), blocks = [];
+    for(var i = 1; i < parts.length; i += 2){
+      var tag = (/^([^\n]*)\n/.exec(parts[i]) || [])[1] || '', lang = ARC_FENCE_LANG[tag.trim().toLowerCase()], code = parts[i].replace(/^[^\n]*\n/, '');
+      if(!lang || !langById(lang) || !code.trim()) continue;
+      var nm = (/(?:def|function|class|Функция|Процедура)\s+([\wА-Яа-яЁё]+)/.exec(code) || [])[1];
+      blocks.push({ key:'b' + (blocks.length + 1), new:true, lang:lang, name:nm ? nm.replace(/_/g, ' ') : 'Блок ' + (blocks.length + 1), desc:'Создан ИИ', code:code });
+    }
+    if(!blocks.length) throw new Error('nofence');
+    return { title:String(q || 'Схема от ИИ').slice(0, 60), summary:'', blocks:blocks, links:[] };
+  }
+  function parseArc(text, q){
     var body = text, i = text.indexOf(FENCE + 'json');
-    if(i >= 0){ var j = text.indexOf('\n', i), k = text.lastIndexOf(FENCE); body = text.slice(j + 1, k > j ? k : undefined); }
-    var a = body.indexOf('{'), z = body.lastIndexOf('}'), o = JSON.parse(body.slice(a, z + 1));
+    if(i >= 0){ var j = text.indexOf('\n', i), k = text.indexOf('\n' + FENCE, j); body = text.slice(j + 1, k > j ? k : undefined); }
+    var a = body.indexOf('{'), z = body.lastIndexOf('}'), o;
+    try { o = jsonLoose(a >= 0 ? body.slice(a, z > a ? z + 1 : undefined) : ''); }
+    catch(e){ try { o = jsonLoose(a >= 0 ? body.slice(a) : ''); } catch(e2){ o = null; } }
+    if(Array.isArray(o)) o = { blocks:o };
+    if(!o || !Array.isArray(o.blocks) || !o.blocks.length) o = arcFromFences(text, q);   // JSON не нашёлся — собираем из блоков кода
     var keys = {}, blocks = [];
     (o.blocks || []).forEach(function(bk){
       if(!bk || !bk.key || keys[bk.key]) return;
@@ -163,6 +251,7 @@
       if(!l || !keys[l.from] || !keys[l.to] || l.from === l.to) return false;
       var k = l.from + '>' + l.to; if(seen[k]) return false; seen[k] = 1; return true;
     });
+    if(!links.length && blocks.length > 1 && !o.links) links = blocks.slice(1).map(function(b, i){ return { from:blocks[i].key, to:b.key }; });   // связи не успели — цепочкой по порядку
     return { title:String(o.title || 'Схема от ИИ').slice(0, 80), summary:String(o.summary || ''), blocks:blocks, links:links,
       backend:typeof o.backend === 'string' && o.backend.trim() ? o.backend.replace(/\s+$/, '') + '\n' : null };
   }

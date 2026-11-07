@@ -534,7 +534,9 @@
   .node:not(.linked):not(.hub) .stem,.node:not(.linked):not(.hub) .port-dot{opacity:1;visibility:hidden;transition:none}
   .node:not(.linked):not(.hub):hover .stem,.node:not(.linked):not(.hub):hover .port-dot,.node:not(.linked) .port-dot.grab{visibility:visible;animation:nShow .15s ease}
   /* выделенный блок показывает отросток с точкой выхода — сразу видно, откуда тянуть связь */
-  .node.sel .stem,.node.sel .port-dot{visibility:visible;opacity:1;animation:nShow .15s ease}
+  /* .node.node — чтобы перебить «:not(.linked):not(.hub)» выше: иначе у блока без связей отросток не показывался, а на телефоне (без наведения) за него нельзя было взяться */
+  .node.node.sel .stem,.node.node.sel .port-dot{visibility:visible;opacity:1;animation:nShow .15s ease}
+  .node.node.sel .stem{pointer-events:auto}
   .node.linked.sel .port-dot{background:var(--c2);border-color:var(--bg)}
   /* отросток: при наведении на блок за него можно взяться — полоса захвата шире самой линии */
   .stem::before{content:"";position:absolute;left:-2px;right:-8px;top:-9px;bottom:-9px}

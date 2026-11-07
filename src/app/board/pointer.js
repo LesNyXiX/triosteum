@@ -25,6 +25,16 @@
     for(var i = G.nodes.length - 1; i >= 0; i--){ var n = G.nodes[i]; if(w.x >= n.x && w.x <= n.x + NWof(n) && w.y >= n.y && w.y <= n.y + NHof(n)) return n; }
     return null;
   }
+  // палец у правого края блока, там, где появляется отросток: на телефоне наведения нет, поэтому зона захвата — по координатам
+  function stemAt(cx, cy){
+    var w = toWorld(cx, cy), k = G.cam.k || 1, pad = 16 / k;
+    for(var i = G.nodes.length - 1; i >= 0; i--){
+      var n = G.nodes[i]; if(n.kind === 'hub') continue;
+      var r = n.x + NWof(n), my = n.y + NHof(n) / 2;
+      if(w.x >= r - 2 / k && w.x <= r + 24 + pad && Math.abs(w.y - my) <= pad) return n;
+    }
+    return null;
+  }
   function isDouble(key){
     var now = Date.now(), dbl = lastTap.key === key && now - lastTap.t < 420;
     return dbl;
@@ -57,6 +67,7 @@
     finishSmooth();
     var dot = e.target.closest('.port-dot');
     if(!dot){ var stm = e.target.closest('.stem'); if(stm && stm.parentNode) dot = stm.parentNode.querySelector('.port-dot'); }   // за отросток тоже можно тянуть
+    if(!dot && e.pointerType === 'touch' && !e.target.closest('.node,.note,.edge-handle,.tap-handle,.tlink-hit')){ var sn = stemAt(e.clientX, e.clientY), sd = sn && domOf('node', sn.id); if(sd) dot = sd.querySelector('.port-dot'); }
     var ne = e.target.closest('.node');
     var hit = e.target.closest('.edge-hit');
     var handle = e.target.closest('.edge-handle');
@@ -99,7 +110,7 @@
       }
     }
     if(dot){
-      var pn = nodeById(ne.dataset.id), stP = isDouble('port:' + pn.id); lastTap = { key:null, t:0 };
+      var pn = nodeById(dot.closest('.node').dataset.id), stP = isDouble('port:' + pn.id); lastTap = { key:null, t:0 };
       dot.classList.add('grab'); hidePop();
       startLink(e, pn, 'to', dot, null);
       drag.key = 'port:' + pn.id; drag.sticky = stP; if(stP) carry(true);

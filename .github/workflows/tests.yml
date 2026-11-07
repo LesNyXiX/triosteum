@@ -53,6 +53,8 @@ jobs:
           npm run test:library
           npm run test:envdock
           npm run test:errai
+          npm run test:touch
+          npm run test:arc
 
       - name: Хранение и резервные копии
         run: npm run test:storage

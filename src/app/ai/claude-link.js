@@ -103,6 +103,7 @@
     var who = p === 'ollama' ? 'Ollama' : clProvName();
     if(!base) return Promise.reject(new Error(who + ': не задан адрес сервиса — откройте настройки переключателя ИИ.'));
     if(!model) return Promise.reject(new Error(who + ': не выбрана модель — откройте настройки переключателя ИИ.'));
+    if(p === 'ollama' && !cfg.url) return ollamaChat(prompt, opts, cfg, model, who);
     var headers = { 'content-type':'application/json' }; if(key) headers.authorization = 'Bearer ' + key;
     var body = { model:model, stream:true, messages:[{ role:'system', content:CL_SYSTEM }, { role:'user', content:String(prompt) }] };
     if(cfg.max) body.max_tokens = cfg.max;
@@ -125,6 +126,42 @@
         if(ch.finish_reason) stop = ch.finish_reason;
       }).then(function(){ return { text:text, stop:stop }; });
     }, function(err){ throw clNetErr(p, err); });
+  }
+  /* Ollama — через её собственный API (/api/chat), а не совместимый с OpenAI: только так можно задать размер «окна»
+     модели (num_ctx). По умолчанию Ollama даёт 2–4 тыс. токенов и молча обрезает начало длинного запроса — модель
+     теряет инструкции и пишет ответ не в том формате или не до конца. Окно подбираем по длине запроса. */
+  function ollamaCtx(prompt){ var need = Math.ceil((String(prompt).length + CL_SYSTEM.length) / 2.6) + 6144; return Math.min(32768, Math.max(8192, Math.ceil(need / 2048) * 2048)); }
+  function ollamaChat(prompt, opts, cfg, model, who){
+    var root = String(CL.cfg.ollama.url || '').trim().replace(/\/+$/, '').replace(/\/v1$/, '');
+    var body = { model:model, stream:true, messages:[{ role:'system', content:CL_SYSTEM }, { role:'user', content:String(prompt) }],
+      options:{ num_ctx:ollamaCtx(prompt), num_predict:cfg.max || -1, temperature:0.2 } };
+    return fetch(root + '/api/chat', { method:'POST', headers:{ 'content-type':'application/json' }, body:JSON.stringify(body) }).then(function(r){
+      if(r.status === 404 && !cfg.retried) return clListModels('ollama').then(function(ms){
+        var pick = clPickModel(ms); if(!pick) throw clError(404, null, 'на компьютере нет ни одной модели — скачайте её: ollama pull qwen2.5-coder:7b', who);
+        CL.cfg.ollama.model = pick; CL.models.ollama = ms; clSaveCfg(); clPaint();
+        if(typeof toast === 'function') toast('Ollama: выбрана установленная модель ' + pick);
+        return oaiHttp(prompt, opts, { prov:'ollama', retried:true, max:cfg.max, model:pick });
+      });
+      if(!r.ok) return r.text().then(function(t){ var d = null; try { d = JSON.parse(t); } catch(e){} throw clError(r.status, d, t && t.slice(0, 200), who); });
+      var text = '', stop = null, buf = '', dec = new TextDecoder();
+      function line(l){
+        l = l.trim(); if(!l) return;
+        var d; try { d = JSON.parse(l); } catch(e){ return; }
+        if(d.error) throw clError(500, { error:{ message:d.error } }, '', who);
+        var piece = d.message && d.message.content; if(piece){ text += piece; if(opts.onText) try { opts.onText({ text:text }); } catch(e){} }
+        if(d.done) stop = d.done_reason || 'stop';
+      }
+      function fin(){ return { text:text, stop:stop }; }
+      if(!r.body || !r.body.getReader) return r.text().then(function(t){ t.split('\n').forEach(line); return fin(); });
+      var rd = r.body.getReader();
+      function pump(){ return rd.read().then(function(x){
+        if(x.done){ buf += dec.decode(); line(buf); return fin(); }
+        buf += dec.decode(x.value, { stream:true }); var k;
+        while((k = buf.indexOf('\n')) >= 0){ line(buf.slice(0, k)); buf = buf.slice(k + 1); }
+        return pump();
+      }); }
+      return pump();
+    }, function(err){ throw clNetErr('ollama', err); });
   }
   // какую из установленных моделей взять: для кода — coder, иначе первую
   function clPickModel(ms){ if(!ms || !ms.length) return null; return ms.filter(function(m){ return /coder/i.test(m); })[0] || ms.filter(function(m){ return !/embed/i.test(m); })[0] || ms[0]; }

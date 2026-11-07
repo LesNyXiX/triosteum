@@ -48,6 +48,9 @@ let oaiAuth = null, oaiModel = null;
 const oaiSse = (txt) => txt.split(' ').map((w, i) => 'data: ' + JSON.stringify({ choices: [{ delta: { content: (i ? ' ' : '') + w } }] }) + '\n\n').join('') + 'data: ' + JSON.stringify({ choices: [{ delta: {}, finish_reason: 'stop' }] }) + '\n\ndata: [DONE]\n\n';
 await ctx.route('http://localhost:11434/v1/models', (r) => r.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ data: [{ id: 'qwen2.5-coder:7b' }, { id: 'llama3.1:8b' }] }) }));
 await ctx.route('http://localhost:11434/v1/chat/completions', (r) => { oaiModel = JSON.parse(r.request().postData()).model; if (oaiModel !== 'qwen2.5-coder:7b') return r.fulfill({ status: 404, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ error: { message: "model '" + oaiModel + "' not found" } }) }); return r.fulfill({ status: 200, headers: { 'content-type': 'text/event-stream', 'access-control-allow-origin': '*' }, body: oaiSse('ответ от Ollama') }); });
+// родной API Ollama (/api/chat): ответ строками JSON; запоминаем размер окна модели
+let ollamaCtxSeen = 0;
+await ctx.route('http://localhost:11434/api/chat', (r) => { const q = JSON.parse(r.request().postData()); oaiModel = q.model; ollamaCtxSeen = (q.options || {}).num_ctx || 0; if (oaiModel !== 'qwen2.5-coder:7b') return r.fulfill({ status: 404, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ error: "model '" + oaiModel + "' not found" }) }); return r.fulfill({ status: 200, headers: { 'content-type': 'application/x-ndjson', 'access-control-allow-origin': '*' }, body: ['ответ ', 'от Ollama'].map((t) => JSON.stringify({ message: { role: 'assistant', content: t }, done: false })).join('\n') + '\n' + JSON.stringify({ message: { content: '' }, done: true, done_reason: 'stop' }) + '\n' }); });
 let ollamaCors = true;
 const AC = () => (ollamaCors ? { 'access-control-allow-origin': '*' } : {});
 // без разрешения страница не получает ответ (как при CORS), а запрос «no-cors» до Ollama доходит
@@ -150,6 +153,7 @@ ollamaCors = true;
 await page.click('#claudeP button:has-text("Сохранить и включить")'); await page.waitForTimeout(300);
 check(await page.$eval('#claudeBtn', (x) => x.getAttribute('aria-checked') === 'true' && x.textContent.includes('Ollama')), 'переключатель включён и показывает «Ollama»');
 check(/ответ от Ollama/.test(await askB('Объясни блок')) && oaiModel === 'qwen2.5-coder:7b', 'помощник блока отвечает через Ollama выбранной моделью');
+check(ollamaCtxSeen >= 8192, 'Ollama получает окно модели по длине запроса (num_ctx ' + ollamaCtxSeen + '), а не обрезает начало');
 // модель, которой нет на компьютере, — Triosteum сам берёт установленную
 await page.keyboard.press('Escape'); await page.click('#claudeMore'); await page.waitForTimeout(150);
 await page.selectOption('#claudeP select', 'llama3.1:8b'); await page.click('#claudeP button:has-text("Сохранить")'); await page.waitForTimeout(250);

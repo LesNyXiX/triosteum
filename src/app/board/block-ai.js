@@ -17,7 +17,7 @@
   function serverAI(prompt, opts){
     opts = opts || {};
     return fetch('/api/ai/complete', { method:'POST', credentials:'same-origin', headers:{ 'Content-Type':'application/json' },
-      body:JSON.stringify({ prompt:prompt, task:opts.task || 'other' }) }).then(function(r){
+      body:JSON.stringify(Object.assign({ prompt:prompt, task:opts.task || 'other' }, opts.task === 'architect' ? { max_tokens:8000 } : {})) }).then(function(r){
       if(!r.ok) return r.json().catch(function(){ return {}; }).then(function(d){
         var e = new Error(d.detail || ('ошибка ' + r.status)); if(r.status === 429) e.code = 'rate_limited'; throw e;
       });

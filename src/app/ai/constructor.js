@@ -128,7 +128,7 @@
   }
   function parseAI(text){
     var body = extractCode(text) || text, a = body.indexOf('{'), z = body.lastIndexOf('}');
-    var o = JSON.parse(body.slice(a, z + 1));
+    var o = jsonLoose(body.slice(a, z + 1));   // терпимо к «почти JSON» от локальных моделей
     var seen = {};
     var changes = (o.changes || []).filter(function(c){
       if(!c || !c.op) return false;
