@@ -32,6 +32,7 @@
     "app/board/block-ai.js",
     "app/ai/claude-link.js",
     "app/board/pointer.js",
+    "app/board/cull.js",
     "app/board/shake.js",
     "app/board/clipboard.js",
     "app/board/compiler.js",

@@ -161,11 +161,14 @@
     var cur = tabs.findIndex(function(b){ return b.classList.contains('on'); });
     var next = tabs[(cur + d + tabs.length) % tabs.length]; if(next) next.click();
   }
-  cmdQ.addEventListener('input', renderCmd);
+  // ввод: перерисовка один раз за кадр, даже если пишут быстро
+  var cmdRaf = 0;
+  cmdQ.addEventListener('input', function(){ if(!cmdRaf) cmdRaf = requestAnimationFrame(function(){ cmdRaf = 0; renderCmd(); }); });
   cmdQ.addEventListener('keydown', function(e){
+    if(cmdRaf && /^(ArrowDown|ArrowUp|Tab)$/.test(e.key)){ cancelAnimationFrame(cmdRaf); cmdRaf = 0; renderCmd(); }
     if(e.key === 'ArrowDown'){ e.preventDefault(); if(cmdRows.length){ cmdIdx = (cmdIdx + 1) % cmdRows.length; markCmd(); } }
     else if(e.key === 'ArrowUp'){ e.preventDefault(); if(cmdRows.length){ cmdIdx = (cmdIdx - 1 + cmdRows.length) % cmdRows.length; markCmd(); } }
-    else if(e.key === 'Enter'){ e.preventDefault(); runCmd(); }
+    else if(e.key === 'Enter'){ e.preventDefault(); if(cmdRaf){ cancelAnimationFrame(cmdRaf); cmdRaf = 0; renderCmd(); } runCmd(); }
     else if(e.key === 'Tab'){ e.preventDefault(); cmdSecStep(e.shiftKey ? -1 : 1); }
     else if(e.key === 'Escape'){ e.preventDefault(); e.stopPropagation(); closeCmd(); }
   });

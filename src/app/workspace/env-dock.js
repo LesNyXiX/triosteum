@@ -33,7 +33,7 @@
   function envDockItem(opt){
     var b = h('button', { type:'button', 'class':'ed-i' + (opt.cls ? ' ' + opt.cls : ''), style:'--ec:' + (opt.color || 'var(--red)'), 'aria-label':opt.label + (opt.here ? ' — открыта' : ''), 'aria-current':opt.here ? 'true' : null });
     b.appendChild(h('span', { 'class':'ed-tip', 'aria-hidden':'true', text:opt.label }));
-    b.appendChild(h('span', { 'class':'ed-tile art', html:envIconSvg(opt.key) }));
+    b.appendChild(h('span', { 'class':'ed-tile art', html:envIconSvg(opt.key, true) }));
     b.appendChild(h('span', { 'class':'ed-dot' + (opt.here ? ' here' : opt.dot ? '' : ' none'), 'aria-hidden':'true' }));
     b.addEventListener('click', function(){
       if(b.classList.contains('jump')) return;
@@ -69,14 +69,14 @@
     if(EDOCK.raf) return;
     EDOCK.raf = requestAnimationFrame(function(){
       EDOCK.raf = 0;
-      var touch = window.matchMedia && matchMedia('(hover: none)').matches;
-      EDOCK.items.forEach(function(it){
+      var touch = window.matchMedia && matchMedia('(hover: none)').matches, on = EDOCK.mx != null && !touch && !document.body.classList.contains('noanim');
+      // сначала все замеры, потом все изменения — иначе браузер пересчитывает раскладку на каждом значке
+      var centers = on ? EDOCK.items.map(function(it){ var r = it.b.getBoundingClientRect(); return r.left + r.width / 2; }) : null;
+      EDOCK.items.forEach(function(it, i){
         var size = ED_BASE;
-        if(EDOCK.mx != null && !touch && !document.body.classList.contains('noanim')){
-          var r = it.b.getBoundingClientRect(), d = Math.abs(EDOCK.mx - (r.left + r.width / 2));
-          if(d < ED_RANGE){ var t = Math.cos(d / ED_RANGE * Math.PI / 2); size = ED_BASE + (ED_MAX - ED_BASE) * t * t; }
-        }
-        it.b.style.setProperty('--sz', size.toFixed(1) + 'px');
+        if(on){ var d = Math.abs(EDOCK.mx - centers[i]); if(d < ED_RANGE){ var t = Math.cos(d / ED_RANGE * Math.PI / 2); size = ED_BASE + (ED_MAX - ED_BASE) * t * t; } }
+        var v = size.toFixed(1);
+        if(it.sz !== v){ it.sz = v; it.b.style.setProperty('--sz', v + 'px'); }
       });
       EDOCK.el.classList.toggle('hot', EDOCK.mx != null);
     });

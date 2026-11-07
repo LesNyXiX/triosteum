@@ -466,7 +466,7 @@
   /* телефон: окна там на весь экран, «две среды рядом» не нужны — освобождаем шапку */
   @media (max-width:640px){ #splitBtn{display:none} }
   /* корзина при перетаскивании не накрывает кнопки масштаба */
-  body:has(.drop-trash.on) .zoom{opacity:0;pointer-events:none;transition:opacity .15s}
+  body.trash-on .zoom{opacity:0;pointer-events:none;transition:opacity .15s}
   /* док сред внизу, как на Mac */
   .env-dock{position:absolute;z-index:28;bottom:calc(10px + var(--snap-b,0px));left:calc(var(--snap-l,0px) + (100% - var(--snap-l,0px) - var(--snap-r,0px)) / 2);transform:translateX(-50%);pointer-events:none;
     transition:transform .38s cubic-bezier(.34,1.3,.64,1),opacity .25s ease}
@@ -499,7 +499,7 @@
   .env-dock.auto{transform:translateX(-50%) translateY(calc(100% + 16px));opacity:0}
   .env-dock.auto.peek{transform:translateX(-50%);opacity:1}
   /* пока что-то тащат — уступает место корзине */
-  body:has(.drop-trash.on) .env-dock{transform:translateX(-50%) translateY(calc(100% + 16px));opacity:0}
+  body.trash-on .env-dock{transform:translateX(-50%) translateY(calc(100% + 16px));opacity:0}
   body.has-envdock .tools.dock-bottom{bottom:calc(84px + var(--snap-b,0px))}
   body.has-envdock .canvas .empty-hint{margin-bottom:60px}
   @media (prefers-reduced-motion: reduce){ .ed-i,.env-dock{transition:none} .ed-i.jump .ed-tile{animation:none} }
@@ -514,3 +514,21 @@
   .ed-i.kb .ed-tile.art svg{outline:2px solid var(--red);outline-offset:2px;border-radius:24%}
   .eco-ic.art{width:44px;height:44px;padding:0;background:none !important;border:0 !important;box-shadow:none;filter:drop-shadow(0 3px 6px rgba(0,0,0,.3))}
   .eco-ic.art svg{width:100%;height:100%}
+  /* скорость: в покое скрытые детали блока вообще не рисуются. Прозрачность и уменьшение делали каждую
+     отдельным слоем, и на доске из сотен блоков браузер тратил кадр на раскладку слоёв. Появление — короткой анимацией. */
+  .node .rz{opacity:1;visibility:hidden;transition:none}
+  .node:hover .rz,.node.sel .rz,.node.resizing .rz{visibility:visible;animation:nShow .15s ease}
+  .node.linked .port-dot{opacity:1;transform:none;background:transparent;border-color:transparent;transition:none}
+  .node.linked .port-dot:hover,.node.linked .port-dot.grab{background:var(--c2);border-color:var(--bg);animation:nShow .15s ease}
+  .node.linked .port-dot.grab{transform:scale(1.7)}
+  .node.linked .stem{opacity:1;visibility:hidden;transition:none}
+  .node.linked:has(.port-dot:hover) .stem,.node.linked:has(.port-dot.grab) .stem{visibility:visible;animation:nShow .15s ease}
+  .node:not(.linked):not(.hub) .stem,.node:not(.linked):not(.hub) .port-dot{opacity:1;visibility:hidden;transition:none}
+  .node:not(.linked):not(.hub):hover .stem,.node:not(.linked):not(.hub):hover .port-dot,.node:not(.linked) .port-dot.grab{visibility:visible;animation:nShow .15s ease}
+  .node.linking .stem,.node.linking .port-dot,.node.linking .port-dot.grab{visibility:hidden !important;animation:none}
+  @keyframes nShow{from{opacity:0}}
+  .node.off,.edge-g.off{visibility:hidden !important}
+  .node.off *{visibility:hidden !important;animation:none !important}
+  /* тень значка в доке — по контуру (дёшево), а не фильтром по картинке */
+  .ed-i .ed-tile.art{filter:none;border-radius:23%;box-shadow:0 3px 8px rgba(0,0,0,.35)}
+  .ed-i:active .ed-tile.art{filter:brightness(.82)}

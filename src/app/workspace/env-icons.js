@@ -2,7 +2,8 @@
      Каждый — полноцветная картинка 64×64: «сквиркл» с градиентом и бликом, на нём объёмный рисунок.
      envIconSvg(id) → строка SVG. Идентификаторы градиентов уникальны для каждого вызова. */
   var ENV_IC_N = 0;
-  function envIconSvg(k){
+  // lite — без фильтра-тени внутри картинки (для дока: значки там меняют размер на каждом кадре)
+  function envIconSvg(k, lite){
     var u = 'ei' + (++ENV_IC_N) + '_', D = ENV_ICON_ART[k] || ENV_ICON_ART._other;
     var bg = D.bg;
     return '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>' +
@@ -12,7 +13,7 @@
       (D.defs ? D.defs(u) : '') + '</defs>' +
       '<path d="M32 4c10.6 0 17.2.5 21.1 4.4S58 18.4 58 29v6c0 10.6-.9 16.7-4.9 20.6S42.6 60 32 60s-17.2-.5-21.1-4.4S6 45.6 6 35v-6c0-10.6.9-16.7 4.9-20.6S21.4 4 32 4z" fill="url(#' + u + 'bg)"/>' +
       '<clipPath id="' + u + 'cl"><path d="M32 4c10.6 0 17.2.5 21.1 4.4S58 18.4 58 29v6c0 10.6-.9 16.7-4.9 20.6S42.6 60 32 60s-17.2-.5-21.1-4.4S6 45.6 6 35v-6c0-10.6.9-16.7 4.9-20.6S21.4 4 32 4z"/></clipPath><rect x="0" y="0" width="64" height="30" fill="url(#' + u + 'gl)" clip-path="url(#' + u + 'cl)"/>' +
-      '<g filter="url(#' + u + 'sh)">' + D.art(u) + '</g>' +
+      (lite ? '<g>' : '<g filter="url(#' + u + 'sh)">') + D.art(u) + '</g>' +
       '<path d="M32 4c10.6 0 17.2.5 21.1 4.4S58 18.4 58 29v6c0 10.6-.9 16.7-4.9 20.6S42.6 60 32 60s-17.2-.5-21.1-4.4S6 45.6 6 35v-6c0-10.6.9-16.7 4.9-20.6S21.4 4 32 4z" fill="none" stroke="#fff" stroke-opacity=".22" stroke-width="1"/></svg>';
   }
   var ENV_ICON_ART = {

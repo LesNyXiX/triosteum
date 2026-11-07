@@ -20,7 +20,7 @@
     d.style.left = TRASH.cx + 'px'; d.style.top = TRASH.cy + 'px';
     if(TRASH.on) return;
     TRASH.on = true; TRASH.hot = false;
-    d.classList.remove('hot', 'eat', 'out'); void d.offsetWidth; d.classList.add('on');
+    d.classList.remove('hot', 'eat', 'out'); void d.offsetWidth; d.classList.add('on'); document.body.classList.add('trash-on');
   }
   function trashOver(x, y){
     if(!TRASH.on) return false;
@@ -34,13 +34,13 @@
   }
   function trashHide(){
     if(!TRASH.on) return; TRASH.on = false; TRASH.hot = false;
-    var d = TRASH.el; d.classList.remove('on', 'hot'); d.classList.add('out');
+    var d = TRASH.el; d.classList.remove('on', 'hot'); d.classList.add('out'); document.body.classList.remove('trash-on');
   }
   // элементы улетают в корзину, корзина «глотает», затем done() удаляет их по-настоящему
   function trashEat(els, done){
     var d = trashEl(), still = document.body.classList.contains('noanim') || (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
     TRASH.on = false; TRASH.hot = false;
-    if(still){ d.classList.remove('on', 'hot'); d.classList.add('out'); done(); return; }
+    if(still){ d.classList.remove('on', 'hot'); d.classList.add('out'); document.body.classList.remove('trash-on'); done(); return; }
     var flies = [];
     (els || []).filter(Boolean).forEach(function(el, i){
       var r = el.getBoundingClientRect(); if(!r.width) return;
@@ -60,6 +60,6 @@
       flies.forEach(function(c){ c.remove(); });
       d.classList.remove('hot'); d.classList.add('eat');
       done();
-      setTimeout(function(){ d.classList.remove('on', 'eat'); d.classList.add('out'); }, 420);
+      setTimeout(function(){ d.classList.remove('on', 'eat'); d.classList.add('out'); document.body.classList.remove('trash-on'); }, 420);
     }, wait);
   }

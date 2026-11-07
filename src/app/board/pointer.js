@@ -19,10 +19,11 @@
       editNote(note.id);
     }
   });
+  // блок под курсором — по координатам доски (без опроса браузера на каждом движении); верхний — последний в списке
   function nodeAt(cx, cy){
-    var t = document.elementFromPoint(cx, cy);
-    var ne = t && t.closest && t.closest('.node');
-    return ne ? nodeById(ne.dataset.id) : null;
+    var w = toWorld(cx, cy);
+    for(var i = G.nodes.length - 1; i >= 0; i--){ var n = G.nodes[i]; if(w.x >= n.x && w.x <= n.x + NWof(n) && w.y >= n.y && w.y <= n.y + NHof(n)) return n; }
+    return null;
   }
   function isDouble(key){
     var now = Date.now(), dbl = lastTap.key === key && now - lastTap.t < 420;

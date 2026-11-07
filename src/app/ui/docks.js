@@ -37,7 +37,7 @@
     // пустая панель не показывается (кнопки могут быть выключены или скрыты в этой среде)
     Object.keys(DOCKS).forEach(function(s){
       var d = DOCKS[s]; d.hidden = false; d.classList.remove('empty');
-      var any = Array.prototype.some.call(d.children, function(c){ return c.classList.contains('tool') && c.offsetWidth > 0; });
+      var any = Array.prototype.some.call(d.children, function(c){ return c.classList.contains('tool') && !c.hidden && getComputedStyle(c).display !== 'none'; });   // без замера размеров: не заставляем браузер пересчитывать раскладку
       if(s === 'left') d.classList.toggle('empty', !any && !document.body.classList.contains('docking')); else d.hidden = !any && !document.body.classList.contains('docking');
     });
   }
@@ -65,7 +65,8 @@
   }
   function dockReset(){ UI.dock = {}; UI.dockOrder = {}; save('triosteum.ui', UI); dockRefresh(); }
   new MutationObserver(function(){ dockRefresh(); }).observe(document.body, { attributes:true, attributeFilter:['data-mode'] });
-  window.addEventListener('resize', function(){ dockRefresh(); });
+  var dockRsz = 0;
+  window.addEventListener('resize', function(){ if(!dockRsz) dockRsz = requestAnimationFrame(function(){ dockRsz = 0; dockRefresh(); }); });
 
   /* ---------- перетаскивание кнопок между краями ---------- */
   var DG = null, dockNoClick = 0, dockNoClickEl = null, dockZones = null;

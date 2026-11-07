@@ -62,6 +62,7 @@
   .plist{flex:1;min-height:0;overflow:auto;padding:16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));align-content:start;gap:12px}
   .plist .empty{grid-column:1/-1}
   .pcard{display:flex;flex-direction:column;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--bg)}
+  .pcard{content-visibility:auto;contain-intrinsic-size:auto 170px}   /* карточки за краем списка не раскладываются и не рисуются */
   .pcard .pf{margin-top:auto;padding-top:10px}
   .pcard:hover{border-color:var(--line2)}
   .pcard .ph1{display:flex;align-items:center;justify-content:space-between;gap:8px}

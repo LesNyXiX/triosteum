@@ -68,7 +68,15 @@
   }
   function nativeLang(id){ return LANGS.some(function(l){ return l.id === id; }); }
   function pluginById(id){ return (CODE_PLUGINS ? allPlugins() : PLUGINS).filter(function(p){ return p.id === id; })[0] || MY.filter(function(p){ return p.id === id; })[0]; }
-  function nodeById(id){ return G.nodes.filter(function(n){ return n.id === id; })[0]; }
+  // поиск блока по id через индекс: связи, мини-карта и раскладка вызывают его тысячи раз за кадр
+  var NBI = { arr:null, map:null };
+  function nodeById(id){
+    var m = NBI.arr === G.nodes && NBI.map ? NBI.map[id] : null;
+    if(m && G.nodes[m.i] === m.n && m.n.id === id) return m.n;
+    NBI.arr = G.nodes; NBI.map = Object.create(null);
+    for(var i = 0; i < G.nodes.length; i++) NBI.map[G.nodes[i].id] = { n:G.nodes[i], i:i };
+    var r = NBI.map[id]; return r ? r.n : undefined;
+  }
   function noteById(id){ return G.notes.filter(function(n){ return n.id === id; })[0]; }
   function edgeById(id){ return G.edges.filter(function(e){ return e.id === id; })[0]; }
   function shortName(l){ return l.id === 'csharp' ? 'C#' : l.name; }
