@@ -33,7 +33,7 @@
   function envDockItem(opt){
     var b = h('button', { type:'button', 'class':'ed-i' + (opt.cls ? ' ' + opt.cls : ''), style:'--ec:' + (opt.color || 'var(--red)'), 'aria-label':opt.label + (opt.here ? ' — открыта' : ''), 'aria-current':opt.here ? 'true' : null });
     b.appendChild(h('span', { 'class':'ed-tip', 'aria-hidden':'true', text:opt.label }));
-    b.appendChild(h('span', { 'class':'ed-tile', html:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + opt.ic + '</svg>' }));
+    b.appendChild(h('span', { 'class':'ed-tile art', html:envIconSvg(opt.key) }));
     b.appendChild(h('span', { 'class':'ed-dot' + (opt.here ? ' here' : opt.dot ? '' : ' none'), 'aria-hidden':'true' }));
     b.addEventListener('click', function(){
       if(b.classList.contains('jump')) return;
@@ -57,10 +57,10 @@
     EDOCK.shelf.innerHTML = ''; EDOCK.items = [];
     Object.keys(ENVS).forEach(function(k){
       var e = ENVS[k], n = envProjects(k).length, here = ENV.id === k;
-      envDockItem({ label:e.name + (n ? ' · ' + n + ' ' + plural(n, 'пространство', 'пространства', 'пространств') : ''), color:e.color, ic:envIc(k), here:here, dot:n > 0, act:function(){ if(ENV.id === k){ toast('Вы уже в среде «' + e.name + '»'); return; } goEnv(k); } });
+      envDockItem({ key:k, label:e.name + (n ? ' · ' + n + ' ' + plural(n, 'пространство', 'пространства', 'пространств') : ''), color:e.color, ic:envIc(k), here:here, dot:n > 0, act:function(){ if(ENV.id === k){ toast('Вы уже в среде «' + e.name + '»'); return; } goEnv(k); } });
     });
     EDOCK.shelf.appendChild(h('span', { 'class':'ed-sep', 'aria-hidden':'true' }));
-    envDockItem({ label:'Все среды', color:'#64748B', cls:'ed-all', ic:'<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>', act:openEco });
+    envDockItem({ key:'_all', label:'Все среды', color:'#64748B', cls:'ed-all', ic:'<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>', act:openEco });
     edFrame();
   }
   function plural(n, a, b, c){ var m10 = n % 10, m100 = n % 100; return m10 === 1 && m100 !== 11 ? a : m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? b : c; }

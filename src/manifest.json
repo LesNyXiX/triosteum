@@ -111,6 +111,7 @@
     "app/workspace/universal.js",
     "app/workspace/cross-run.js",
     "app/workspace/split.js",
+    "app/workspace/env-icons.js",
     "app/workspace/env-dock.js",
     "app/workspace/tour.js",
     "app/main.js"

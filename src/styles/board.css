@@ -506,3 +506,11 @@
   @media (max-width:640px){ .ed-shelf{height:54px;gap:4px;padding:5px 6px 7px} .ed-i{--sz:40px !important} .ed-tip{display:none} .env-dock{max-width:calc(100vw - 16px)} .ed-shelf{overflow-x:auto} }
   body.ed-away .env-dock{transform:translateX(-50%) translateY(calc(100% + 16px));opacity:0;pointer-events:none}
   body.ed-away.has-envdock .tools.dock-bottom{bottom:calc(10px + var(--snap-b,0px))}
+  /* значки сред — полноцветные картинки (env-icons.js) */
+  .ed-i .ed-tile.art{background:none;box-shadow:none;border-radius:0;filter:drop-shadow(0 3px 6px rgba(0,0,0,.35))}
+  .ed-tile.art svg{width:100%;height:100%;filter:none}
+  .ed-i:active .ed-tile.art{filter:drop-shadow(0 3px 6px rgba(0,0,0,.35)) brightness(.82)}
+  .ed-i.kb .ed-tile.art{outline:none}
+  .ed-i.kb .ed-tile.art svg{outline:2px solid var(--red);outline-offset:2px;border-radius:24%}
+  .eco-ic.art{width:44px;height:44px;padding:0;background:none !important;border:0 !important;box-shadow:none;filter:drop-shadow(0 3px 6px rgba(0,0,0,.3))}
+  .eco-ic.art svg{width:100%;height:100%}
