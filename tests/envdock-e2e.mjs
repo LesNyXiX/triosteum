@@ -107,6 +107,22 @@ await page.locator('#envDock .ed-i', { hasText: 'Все среды' }).click({ b
 check(await ctxItem('Очистить все пространства').isVisible() && await ctxItem('Удалить все пространства').isVisible(), '«Все среды»: очистить или удалить всё');
 await page.keyboard.press('Escape'); await page.waitForTimeout(200);
 
+console.log('Открытый файл и подсказки');
+await page.locator('#envDock .ed-i', { hasText: 'Вектор' }).click(); await page.waitForTimeout(1300);
+await page.locator('button', { hasText: 'Векторный рисунок' }).first().click(); await page.waitForTimeout(1200);
+const dop = () => page.$eval('#envDock', (x) => getComputedStyle(x).opacity);
+await page.mouse.move(800, 400); await page.waitForTimeout(900);
+check(await dop() === '0' && await page.isVisible('.ed-handle'), 'в открытом файле док спрятан, внизу — полоска');
+await page.hover('.ed-handle'); await page.waitForTimeout(600);
+check(await dop() === '1', 'навели на полоску — док выехал');
+check(await page.locator('.ie-hint.hk .hk-r').count() >= 3, 'подсказка редактора — таблицей «клавиша — действие»');
+await page.locator('.otab', { hasText: 'Рабочий стол' }).first().click().catch(() => {}); await page.waitForTimeout(500);
+await page.locator('#envDock .ed-i').first().click().catch(() => {}); await page.waitForTimeout(1300);
+await page.hover('#bKeys'); await page.waitForTimeout(500);
+const tb = await page.locator('#tip').boundingBox();
+check(await page.locator('#tip .hk-r').count() > 15 && await page.locator('#tip .hk-h').count() >= 3, 'горячие клавиши — по разделам, клавиши плашками');
+check(tb.y >= 0 && tb.y + tb.height <= 900 && tb.width > 400, 'подсказка широкая и целиком на экране');
+
 console.log('Ошибки');
 check(errors.length === 0, 'ошибок в консоли нет' + (errors.length ? ': ' + errors.join(' | ') : ''));
 await browser.close();

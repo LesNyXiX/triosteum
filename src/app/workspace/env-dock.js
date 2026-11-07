@@ -13,6 +13,10 @@
     d.appendChild(shelf);
     document.querySelector('.row').appendChild(d);
     EDOCK.el = d; EDOCK.shelf = shelf;
+    // в открытом файле док спрятан — у нижнего края остаётся тонкая полоска: навели — док выезжает
+    var hd = h('div', { 'class':'ed-handle', 'aria-hidden':'true', title:'Среды — наведите, чтобы показать' });
+    hd.addEventListener('mouseenter', function(){ clearTimeout(EDOCK.hideT); EDOCK.hideT = 0; d.classList.add('peek'); });
+    document.querySelector('.row').appendChild(hd);
     shelf.addEventListener('mousemove', function(e){ EDOCK.mx = e.clientX; edFrame(); });
     shelf.addEventListener('mouseleave', function(){ EDOCK.mx = null; edFrame(); });
     shelf.addEventListener('keydown', function(e){
@@ -23,12 +27,12 @@
     });
     // автоскрытие: док выезжает, когда курсор у нижнего края рабочей области
     document.addEventListener('mousemove', function(e){
-      if(envDockMode() !== 'auto' || !EDOCK.el) return;
+      if(!EDOCK.el || envDockMode() === 'off' || (envDockMode() !== 'auto' && !document.body.classList.contains('ed-away'))) return;
       var r = document.querySelector('.row').getBoundingClientRect(), near = e.clientY > r.bottom - 14 && e.clientY <= r.bottom + 4;
       if(near || EDOCK.el.matches(':hover') || EDOCK.el.contains(document.activeElement)){ clearTimeout(EDOCK.hideT); EDOCK.el.classList.add('peek'); }
       else if(EDOCK.el.classList.contains('peek') && !EDOCK.hideT){ EDOCK.hideT = setTimeout(function(){ EDOCK.hideT = 0; if(!EDOCK.el.matches(':hover') && !EDOCK.el.contains(document.activeElement)) EDOCK.el.classList.remove('peek'); }, 700); }
     });
-    d.addEventListener('focusin', function(){ if(envDockMode() === 'auto') EDOCK.el.classList.add('peek'); });
+    d.addEventListener('focusin', function(){ if(envDockMode() === 'auto' || document.body.classList.contains('ed-away')) EDOCK.el.classList.add('peek'); });
   }
   function envDockItem(opt){
     var b = h('button', { type:'button', 'class':'ed-i' + (opt.cls ? ' ' + opt.cls : ''), style:'--ec:' + (opt.color || 'var(--red)'), 'aria-label':opt.label + (opt.here ? ' — открыта' : ''), 'aria-current':opt.here ? 'true' : null });
@@ -110,7 +114,7 @@
     b.classList.add('menu');
     openMenuAt(items, r.left + r.width / 2, r.top, b);
     var z = UI.scale / 100, w = ctxEl.offsetWidth * z, hh = ctxEl.offsetHeight * z;
-    var x = Math.min(Math.max(8, r.left + r.width / 2 - w / 2), window.innerWidth - w - 8), y = Math.max(8, EDOCK.shelf.getBoundingClientRect().top - (ED_MAX - ED_BASE) - hh - 6);   // с запасом на увеличение значков под курсором
+    var x = Math.min(Math.max(8, r.left + r.width / 2 - w / 2), window.innerWidth - w - 8), y = Math.max(8, EDOCK.shelf.getBoundingClientRect().top - (ED_MAX - ED_BASE) - hh - 16);   // с запасом на увеличение значков под курсором
     ctxEl.style.left = (x / z) + 'px'; ctxEl.style.top = (y / z) + 'px'; ctxEl.classList.add('up');
     var mo = new MutationObserver(function(){ if(ctxEl.hidden){ b.classList.remove('menu'); ctxEl.classList.remove('up'); mo.disconnect(); } });
     mo.observe(ctxEl, { attributes:true, attributeFilter:['hidden'] });
@@ -142,6 +146,7 @@
   // в редакторе кода и в открытом файле Офиса док не закрывает консоль и текст — он виден на досках и рабочих столах
   function envDockScene(){
     var off = S.view === 'editor' || (typeof OF === 'object' && OF && isOffice() && ['desk', 'map', 'auto'].indexOf(OF.tab) < 0);
+    if(document.body.classList.contains('ed-away') !== !!off && EDOCK.el) EDOCK.el.classList.remove('peek');
     document.body.classList.toggle('ed-away', !!off);
   }
   (function(){

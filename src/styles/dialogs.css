@@ -22,3 +22,21 @@
     .lang{flex:1}
     .lang-btn{width:100%}
   }
+  /* подсказки с таблицей клавиш: шире, в две колонки, клавиши — плашками */
+  .tip.rows{max-width:min(640px,calc(100vw - 16px));padding:12px 14px}
+  .tip.rows::before{top:calc(50% + var(--ay,0px))}
+  .tip.rows.s-top::before,.tip.rows.s-bottom::before{left:calc(50% - 4px + var(--ax,0px))}
+  .tip.rows > b{font-size:14px;margin-bottom:6px}
+  .tip span.hk{display:block;columns:2 270px;column-gap:22px;white-space:normal;color:var(--ink)}
+  .hk-h{break-after:avoid;margin:10px 0 4px;font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--dim)}
+  .hk-h:first-child{margin-top:0}
+  .hk-h.gap{height:2px;margin:6px 0 0}
+  .hk-r{display:grid;grid-template-columns:auto 1fr;align-items:baseline;gap:10px;padding:3px 0;break-inside:avoid;font-size:12.5px;line-height:1.45}
+  .hk-k{display:flex;flex-wrap:wrap;align-items:center;gap:3px;max-width:200px}
+  .hk-k i{font-style:normal;color:var(--dim);font-size:11px}
+  .hk-k kbd{display:inline-block;padding:1px 6px;border-radius:5px;border:1px solid var(--line2);border-bottom-width:2px;background:var(--bg);color:var(--ink-strong);font:600 11px/16px var(--mono,ui-monospace,monospace);white-space:nowrap}
+  .hk-d{color:var(--muted)}
+  .hk-t{padding:3px 0;font-size:12.5px;line-height:1.45;color:var(--muted);break-inside:avoid}
+  .ie-hint.hk{display:block;margin-top:8px}
+  .ie-hint.hk .hk-r{grid-template-columns:136px 1fr}
+  .hk-k kbd.w{border:0;background:none;padding:1px 0;font:600 12.5px/16px inherit;font-family:inherit;color:var(--ink-strong)}

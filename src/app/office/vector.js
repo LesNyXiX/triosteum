@@ -291,7 +291,7 @@
       row(h('label', { 'class':'ve-f' }, [ h('span', { text:'Заливка' }), (function(){ var c = h('input', { type:'color', value:VE.fill === 'none' ? '#ffffff' : VE.fill, 'aria-label':'Заливка новых объектов' }); c.addEventListener('input', function(){ VE.fill = c.value; }); return c; })() ]),
         h('label', { 'class':'ve-f' }, [ h('span', { text:'Обводка' }), (function(){ var c = h('input', { type:'color', value:VE.stroke, 'aria-label':'Обводка новых объектов' }); c.addEventListener('input', function(){ VE.stroke = c.value; }); return c; })() ]),
         h('label', { 'class':'ve-f' }, [ h('span', { text:'Толщина' }), (function(){ var c = h('input', { 'class':'input', type:'number', min:'0', value:String(VE.sw), 'aria-label':'Толщина обводки новых объектов' }); c.addEventListener('change', function(){ VE.sw = Math.max(0, +c.value); }); return c; })() ]));
-      p.appendChild(h('div', { 'class':'ie-hint', text:'Ctrl+A — выделить всё · Shift+клик — добавить к выделению · протяжка по пустому месту — рамка выделения · колесо с Ctrl — масштаб.' }));
+      p.appendChild(hintRows('Ctrl+A — выделить всё · Shift+клик — добавить к выделению · Протяжка по пустому — рамка выделения · Ctrl+колесо — масштаб', h('div', { 'class':'ie-hint hk' })));
       return;
     }
     var o = s[0], one = s.length === 1, bb = one ? o : veBBox(s);

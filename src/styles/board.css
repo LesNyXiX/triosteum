@@ -505,7 +505,13 @@
   body.has-envdock .canvas .empty-hint{margin-bottom:60px}
   @media (prefers-reduced-motion: reduce){ .ed-i,.env-dock{transition:none} .ed-i.jump .ed-tile{animation:none} }
   @media (max-width:640px){ .ed-shelf{height:54px;gap:4px;padding:5px 6px 7px} .ed-i{--sz:40px !important} .ed-tip{display:none} .env-dock{max-width:calc(100vw - 16px)} .ed-shelf{overflow-x:auto} }
-  body.ed-away .env-dock{transform:translateX(-50%) translateY(calc(100% + 16px));opacity:0;pointer-events:none}
+  /* в открытом файле и в редакторе кода док не занимает место — выезжает, когда курсор у нижнего края */
+  body.ed-away .env-dock:not(.peek){transform:translateX(-50%) translateY(calc(100% + 16px));opacity:0;pointer-events:none}
+  body.ed-away .env-dock.peek{transform:translateX(-50%);opacity:1}
+  .ed-handle{display:none}
+  body.ed-away.has-envdock .ed-handle{display:block;position:absolute;left:50%;bottom:0;width:120px;height:12px;transform:translateX(-50%);z-index:27;cursor:pointer}
+  body.ed-away.has-envdock .ed-handle::after{content:"";position:absolute;left:30px;right:30px;bottom:4px;height:4px;border-radius:3px;background:var(--line2);opacity:.9;transition:background .15s,transform .15s}
+  body.ed-away.has-envdock .ed-handle:hover::after{background:var(--muted);transform:scaleX(1.15)}
   body.ed-away.has-envdock .tools.dock-bottom{bottom:calc(10px + var(--snap-b,0px))}
   /* значки сред — полноцветные картинки (env-icons.js) */
   .ed-i .ed-tile.art{background:none;box-shadow:none;border-radius:0;filter:drop-shadow(0 3px 6px rgba(0,0,0,.35))}
