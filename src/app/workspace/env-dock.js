@@ -41,6 +41,8 @@
       setTimeout(function(){ opt.act(); }, opt.here ? 0 : 260);       // как на Mac: сначала прыжок, затем открывается
       setTimeout(function(){ b.classList.remove('jump'); }, 820);
     });
+    // правый щелчок (или клавиша меню / Shift+F10) — действия над пространствами этой среды
+    if(opt.menu) b.addEventListener('contextmenu', function(e){ e.preventDefault(); envDockMenuOpen(b, opt.menu()); });
     b.addEventListener('focus', function(){ b.classList.add('kb'); });
     b.addEventListener('blur', function(){ b.classList.remove('kb'); });
     EDOCK.shelf.appendChild(b);
@@ -57,11 +59,61 @@
     EDOCK.shelf.innerHTML = ''; EDOCK.items = [];
     Object.keys(ENVS).forEach(function(k){
       var e = ENVS[k], n = envProjects(k).length, here = ENV.id === k;
-      envDockItem({ key:k, label:e.name + (n ? ' · ' + n + ' ' + plural(n, 'пространство', 'пространства', 'пространств') : ''), color:e.color, ic:envIc(k), here:here, dot:n > 0, act:function(){ if(ENV.id === k){ toast('Вы уже в среде «' + e.name + '»'); return; } goEnv(k); } });
+      envDockItem({ key:k, label:e.name + (n ? ' · ' + n + ' ' + plural(n, 'пространство', 'пространства', 'пространств') : ''), color:e.color, ic:envIc(k), here:here, dot:n > 0, menu:function(){ return envDockMenu(k); }, act:function(){ if(ENV.id === k){ toast('Вы уже в среде «' + e.name + '»'); return; } goEnv(k); } });
     });
     EDOCK.shelf.appendChild(h('span', { 'class':'ed-sep', 'aria-hidden':'true' }));
-    envDockItem({ key:'_all', label:'Все среды', color:'#64748B', cls:'ed-all', ic:'<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>', act:openEco });
+    envDockItem({ key:'_all', menu:envDockAllMenu, label:'Все среды', color:'#64748B', cls:'ed-all', ic:'<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>', act:openEco });
     edFrame();
+  }
+  /* ---------- меню значка: открыть, создать, очистить, удалить пространства среды ---------- */
+  function spWord(n){ return n + ' ' + plural(n, 'пространство', 'пространства', 'пространств'); }
+  function envDockUndo(items){
+    if(CLR.undo) items.push({ sep:true }, { label:'Вернуть: ' + CLR.undo.label, icon:'undo', act:clrRestore });
+    return items;
+  }
+  function envDockMenu(k){
+    var e = ENVS[k], list = envProjects(k), n = list.length, here = ENV.id === k;
+    var items = [{ head:e.name + ' · ' + (n ? spWord(n) : 'пространств нет') }];
+    if(!here) items.push({ label:n ? 'Открыть среду' : 'Открыть среду (создать пространство)', icon:'folder', act:function(){ goEnv(k); } });
+    items.push({ label:'Новое пространство', icon:'plus', act:function(){ newProj(envNewName(k), null, k); toast('Создано пространство «' + curProj().name + '» в среде «' + e.name + '»'); } });
+    if(!n) return envDockUndo(items);
+    items.push({ label:'Открыть пространство', icon:'file', sub:list.map(function(p){
+      var on = p.id === PROJ.cur;
+      return { label:p.name + (on ? ' — открыто' : ''), icon:on ? 'check' : 'file', disabled:on, act:function(){ switchProj(p.id); } };
+    }) });
+    items.push({ sep:true });
+    if(n === 1){
+      var p = list[0];
+      items.push({ label:'Очистить «' + p.name + '»', icon:'trash', act:function(){ clearSpaceById(p.id); } });
+      items.push({ label:'Удалить «' + p.name + '»', icon:'trash', danger:true, act:function(){ deleteSpaceById(p.id); } });
+    } else {
+      items.push({ label:'Очистить пространство', icon:'trash', sub:list.map(function(p){ return { label:p.name, icon:'trash', act:function(){ clearSpaceById(p.id); } }; }) });
+      items.push({ label:'Очистить все в среде (' + n + ')', icon:'trash', act:function(){ clearEnvSpaces(k); } });
+      items.push({ label:'Удалить пространство', icon:'trash', danger:true, sub:list.map(function(p){ return { label:p.name, icon:'trash', danger:true, act:function(){ deleteSpaceById(p.id); } }; }) });
+      items.push({ label:'Удалить все в среде (' + n + ')', icon:'trash', danger:true, act:function(){ deleteEnvSpaces(k); } });
+    }
+    return envDockUndo(items);
+  }
+  function envDockAllMenu(){
+    var n = PROJ.list.length;
+    return envDockUndo([
+      { head:'Все среды · ' + spWord(n) },
+      { label:'Открыть экран сред', icon:'all', act:openEco },
+      { sep:true },
+      { label:'Очистить все пространства (' + n + ')', icon:'trash', act:clearAllSpaces },
+      { label:'Удалить все пространства (' + n + ')', icon:'trash', danger:true, act:deleteAllSpaces }
+    ]);
+  }
+  // меню встаёт над значком, а не поверх дока
+  function envDockMenuOpen(b, items){
+    var r = b.getBoundingClientRect();
+    b.classList.add('menu');
+    openMenuAt(items, r.left + r.width / 2, r.top, b);
+    var z = UI.scale / 100, w = ctxEl.offsetWidth * z, hh = ctxEl.offsetHeight * z;
+    var x = Math.min(Math.max(8, r.left + r.width / 2 - w / 2), window.innerWidth - w - 8), y = Math.max(8, EDOCK.shelf.getBoundingClientRect().top - (ED_MAX - ED_BASE) - hh - 6);   // с запасом на увеличение значков под курсором
+    ctxEl.style.left = (x / z) + 'px'; ctxEl.style.top = (y / z) + 'px'; ctxEl.classList.add('up');
+    var mo = new MutationObserver(function(){ if(ctxEl.hidden){ b.classList.remove('menu'); ctxEl.classList.remove('up'); mo.disconnect(); } });
+    mo.observe(ctxEl, { attributes:true, attributeFilter:['hidden'] });
   }
   function plural(n, a, b, c){ var m10 = n % 10, m100 = n % 100; return m10 === 1 && m100 !== 11 ? a : m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? b : c; }
   // увеличение «волной»: размер значка зависит от расстояния до курсора (как в Dock на Mac)

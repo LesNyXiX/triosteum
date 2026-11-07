@@ -15,6 +15,7 @@
   @keyframes tItem{from{opacity:0;translate:-8px 0}to{opacity:1;translate:0 0}}
   body:not(.noanim) .pers,body:not(.noanim) .lib,body:not(.noanim) .modal,body:not(.noanim) .pop,body:not(.noanim) .cmdk,body:not(.noanim) .eco{animation:tPop .48s cubic-bezier(.16,1,.3,1)}
   body:not(.noanim) .ctx{animation:tMenu .32s cubic-bezier(.16,1,.3,1);transform-origin:top left}
+  body:not(.noanim) .ctx.up{transform-origin:bottom center}
   body:not(.noanim) .ctx .ctx-i{animation:tItem .34s cubic-bezier(.16,1,.3,1) backwards}
   body:not(.noanim) .ctx .ctx-i:nth-child(2){animation-delay:.02s}body:not(.noanim) .ctx .ctx-i:nth-child(3){animation-delay:.04s}body:not(.noanim) .ctx .ctx-i:nth-child(4){animation-delay:.06s}body:not(.noanim) .ctx .ctx-i:nth-child(5){animation-delay:.08s}body:not(.noanim) .ctx .ctx-i:nth-child(n+6){animation-delay:.1s}
   body:not(.noanim) .addmenu{animation:tMenu .36s cubic-bezier(.16,1,.3,1);transform-origin:left center}

@@ -67,6 +67,46 @@ check(!(await page.isVisible('#envDock')), '«Выключить»: дока н�
 await page.locator('#pers button', { hasText: 'Показывать' }).first().click(); await page.waitForTimeout(300);
 check(await page.isVisible('#envDock'), '«Показывать»: док снова на месте');
 
+console.log('Меню среды (правый щелчок)');
+const officeI = () => page.locator('#envDock .ed-i', { hasText: 'Офис' });
+const ctxItem = (t) => page.locator('.ctx .ctx-i', { hasText: t }).first();
+// данные приложения — в localStorage: список пространств и содержимое каждого
+await page.evaluate(() => { window.__L = () => JSON.parse(localStorage.getItem('triosteum.projects')).list; window.__S = (id) => JSON.parse(localStorage.getItem('triosteum.proj.' + id) || 'null'); });
+const spaces = () => page.evaluate(() => __L().map((p) => (p.env || 'code') + ':' + p.name));
+const before = (await spaces()).length;
+await officeI().click({ button: 'right' }); await page.waitForTimeout(450);
+check(await page.isVisible('#ctx') && /Офис/.test(await page.textContent('#ctx .ctx-h')), 'правый щелчок по среде — меню с её названием');
+const cb = await page.locator('#ctx').boundingBox(), ib = await officeI().boundingBox();
+check(cb.y + cb.height <= ib.y + 2, 'меню над значком, не закрывает док (' + [cb.y, cb.height, ib.y].map(Math.round) + ')');
+await ctxItem('Новое пространство').click(); await page.waitForTimeout(500);
+check((await spaces()).length === before + 1 && /Офис/.test(await page.textContent('#envChip')), '«Новое пространство» создаёт пространство в этой среде');
+await officeI().click({ button: 'right' }); await page.waitForTimeout(450);
+await ctxItem('Новое пространство').click(); await page.waitForTimeout(500);
+const offN = (await spaces()).filter((x) => x.startsWith('docs:')).length;
+check(offN >= 2, 'в «Офисе» несколько пространств: ' + offN);
+await page.evaluate(() => { const id = __L().filter((p) => p.env === 'docs').map((p) => p.id).filter((i) => i !== JSON.parse(localStorage.getItem('triosteum.projects')).cur)[0]; localStorage.setItem('triosteum.proj.' + id, JSON.stringify({ nodes: [], edges: [], notes: [{ id: 't1', text: 'метка', x: 0, y: 0 }], cam: { x: 0, y: 0, k: 1 }, seq: 2 })); });   // не открытое — его доска не перезапишет
+await page.locator('#envDock .ed-i').first().click({ button: 'right' }); await page.waitForTimeout(450);
+await ctxItem('Открыть пространство').hover(); await page.waitForTimeout(450);
+check(await page.locator('.ctx').nth(1).locator('.ctx-i').count() >= 1, '«Открыть пространство» — подменю со списком');
+await page.keyboard.press('Escape'); await page.keyboard.press('Escape'); await page.waitForTimeout(200);
+await officeI().click({ button: 'right' }); await page.waitForTimeout(450);
+await ctxItem('Очистить все в среде').click(); await page.waitForTimeout(300);
+check(await page.isVisible('#askModal'), 'очистка просит подтверждения'); await page.click('#askYes'); await page.waitForTimeout(500);
+check(await page.evaluate(() => __L().filter((p) => p.env === 'docs').every((p) => { const g = __S(p.id); return !g || !(g.notes || []).length; })), 'пространства среды очищены, названия на месте');
+await officeI().click({ button: 'right' }); await page.waitForTimeout(450);
+check(await ctxItem('Вернуть').isVisible(), 'в меню есть «Вернуть»'); await ctxItem('Вернуть').click(); await page.waitForTimeout(500);
+check(await page.evaluate(() => __L().filter((p) => p.env === 'docs').some((p) => ((__S(p.id) || {}).notes || []).length)), '«Вернуть» возвращает содержимое');
+await officeI().click({ button: 'right' }); await page.waitForTimeout(450);
+await ctxItem('Удалить пространство').hover(); await page.waitForTimeout(450);
+await page.locator('.ctx').nth(1).locator('.ctx-i').first().click(); await page.waitForTimeout(300); await page.click('#askYes'); await page.waitForTimeout(500);
+check((await spaces()).filter((x) => x.startsWith('docs:')).length === offN - 1, 'удалить одно пространство');
+await officeI().click({ button: 'right' }); await page.waitForTimeout(450);
+await page.locator('.ctx .ctx-i', { hasText: /^Удалить (все в среде|«)/ }).first().click(); await page.waitForTimeout(300); await page.click('#askYes'); await page.waitForTimeout(600);
+check((await spaces()).filter((x) => x.startsWith('docs:')).length === 0 && (await spaces()).length >= 1, 'удалить все пространства среды — остальные целы');
+await page.locator('#envDock .ed-i', { hasText: 'Все среды' }).click({ button: 'right' }); await page.waitForTimeout(450);
+check(await ctxItem('Очистить все пространства').isVisible() && await ctxItem('Удалить все пространства').isVisible(), '«Все среды»: очистить или удалить всё');
+await page.keyboard.press('Escape'); await page.waitForTimeout(200);
+
 console.log('Ошибки');
 check(errors.length === 0, 'ошибок в консоли нет' + (errors.length ? ': ' + errors.join(' | ') : ''));
 await browser.close();

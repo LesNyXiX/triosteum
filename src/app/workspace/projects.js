@@ -131,7 +131,37 @@
     toast(label + ' — готово. Передумали? Пространство → Очистка → «Вернуть»');
   }
   function clearCurSpace(){ var nm = curProj().name; clrConfirm('cur', 'Очистить всё в «' + nm + '»: доску, файлы и код схемы', function(){ clearSpaces([PROJ.cur], 'Очищено пространство «' + nm + '»'); }); }
-  function clearEnvSpaces(){ var ids = envProjects(ENV.id).map(function(p){ return p.id; }); clrConfirm('env', 'Очистить все пространства среды «' + ENV.name + '» (' + ids.length + ')', function(){ clearSpaces(ids, 'Очищены пространства среды «' + ENV.name + '»'); }); }
+  function clearEnvSpaces(k){
+    k = ENVS[k] ? k : ENV.id; var nm = ENVS[k].name, ids = envProjects(k).map(function(p){ return p.id; });
+    if(!ids.length){ toast('В среде «' + nm + '» нет пространств'); return; }
+    clrConfirm('env', 'Очистить все пространства среды «' + nm + '» (' + ids.length + ')', function(){ clearSpaces(ids, 'Очищены пространства среды «' + nm + '»'); });
+  }
+  // одно пространство по id (из меню дока сред) — не обязательно открытое
+  function spaceName(id){ var p = PROJ.list.filter(function(x){ return x.id === id; })[0]; return p ? p.name : ''; }
+  function clearSpaceById(id){ var nm = spaceName(id); if(!nm) return; clrConfirm('one', 'Очистить всё в «' + nm + '»: доску, файлы и код схемы', function(){ clearSpaces([id], 'Очищено пространство «' + nm + '»'); }); }
+  function deleteSpaceById(id){ var nm = spaceName(id); if(!nm) return; askConfirm('Удалить «' + nm + '»?', 'Пространство исчезнет из списка вместе с содержимым. Передумаете — «Вернуть» в меню среды (до перезагрузки страницы).', 'Удалить', function(){ deleteSpaces([id], 'Пространство «' + nm + '»'); }); }
+  function deleteEnvSpaces(k){
+    var nm = ENVS[k].name, ids = envProjects(k).map(function(p){ return p.id; });
+    if(!ids.length) return;
+    askConfirm('Удалить все пространства среды «' + nm + '» (' + ids.length + ')?', 'Они исчезнут вместе с содержимым. Передумаете — «Вернуть» в меню среды (до перезагрузки страницы).', 'Удалить', function(){ deleteSpaces(ids, 'Пространства среды «' + nm + '»'); });
+  }
+  // удаляет пространства с возможностью вернуть; если удалили открытое — открывается самое свежее из оставшихся,
+  // если не осталось ни одного — создаётся пустое в текущей среде
+  function deleteSpaces(ids, label){
+    clrBackup(label, ids);
+    ids.forEach(function(id){ Repo.removeSpace(id); });
+    var curGone = ids.indexOf(PROJ.cur) >= 0;
+    PROJ.list = PROJ.list.filter(function(p){ return ids.indexOf(p.id) < 0; });
+    if(!PROJ.list.length){
+      var nid = 'p' + Date.now().toString(36);
+      PROJ.list = [{ id:nid, name:envNewName(ENV.id), t:Date.now(), env:ENV.id }]; PROJ.cur = nid; saveProj();
+      setGraph(emptyGraph()); Repo.saveSpace(nid, G); showProjName();
+    } else if(curGone){
+      var next = PROJ.list.slice().sort(function(a, b){ return b.t - a.t; })[0];
+      PROJ.cur = next.id; saveProj(); setEnv(next.env || 'code'); setGraph(Repo.space(next.id)); showProjName();
+    } else { saveProj(); showProjName(); }
+    toast(label + ' — удалено. Передумали? Правый щелчок по среде в доке → «Вернуть»');
+  }
   function clearAllSpaces(){ var ids = PROJ.list.map(function(p){ return p.id; }); clrConfirm('all', 'Очистить содержимое всех пространств (' + ids.length + '), названия останутся', function(){ clearSpaces(ids, 'Очищены все пространства'); }); }
   function deleteAllSpaces(){ clrConfirm('del', 'Удалить все пространства (' + PROJ.list.length + ') и начать с одного пустого', deleteAllNow); }
   function deleteAllNow(){
