@@ -24,7 +24,8 @@
     "test:trash": "node tests/trash-e2e.mjs",
     "test:split": "node tests/split-e2e.mjs",
     "test:a11y": "node tests/a11y-e2e.mjs",
-    "test:library": "node tests/library-e2e.mjs"
+    "test:library": "node tests/library-e2e.mjs",
+    "test:envdock": "node tests/envdock-e2e.mjs"
   },
   "devDependencies": {
     "axe-core": "^4.14.0",
