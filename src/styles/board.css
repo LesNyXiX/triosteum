@@ -532,6 +532,9 @@
   .node.linked:has(.port-dot:hover) .stem,.node.linked:has(.port-dot.grab) .stem{visibility:visible;animation:nShow .15s ease}
   .node:not(.linked):not(.hub) .stem,.node:not(.linked):not(.hub) .port-dot{opacity:1;visibility:hidden;transition:none}
   .node:not(.linked):not(.hub):hover .stem,.node:not(.linked):not(.hub):hover .port-dot,.node:not(.linked) .port-dot.grab{visibility:visible;animation:nShow .15s ease}
+  /* выделенный блок показывает отросток с точкой выхода — сразу видно, откуда тянуть связь */
+  .node.sel .stem,.node.sel .port-dot{visibility:visible;opacity:1;animation:nShow .15s ease}
+  .node.linked.sel .port-dot{background:var(--c2);border-color:var(--bg)}
   .node.linking .stem,.node.linking .port-dot,.node.linking .port-dot.grab{visibility:hidden !important;animation:none}
   @keyframes nShow{from{opacity:0}}
   .node.off,.edge-g.off{visibility:hidden !important}

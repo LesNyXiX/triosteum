@@ -208,7 +208,13 @@ console.log('Желе мышью на компьютере');
   check(gap < 1.5, 'линия связи не отрывается от растянутого блока ни при движении, ни при пружинке (зазор ' + gap.toFixed(2) + ' px)');
   await mp.waitForTimeout(1500);
   check(await mp.$eval('#nodes .node[data-id="m1"]', (d) => d.style.transform === ''), 'после отпускания форма возвращается');
-  // отросток у блока со связью — только у самой точки выхода, не при наведении на блок
+  // отросток у блока со связью — при выделении; при простом наведении — только у самой точки выхода
+  const vis = (id) => mp.$eval('#nodes .node[data-id="' + id + '"]', (d) => ['.stem', '.port-dot'].map((q) => { const c = getComputedStyle(d.querySelector(q)); return c.visibility === 'hidden' || (c.backgroundColor === 'rgba(0, 0, 0, 0)' && c.borderTopColor === 'rgba(0, 0, 0, 0)') ? '0' : c.opacity; }).join(''));
+  const nbS = await mp.locator('#nodes .node[data-id="m1"]').boundingBox();
+  await mp.mouse.click(nbS.x + nbS.width / 2, nbS.y + 14); await mp.waitForTimeout(300);
+  check(await vis('m1') === '11', 'выделенный блок показывает отросток с точкой выхода');
+  await mp.mouse.click(60, 60); await mp.waitForTimeout(300);
+  check(await vis('m1') === '00', 'сняли выделение — отросток спрятался');
   await mp.mouse.move(100, 100); await mp.waitForTimeout(200);
   const nb2 = await mp.locator('#nodes .node[data-id="m1"]').boundingBox();
   await mp.mouse.move(nb2.x + nb2.width / 2, nb2.y + nb2.height / 2); await mp.waitForTimeout(300);
