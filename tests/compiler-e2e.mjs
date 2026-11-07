@@ -78,7 +78,7 @@ const rows = await page.$$eval('#runBlocks .rb-row', (r) => r.map((x) => x.query
 check(rows.length === 10 && rows.filter((c) => /ok/.test(c)).length === 9 && rows.filter((c) => /err/.test(c)).length === 1, 'у каждого блока статус: девять готовы, один с ошибкой');
 check(/НЕТ/.test(await page.$eval('#runBlocks', (x) => x.textContent)), 'секрет не задан — блок берёт значение по умолчанию');
 await page.click('.runp-tabs [data-rt="errs"]');
-await page.click('#runErrs .rb-err'); await page.waitForTimeout(200);
+await page.click('#runErrs .rb-err-h'); await page.waitForTimeout(200);
 check(await page.$eval('#nodes .node[data-id="c"]', (x) => x.classList.contains('sel')), 'щелчок по ошибке выделяет блок на доске');
 // запустить только выделенный блок
 await page.click('#runSel'); await page.waitForTimeout(900);

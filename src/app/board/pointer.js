@@ -56,6 +56,7 @@
     }
     finishSmooth();
     var dot = e.target.closest('.port-dot');
+    if(!dot){ var stm = e.target.closest('.stem'); if(stm && stm.parentNode) dot = stm.parentNode.querySelector('.port-dot'); }   // за отросток тоже можно тянуть
     var ne = e.target.closest('.node');
     var hit = e.target.closest('.edge-hit');
     var handle = e.target.closest('.edge-handle');

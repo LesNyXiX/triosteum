@@ -105,6 +105,7 @@
   .rb-dot.ok{background:var(--okc,#86EFAC)} .rb-dot.err{background:var(--danger,#F87171)} .rb-dot.skip{background:var(--warnc,#FCD34D)} .rb-dot.stop{background:var(--dim)}
   @keyframes rbPulse{to{box-shadow:0 0 0 7px transparent}}
   .rb-err{display:block;width:100%;text-align:left;border:1px solid color-mix(in srgb,var(--danger,#F87171) 40%,transparent);background:color-mix(in srgb,var(--danger,#F87171) 8%,transparent);color:var(--ink);font:inherit;border-radius:10px;padding:9px 11px;margin:0 0 6px;cursor:pointer}
+  .rb-err-h{display:block;width:100%;padding:0;border:0;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer}
   .rb-err b{display:block;font-size:12.5px;margin-bottom:3px}
   .rb-err code{display:block;font-family:var(--mono);font-size:12px;white-space:pre-wrap;color:var(--danger,#FCA5A5)}
   .rb-err .rb-hint{display:block;font-size:11.5px;color:var(--muted);margin-top:4px}
@@ -535,6 +536,13 @@
   /* выделенный блок показывает отросток с точкой выхода — сразу видно, откуда тянуть связь */
   .node.sel .stem,.node.sel .port-dot{visibility:visible;opacity:1;animation:nShow .15s ease}
   .node.linked.sel .port-dot{background:var(--c2);border-color:var(--bg)}
+  /* отросток: при наведении на блок за него можно взяться — полоса захвата шире самой линии */
+  .stem::before{content:"";position:absolute;left:-2px;right:-8px;top:-9px;bottom:-9px}
+  .node:hover .stem,.node.sel .stem{pointer-events:auto;cursor:crosshair}
+  .node.linked .stem{visibility:visible;background:transparent}
+  .node.linked:has(.stem:hover) .stem,.node.linked:has(.port-dot:hover) .stem,.node.linked:has(.port-dot.grab) .stem,.node.linked.sel .stem{background:var(--c2);animation:nShow .15s ease}
+  .node.linked:has(.stem:hover) .port-dot{background:var(--c2);border-color:var(--bg)}
+  .node:has(.stem:hover) .port-dot{transform:scale(1.3)}
   .node.linking .stem,.node.linking .port-dot,.node.linking .port-dot.grab{visibility:hidden !important;animation:none}
   @keyframes nShow{from{opacity:0}}
   .node.off,.edge-g.off{visibility:hidden !important}
@@ -544,19 +552,20 @@
   .ed-i:active .ed-tile.art{filter:brightness(.82)}
 
   /* ---------- док свёрнут в полоску: «стекает» вниз, на его месте — сегменты сред ---------- */
-  .env-dock{transform-origin:50% 100%}
-  .env-dock.mini{transform:translateX(-50%) translateY(34px) scale(.5,.18);opacity:0;
-    transition:transform .5s cubic-bezier(.6,0,.35,1),opacity .32s ease .14s}
-  .env-dock.mini .ed-shelf{pointer-events:none}
+  /* свёрнут: док просто скрыт — переход в плашку рисует оболочка .ed-morph */
+  .env-dock.folded{opacity:0;transition:none}   /* без visibility:hidden — чтобы до значков можно было дойти клавишей Tab */
+  .env-dock{transition:transform .38s cubic-bezier(.34,1.3,.64,1),opacity .18s ease}
+  .env-dock.folded .ed-shelf{pointer-events:none}
+  .ed-morph{position:fixed;z-index:28;pointer-events:none;box-sizing:border-box;
+    background:color-mix(in srgb,var(--panel) 88%,transparent);border:1px solid var(--line2);
+    box-shadow:0 12px 34px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,255,255,.06)}
   .ed-mini{position:absolute;z-index:28;bottom:calc(10px + var(--snap-b,0px));left:calc(var(--snap-l,0px) + (100% - var(--snap-l,0px) - var(--snap-r,0px)) / 2);
     display:flex;align-items:center;gap:6px;padding:6px 10px 6px 7px;border-radius:16px;cursor:pointer;
     background:color-mix(in srgb,var(--panel) 90%,transparent);border:1px solid var(--line2);
     box-shadow:0 10px 28px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.06);
-    transform:translateX(-50%) translateY(18px) scale(.92);opacity:0;pointer-events:none;
-    transition:transform .3s cubic-bezier(.4,0,.6,1),opacity .18s ease}
-  .ed-mini.on{transform:translateX(-50%);opacity:1;pointer-events:auto;
-    transition:transform .55s cubic-bezier(.34,1.45,.64,1) .3s,opacity .3s ease .3s}
-  .ed-mini.on:hover{transform:translateX(-50%) translateY(-3px);transition-delay:0s}
+    transform:translateX(-50%);opacity:0;visibility:hidden;pointer-events:none;transition:opacity .16s ease,transform .2s ease}
+  .ed-mini.on{opacity:1;visibility:visible;pointer-events:auto}
+  .ed-mini.on:hover{transform:translateX(-50%) translateY(-3px)}
   .edm-grip{width:6px;height:18px;margin-right:2px;border-radius:2px;opacity:.75;
     background:radial-gradient(circle,var(--muted) 1.1px,transparent 1.5px) 0 0/6px 5px}
   .edm-seg{flex:none;width:30px;height:10px;border-radius:5px;opacity:.5;
@@ -573,3 +582,28 @@
   body.noanim .env-dock,body.noanim .ed-mini{transition:none !important}
   @media (prefers-reduced-motion: reduce){ .ed-mini{transition:none !important} }
   @media (max-width:640px){ .edm-seg{width:16px} .edm-seg.here b{display:none} }
+
+  /* ИИ-разбор ошибки */
+  .ea{margin-top:10px;padding-top:10px;border-top:1px dashed color-mix(in srgb,var(--line2) 80%,transparent);cursor:default}
+  .ea-h{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+  .ea-badge{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-strong);
+    padding:2px 8px;border-radius:999px;background:linear-gradient(90deg,color-mix(in srgb,var(--red) 35%,transparent),color-mix(in srgb,#8B5CF6 35%,transparent))}
+  .ea-wait{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+  .ea-spin{width:11px;height:11px;border-radius:50%;border:2px solid var(--line2);border-top-color:var(--ink);animation:eaSpin .8s linear infinite}
+  @keyframes eaSpin{to{transform:rotate(360deg)}}
+  .ea-again{margin-left:auto;padding:2px 8px;border-radius:7px;border:1px solid var(--line2);background:none;color:var(--muted);font:inherit;font-size:11.5px;cursor:pointer}
+  .ea-again:hover{color:var(--ink);border-color:var(--muted)}
+  .ea-off,.ea-err{font-size:12px;color:var(--muted);line-height:1.45}
+  .ea-err{color:var(--danger,#FCA5A5)}
+  .ea-cause{font-size:12.5px;line-height:1.5;color:var(--ink);margin-bottom:8px}
+  .ea-cause b{display:inline;font-size:inherit;margin:0;color:var(--ink-strong)}
+  .ea-raw{font-size:12.5px;line-height:1.5;white-space:pre-wrap;color:var(--ink)}
+  .ea-opt{padding:9px 11px;margin-top:6px;border-radius:10px;border:1px solid var(--line2);background:color-mix(in srgb,var(--bg) 70%,transparent)}
+  .ea-opt.done{border-color:color-mix(in srgb,var(--okc,#34D399) 60%,transparent)}
+  .ea-ot{display:flex;align-items:center;gap:8px}
+  .ea-ot b{display:inline;margin:0;font-size:12.5px;color:var(--ink-strong)}
+  .ea-num{flex:none;width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:700;background:var(--line2);color:var(--ink-strong)}
+  .ea-opt p{margin:4px 0 0 26px;font-size:12px;line-height:1.5;color:var(--muted)}
+  .ea-acts{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:8px 0 0 26px}
+  .ea-ok{font-size:12px;font-weight:600;color:var(--okc,#34D399)}
+  .ea-code{margin:8px 0 0 26px;max-height:260px;overflow:auto;padding:8px 10px;border-radius:8px;background:var(--bg);border:1px solid var(--line);font:12px/1.5 var(--mono);white-space:pre;color:var(--ink)}

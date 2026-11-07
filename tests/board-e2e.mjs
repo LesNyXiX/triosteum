@@ -209,7 +209,7 @@ console.log('Желе мышью на компьютере');
   await mp.waitForTimeout(1500);
   check(await mp.$eval('#nodes .node[data-id="m1"]', (d) => d.style.transform === ''), 'после отпускания форма возвращается');
   // отросток у блока со связью — при выделении; при простом наведении — только у самой точки выхода
-  const vis = (id) => mp.$eval('#nodes .node[data-id="' + id + '"]', (d) => ['.stem', '.port-dot'].map((q) => { const c = getComputedStyle(d.querySelector(q)); return c.visibility === 'hidden' || (c.backgroundColor === 'rgba(0, 0, 0, 0)' && c.borderTopColor === 'rgba(0, 0, 0, 0)') ? '0' : c.opacity; }).join(''));
+  const vis = (id) => mp.$eval('#nodes .node[data-id="' + id + '"]', (d) => ['.stem', '.port-dot'].map((q) => { const c = getComputedStyle(d.querySelector(q)); return c.visibility === 'hidden' || (c.backgroundColor === 'rgba(0, 0, 0, 0)' && (c.borderTopColor === 'rgba(0, 0, 0, 0)' || c.borderTopWidth === '0px')) ? '0' : c.opacity; }).join(''));
   const nbS = await mp.locator('#nodes .node[data-id="m1"]').boundingBox();
   await mp.mouse.click(nbS.x + nbS.width / 2, nbS.y + 14); await mp.waitForTimeout(300);
   check(await vis('m1') === '11', 'выделенный блок показывает отросток с точкой выхода');
@@ -218,13 +218,25 @@ console.log('Желе мышью на компьютере');
   await mp.mouse.move(100, 100); await mp.waitForTimeout(200);
   const nb2 = await mp.locator('#nodes .node[data-id="m1"]').boundingBox();
   await mp.mouse.move(nb2.x + nb2.width / 2, nb2.y + nb2.height / 2); await mp.waitForTimeout(300);
-  const stOp = await mp.$eval('#nodes .node[data-id="m1"]', (d) => ['.stem', '.port-dot'].map((q) => { const c = getComputedStyle(d.querySelector(q)); return c.visibility === 'hidden' || (c.backgroundColor === 'rgba(0, 0, 0, 0)' && c.borderTopColor === 'rgba(0, 0, 0, 0)') ? '0' : c.opacity; }));   // скрыто прозрачностью или видимостью — для глаза одно и то же
+  const stOp = await mp.$eval('#nodes .node[data-id="m1"]', (d) => ['.stem', '.port-dot'].map((q) => { const c = getComputedStyle(d.querySelector(q)); return c.visibility === 'hidden' || (c.backgroundColor === 'rgba(0, 0, 0, 0)' && (c.borderTopColor === 'rgba(0, 0, 0, 0)' || c.borderTopWidth === '0px')) ? '0' : c.opacity; }));   // скрыто прозрачностью или видимостью — для глаза одно и то же
   check(stOp[0] === '0' && stOp[1] === '0', 'наведение на блок со связью не показывает лишний отросток');
   await mp.mouse.move(100, 100); await mp.waitForTimeout(250);
-  check(await mp.$eval('#nodes .node[data-id="m2"]', (d) => ['.stem', '.port-dot'].map((q) => { const c = getComputedStyle(d.querySelector(q)); return c.visibility === 'hidden' || (c.backgroundColor === 'rgba(0, 0, 0, 0)' && c.borderTopColor === 'rgba(0, 0, 0, 0)') ? '0' : c.opacity; }).join('')) === '00', 'у последнего блока цепочки (только вход) отросток не висит постоянно');
+  check(await mp.$eval('#nodes .node[data-id="m2"]', (d) => ['.stem', '.port-dot'].map((q) => { const c = getComputedStyle(d.querySelector(q)); return c.visibility === 'hidden' || (c.backgroundColor === 'rgba(0, 0, 0, 0)' && (c.borderTopColor === 'rgba(0, 0, 0, 0)' || c.borderTopWidth === '0px')) ? '0' : c.opacity; }).join('')) === '00', 'у последнего блока цепочки (только вход) отросток не висит постоянно');
   const pd = await mp.locator('#nodes .node[data-id="m1"] .port-dot').boundingBox();
   await mp.mouse.move(pd.x + pd.width / 2, pd.y + pd.height / 2); await mp.waitForTimeout(300);
   check(await mp.$eval('#nodes .node[data-id="m1"] .port-dot', (d) => getComputedStyle(d).opacity) === '1', 'у самой точки выхода отросток появляется — можно тянуть новую связь');
+  // за сам отросток (не только за точку) можно взяться, просто наведя курсор на блок
+  {
+    const edges0 = await mp.locator('#edges .edge-g').count();
+    const b2 = await mp.locator('#nodes .node[data-id="m2"]').boundingBox(), b1 = await mp.locator('#nodes .node[data-id="m1"]').boundingBox();
+    await mp.mouse.click(60, 60); await mp.mouse.move(b2.x + b2.width / 2, b2.y + b2.height / 2); await mp.waitForTimeout(250);
+    const sx = b2.x + b2.width + 10, sy = b2.y + b2.height / 2 + 6;   // середина отростка, на 6 px ниже линии
+    check(await mp.evaluate(([x, y]) => !!document.elementFromPoint(x, y)?.closest('.stem'), [b2.x + b2.width + 2, sy]), 'у отростка широкая полоса захвата — даже у самого блока, мимо линии');
+    await mp.mouse.move(sx, sy); await mp.mouse.down();
+    for (let i = 1; i <= 12; i++) await mp.mouse.move(sx + (b1.x + 30 - sx) * i / 12, sy + (b1.y + 20 - sy) * i / 12);
+    await mp.mouse.up(); await mp.waitForTimeout(400);
+    check(await mp.locator('#edges .edge-g').count() === edges0 + 1, 'потянули за отросток без выделения — связь протянулась');
+  }
   // комментарий: плавно появляется и гаснет, без лишнего мигания
   await mp.mouse.move(100, 100);
   await mp.hover('#nodes .node[data-id="m2"]'); await mp.waitForTimeout(150);

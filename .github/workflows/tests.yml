@@ -52,6 +52,7 @@ jobs:
           npm run test:a11y
           npm run test:library
           npm run test:envdock
+          npm run test:errai
 
       - name: Хранение и резервные копии
         run: npm run test:storage

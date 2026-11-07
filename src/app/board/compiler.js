@@ -103,9 +103,11 @@
     if(!CMP.errs.length){ box.appendChild(h('div', { 'class':'rb-empty', text:CMP.busy ? 'Ошибок пока нет.' : (CMP.order.length ? 'Ошибок нет — все блоки выполнились.' : 'Ошибок нет.') })); return; }
     CMP.errs.forEach(function(x){
       var hint = cmpHint(x.msg);
-      box.appendChild(h('button', { type:'button', 'class':'rb-err', title:'Щелчок — показать блок, двойной — открыть код', on:{ click:function(){ cmpReveal(x.id); }, dblclick:function(){ var n = nodeById(x.id); if(n && typeof openBlock === 'function') openBlock(n); } } }, [
+      var card = h('div', { 'class':'rb-err' }); box.appendChild(card);
+      card.appendChild(h('button', { type:'button', 'class':'rb-err-h', title:'Щелчок — показать блок, двойной — открыть код', on:{ click:function(){ cmpReveal(x.id); }, dblclick:function(){ var n = nodeById(x.id); if(n && typeof openBlock === 'function') openBlock(n); } } }, [
         h('b', { text:x.name + ' · ' + x.lang }), h('code', { text:x.msg }), hint ? h('span', { 'class':'rb-hint', text:hint }) : null
       ]));
+      if(typeof errAiSection === 'function') card.appendChild(errAiSection(x));
     });
   }
   function cmpReveal(id){

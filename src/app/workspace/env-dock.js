@@ -22,7 +22,7 @@
     EDOCK.mini = mini;
     shelf.addEventListener('mouseenter', function(){ clearTimeout(EDOCK.idleT); });
     shelf.addEventListener('mouseleave', edIdle);
-    d.addEventListener('focusin', function(){ if(EDOCK.el.classList.contains('mini')) envDockMini(false); clearTimeout(EDOCK.idleT); });
+    d.addEventListener('focusin', function(){ if(EDOCK.el.classList.contains('folded')) envDockMini(false); clearTimeout(EDOCK.idleT); });
     d.addEventListener('focusout', function(){ setTimeout(function(){ if(!EDOCK.el.contains(document.activeElement)) edIdle(); }, 0); });
     // в открытом файле док спрятан — у нижнего края остаётся тонкая полоска: навели — док выезжает
     var hd = h('div', { 'class':'ed-handle', 'aria-hidden':'true', title:'Среды — наведите, чтобы показать' });
@@ -80,7 +80,7 @@
     EDOCK.shelf.appendChild(h('span', { 'class':'ed-sep', 'aria-hidden':'true' }));
     envDockItem({ key:'_all', menu:envDockAllMenu, label:'Все среды', color:'#64748B', cls:'ed-all', ic:'<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>', act:openEco });
     envDockMiniRender();
-    if(mode !== 'mini') envDockMini(false); else if(!EDOCK.el.classList.contains('mini')) edIdle();
+    if(mode !== 'mini') envDockMini(false); else if(!EDOCK.el.classList.contains('folded')) edIdle();
     edFrame();
   }
   function envDockMiniRender(){
@@ -99,8 +99,34 @@
   function envDockMini(on){
     if(!EDOCK.el) return;
     on = !!on && envDockMode() === 'mini';
-    EDOCK.el.classList.toggle('mini', on); EDOCK.mini.classList.toggle('on', on);
+    var was = EDOCK.el.classList.contains('folded');
+    if(EDOCK.morph){ EDOCK.morph.finish(); }
+    if(was === on){ EDOCK.mini.classList.toggle('on', on); return; }
     if(on){ EDOCK.mx = null; edFrame(); }
+    var still = EDOCK.el.hidden || document.body.classList.contains('noanim') || (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) || !document.body.animate;
+    if(still){ EDOCK.el.classList.toggle('folded', on); EDOCK.mini.classList.toggle('on', on); return; }
+    edMorph(on);
+  }
+  /* Переход «панель ↔ плашка»: значки исчезают, а сама панель плавно сжимается в размер и форму плашки
+     (или растягивается обратно). Без промежуточных кадров со сплющенными значками. */
+  function edMorph(on){
+    var z = (UI.scale || 100) / 100, A = EDOCK.shelf.getBoundingClientRect(), B = EDOCK.mini.getBoundingClientRect();
+    if(!A.width || !B.width){ EDOCK.el.classList.toggle('folded', on); EDOCK.mini.classList.toggle('on', on); return; }
+    var g = h('div', { 'class':'ed-morph', 'aria-hidden':'true' });
+    document.body.appendChild(g);
+    function box(r, rad){ return { left:(r.left / z) + 'px', top:(r.top / z) + 'px', width:(r.width / z) + 'px', height:(r.height / z) + 'px', borderRadius:rad }; }
+    var from = on ? box(A, '20px') : box(B, '16px'), to = on ? box(B, '16px') : box(A, '20px');
+    // с начала: прячем то, откуда уходим; в конце: показываем то, куда пришли
+    if(on) EDOCK.el.classList.add('folded'); else EDOCK.mini.classList.remove('on');
+    var an = g.animate([from, to], { duration:on ? 460 : 400, easing:'cubic-bezier(.65,0,.3,1)', fill:'forwards' });
+    var done = false;
+    function end(){
+      if(done) return; done = true; EDOCK.morph = null;
+      if(on) EDOCK.mini.classList.add('on'); else EDOCK.el.classList.remove('folded');
+      setTimeout(function(){ g.remove(); }, 170);          // оболочка уходит, когда плашка или док уже проявились
+    }
+    an.onfinish = end;
+    EDOCK.morph = { finish:function(){ try { an.cancel(); } catch(e){} end(); g.remove(); } };
   }
   function envDockExpand(){ envDockMini(false); edIdle(); }
   function edIdle(){
