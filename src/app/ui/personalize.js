@@ -66,6 +66,8 @@
         wine:wine, wine2:wine2, onWine:bestText(wine, '#FFFFFF', th.strong), onAcc:bestText(btn) };
     }
     root.setProperty('--red', P.red); root.setProperty('--red-btn', P.btn); root.setProperty('--red-btn-h', P.btnH); root.setProperty('--red-soft', P.soft);
+    // вспомогательный текст читается и на выделенных строках (фон --wine2) — для любой темы, своей тоже
+    root.setProperty('--muted', readable(readable(th.muted, P.wine2, 4.6), th.bg, 4.6)); root.setProperty('--dim', readable(th.dim, th.bg, 4.6));
     root.setProperty('--wine', P.wine); root.setProperty('--wine2', P.wine2); root.setProperty('--on-wine', P.onWine); root.setProperty('--on-accent', P.onAcc);
     root.setProperty('--danger', th.light ? '#B91C1C' : '#FCA5A5');
     // цвета знака Triosteum: на светлой теме — более тёмная версия

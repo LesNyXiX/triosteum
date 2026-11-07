@@ -27,7 +27,7 @@
   .lchip .lt{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--ink-strong)}
   .lchip .lt i{width:10px;height:10px;border-radius:3px;display:inline-block}
   .lchip .sub{font-size:11px;color:var(--dim)}
-  .lchip .sub.ok{color:#86EFAC}
+  .lchip .sub.ok{color:var(--okc,#86EFAC)}
   .swatches{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
   .swb{flex:none;width:30px;height:30px;border-radius:50%;border:2px solid var(--line2);cursor:pointer;padding:0}
   .swb.on{border-color:#fff;box-shadow:0 0 0 2px var(--red)}

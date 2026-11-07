@@ -87,4 +87,14 @@
     var _sp = showProjName;
     showProjName = function(){ var r = _sp.apply(this, arguments); try { envDockRender(); } catch(e){} return r; };
   })();
+  // в редакторе кода и в открытом файле Офиса док не закрывает консоль и текст — он виден на досках и рабочих столах
+  function envDockScene(){
+    var off = S.view === 'editor' || (typeof OF === 'object' && OF && isOffice() && ['desk', 'map', 'auto'].indexOf(OF.tab) < 0);
+    document.body.classList.toggle('ed-away', !!off);
+  }
+  (function(){
+    if(PANE) return;
+    var _r = render; render = function(){ var x = _r.apply(this, arguments); envDockScene(); return x; };
+    if(typeof ofRender === 'function'){ var _o = ofRender; ofRender = function(){ var x = _o.apply(this, arguments); envDockScene(); return x; }; }
+  })();
   if(!PANE) setTimeout(envDockRender, 0);

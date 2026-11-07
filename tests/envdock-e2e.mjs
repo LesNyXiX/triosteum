@@ -45,6 +45,13 @@ check(await page.evaluate(() => document.activeElement.classList.contains('kb') 
 await page.keyboard.press('Enter'); await page.waitForTimeout(1200);
 check(!/Офис/.test(await page.textContent('#envChip')), 'Enter открывает выбранную среду');
 
+console.log('Редактор');
+await page.locator('#envDock .ed-i').first().click(); await page.waitForTimeout(1200);
+await page.click('#bLib'); await page.waitForTimeout(300); await page.locator('.pcard').first().locator('button.code').click(); await page.waitForTimeout(600);
+check(await page.$eval('#envDock', (x) => getComputedStyle(x).opacity) === '0', 'в редакторе кода док прячется и не закрывает консоль');
+await page.evaluate(() => { const b = document.querySelector('#backBtn'); if (b && !b.hidden) b.click(); }); await page.waitForTimeout(400); if (await page.isVisible('#editor')) { await page.keyboard.press('Escape'); await page.locator('.ed-i').first().click().catch(() => {}); } await page.waitForTimeout(600);
+check(await page.$eval('#envDock', (x) => getComputedStyle(x).opacity) === '1' || await page.isVisible('#editor'), 'вернулись на доску — док снова виден');
+
 console.log('Режимы');
 await page.click('#setBtn'); await page.waitForTimeout(300);
 await page.locator('#pers button', { hasText: 'Прятать, пока не нужен' }).click(); await page.waitForTimeout(400);

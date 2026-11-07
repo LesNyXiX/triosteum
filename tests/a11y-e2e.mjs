@@ -15,17 +15,21 @@ const URL = 'http://127.0.0.1:' + srv.address().port + '/';
 let failed = 0;
 const check = (ok, name) => { console.log((ok ? '  ✓ ' : '  ✗ ') + name); if (!ok) failed++; };
 const browser = await chromium.launch();
+const THEMES = (process.env.THEMES || 'burgundy,light').split(',');
+for (const THEME of THEMES) {
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-await ctx.addInitScript(() => {
+await ctx.addInitScript((THEME) => {
+  if (!localStorage.getItem('triosteum.ui')) localStorage.setItem('triosteum.ui', JSON.stringify({ theme: THEME, anim: false }));
   if (localStorage.getItem('triosteum.projects')) return;
   localStorage.setItem('triosteum.projects', JSON.stringify({ cur: 'p1', list: [{ id: 'p1', name: 'Схема', t: Date.now(), env: 'code' }, { id: 'p2', name: 'Бумаги', t: Date.now() - 1000, env: 'docs' }] }));
   localStorage.setItem('triosteum.proj.p1', JSON.stringify({ nodes: [{ id: 'a', name: 'Блок', lang: 'python', x: 200, y: 160, codes: {}, pluginId: null, family: null, desc: '', colors: null }, { id: 'b', name: 'Второй', lang: 'python', x: 560, y: 200, codes: {}, pluginId: null, family: null, desc: '', colors: null }], edges: [{ id: 'e1', from: 'a', to: 'b' }], notes: [], cam: { x: 0, y: 0, k: 1 }, seq: 3 }));
   localStorage.setItem('triosteum.profile', JSON.stringify({ name: 'Тест', org: 'Завод' }));
   localStorage.setItem('triosteum.tour', JSON.stringify({ done: true }));
-});
+}, THEME);
 const page = await ctx.newPage();
 await page.goto(URL); await page.waitForTimeout(1000);
 await page.addScriptTag({ content: AXE });
+console.log('\nТема: ' + THEME);
 async function audit(name, include) {
   await page.waitForTimeout(350);
   const res = await page.evaluate(async (inc) => {
@@ -48,6 +52,9 @@ await page.keyboard.press('Control+k'); await page.keyboard.type('тур'); awai
 await page.click('#ecoBtn'); await audit('экосистема (выбор среды)', '#eco');
 await page.locator('#ecoGrid .eco-card.go', { hasText: 'Офис' }).locator('button', { hasText: 'Пример офиса' }).click(); await page.waitForTimeout(900);
 await audit('офис: рабочий стол');
+await audit('док сред', '#envDock');
+await ctx.close();
+}
 await browser.close(); srv.close();
 console.log(failed ? '\nПровалено: ' + failed : '\nВсё прошло');
 process.exit(failed ? 1 : 0);

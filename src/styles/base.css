@@ -70,7 +70,7 @@
   .pcard p{margin:6px 0 0;font-size:12.5px;line-height:1.5;color:var(--muted)}
   .pcard .pf{margin-top:10px;display:flex;align-items:center;justify-content:space-between;gap:8px}
   .run-tag{font-size:11px;color:var(--dim)}
-  .run-tag.live{color:#86EFAC}
+  .run-tag.live{color:var(--okc,#86EFAC)}
   .empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:24px;text-align:center;font-size:13px;color:var(--muted)}
   .badge-ico{width:44px;height:44px;border-radius:12px;background:var(--wine2);color:var(--red-soft);display:flex;align-items:center;justify-content:center}
   button.badge-ico{width:56px;height:56px;padding:0;border:1px solid var(--line2);cursor:pointer;transition:background .12s,transform .12s}

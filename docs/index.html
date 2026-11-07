@@ -85,7 +85,7 @@
   .pcard p{margin:6px 0 0;font-size:12.5px;line-height:1.5;color:var(--muted)}
   .pcard .pf{margin-top:10px;display:flex;align-items:center;justify-content:space-between;gap:8px}
   .run-tag{font-size:11px;color:var(--dim)}
-  .run-tag.live{color:#86EFAC}
+  .run-tag.live{color:var(--okc,#86EFAC)}
   .empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:24px;text-align:center;font-size:13px;color:var(--muted)}
   .badge-ico{width:44px;height:44px;border-radius:12px;background:var(--wine2);color:var(--red-soft);display:flex;align-items:center;justify-content:center}
   button.badge-ico{width:56px;height:56px;padding:0;border:1px solid var(--line2);cursor:pointer;transition:background .12s,transform .12s}
@@ -702,6 +702,8 @@
   body.has-envdock .canvas .empty-hint{margin-bottom:60px}
   @media (prefers-reduced-motion: reduce){ .ed-i,.env-dock{transition:none} .ed-i.jump .ed-tile{animation:none} }
   @media (max-width:640px){ .ed-shelf{height:54px;gap:4px;padding:5px 6px 7px} .ed-i{--sz:40px !important} .ed-tip{display:none} .env-dock{max-width:calc(100vw - 16px)} .ed-shelf{overflow-x:auto} }
+  body.ed-away .env-dock{transform:translateX(-50%) translateY(calc(100% + 16px));opacity:0;pointer-events:none}
+  body.ed-away.has-envdock .tools.dock-bottom{bottom:calc(10px + var(--snap-b,0px))}
 
   /* ---------- заметки ---------- */
   .note{position:absolute;width:max-content;min-width:140px;max-width:360px;min-height:22px;padding:10px 12px;border-radius:10px;
@@ -759,7 +761,7 @@
   .lchip .lt{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--ink-strong)}
   .lchip .lt i{width:10px;height:10px;border-radius:3px;display:inline-block}
   .lchip .sub{font-size:11px;color:var(--dim)}
-  .lchip .sub.ok{color:#86EFAC}
+  .lchip .sub.ok{color:var(--okc,#86EFAC)}
   .swatches{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
   .swb{flex:none;width:30px;height:30px;border-radius:50%;border:2px solid var(--line2);cursor:pointer;padding:0}
   .swb.on{border-color:#fff;box-shadow:0 0 0 2px var(--red)}
@@ -7165,6 +7167,8 @@ var Wobble=function(t){"use strict";var i=Object.assign||function(t){for(var i,e
         wine:wine, wine2:wine2, onWine:bestText(wine, '#FFFFFF', th.strong), onAcc:bestText(btn) };
     }
     root.setProperty('--red', P.red); root.setProperty('--red-btn', P.btn); root.setProperty('--red-btn-h', P.btnH); root.setProperty('--red-soft', P.soft);
+    // вспомогательный текст читается и на выделенных строках (фон --wine2) — для любой темы, своей тоже
+    root.setProperty('--muted', readable(readable(th.muted, P.wine2, 4.6), th.bg, 4.6)); root.setProperty('--dim', readable(th.dim, th.bg, 4.6));
     root.setProperty('--wine', P.wine); root.setProperty('--wine2', P.wine2); root.setProperty('--on-wine', P.onWine); root.setProperty('--on-accent', P.onAcc);
     root.setProperty('--danger', th.light ? '#B91C1C' : '#FCA5A5');
     // цвета знака Triosteum: на светлой теме — более тёмная версия
@@ -19502,6 +19506,16 @@ var Wobble=function(t){"use strict";var i=Object.assign||function(t){for(var i,e
     if(PANE) return;
     var _sp = showProjName;
     showProjName = function(){ var r = _sp.apply(this, arguments); try { envDockRender(); } catch(e){} return r; };
+  })();
+  // в редакторе кода и в открытом файле Офиса док не закрывает консоль и текст — он виден на досках и рабочих столах
+  function envDockScene(){
+    var off = S.view === 'editor' || (typeof OF === 'object' && OF && isOffice() && ['desk', 'map', 'auto'].indexOf(OF.tab) < 0);
+    document.body.classList.toggle('ed-away', !!off);
+  }
+  (function(){
+    if(PANE) return;
+    var _r = render; render = function(){ var x = _r.apply(this, arguments); envDockScene(); return x; };
+    if(typeof ofRender === 'function'){ var _o = ofRender; ofRender = function(){ var x = _o.apply(this, arguments); envDockScene(); return x; }; }
   })();
   if(!PANE) setTimeout(envDockRender, 0);
 

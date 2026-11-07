@@ -504,3 +504,5 @@
   body.has-envdock .canvas .empty-hint{margin-bottom:60px}
   @media (prefers-reduced-motion: reduce){ .ed-i,.env-dock{transition:none} .ed-i.jump .ed-tile{animation:none} }
   @media (max-width:640px){ .ed-shelf{height:54px;gap:4px;padding:5px 6px 7px} .ed-i{--sz:40px !important} .ed-tip{display:none} .env-dock{max-width:calc(100vw - 16px)} .ed-shelf{overflow-x:auto} }
+  body.ed-away .env-dock{transform:translateX(-50%) translateY(calc(100% + 16px));opacity:0;pointer-events:none}
+  body.ed-away.has-envdock .tools.dock-bottom{bottom:calc(10px + var(--snap-b,0px))}
