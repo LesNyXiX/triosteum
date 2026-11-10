@@ -1,0 +1,91 @@
+# Автослияние PR по правилам из AGENTS.md: сливает сам GitHub, без участия человека, когда одновременно
+#   1) проверка «Сайт» (тесты) на последнем коммите PR — зелёная;
+#   2) Codex проверил ИМЕННО этот коммит и не оставил нерешённых замечаний (P0/P1);
+#   3) для PR от Codex (ветки codex/…) — ещё и Claude проверил этот коммит: в PR есть его отметка
+#      <!-- claude-review: ok sha=<коммит> -->.
+# Не сливает: черновики, PR с меткой «не сливать», PR не в main, PR из форков.
+name: Автослияние
+
+on:
+  workflow_run:
+    workflows: ["Тесты"]
+    types: [completed]
+  issue_comment:
+    types: [created, edited]
+  pull_request_review:
+    types: [submitted]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: read
+  pages: write
+
+concurrency:
+  group: automerge
+  cancel-in-progress: false
+
+jobs:
+  merge:
+    name: Слить готовые PR
+    runs-on: ubuntu-latest
+    if: github.event_name != 'issue_comment' || github.event.issue.pull_request
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const CODEX = 'chatgpt-codex-connector[bot]';
+            const CHECK = 'Сайт';
+
+            // какие PR смотреть: из события, а если не ясно — все открытые
+            let numbers = [];
+            if (context.eventName === 'issue_comment') numbers = [context.issue.number];
+            else if (context.eventName === 'pull_request_review') numbers = [context.payload.pull_request.number];
+            else if (context.eventName === 'workflow_run') numbers = (context.payload.workflow_run.pull_requests || []).map((p) => p.number);
+            if (!numbers.length) numbers = (await github.paginate(github.rest.pulls.list, { owner, repo, state: 'open' })).map((p) => p.number);
+
+            let merged = 0;
+            for (const number of numbers) {
+              const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number: number });
+              const sha = pr.head.sha;
+              const why = (m) => core.info(`#${number}: не сливаю — ${m}`);
+              if (pr.state !== 'open' || pr.draft) { why('закрыт или черновик'); continue; }
+              if (pr.base.ref !== pr.base.repo.default_branch) { why('не в основную ветку'); continue; }
+              if (pr.head.repo.full_name !== `${owner}/${repo}`) { why('из форка'); continue; }
+              if (pr.labels.some((l) => /не сливать|do not merge/i.test(l.name))) { why('метка «не сливать»'); continue; }
+
+              // 1) тесты на последнем коммите
+              const runs = (await github.rest.checks.listForRef({ owner, repo, ref: sha, check_name: CHECK })).data.check_runs;
+              const run = runs.sort((a, b) => new Date(b.started_at) - new Date(a.started_at))[0];
+              if (!run || run.status !== 'completed' || run.conclusion !== 'success') { why(`проверка «${CHECK}» ещё не зелёная`); continue; }
+
+              // 2) ревью Codex именно этого коммита, без нерешённых замечаний
+              const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number: number });
+              const state = comments.filter((c) => c.user.login === CODEX && c.body.includes('codex-review-state:v1'))
+                .map((c) => { try { return JSON.parse(/codex-review-state:v1 (\{.*?\}) -->/s.exec(c.body)[1]).code_review; } catch (e) { return null; } })
+                .filter(Boolean).pop();
+              if (!state || state.status !== 'completed' || !state.commit_sha || !sha.startsWith(state.commit_sha.slice(0, 7)) || !state.commit_sha.startsWith(sha.slice(0, 7))) { why('Codex ещё не проверил последний коммит'); continue; }
+              if (state.has_unresolved_findings) { why('у Codex есть нерешённые замечания'); continue; }
+              const reviews = await github.paginate(github.rest.pulls.listReviews, { owner, repo, pull_number: number });
+              if (reviews.some((r) => r.commit_id === sha && r.state === 'CHANGES_REQUESTED')) { why('в ревью просят изменений'); continue; }
+
+              // 3) PR от Codex проверяет Claude
+              if (pr.head.ref.startsWith('codex/')) {
+                const ok = comments.some((c) => (c.body.match(/<!-- claude-review: ok sha=([0-9a-f]{7,40}) -->/) || [])[1] && sha.startsWith(c.body.match(/<!-- claude-review: ok sha=([0-9a-f]{7,40}) -->/)[1]));
+                if (!ok) { why('Claude ещё не проверил последний коммит'); continue; }
+              }
+
+              await github.rest.pulls.merge({ owner, repo, pull_number: number, sha, merge_method: 'squash' });
+              await github.rest.issues.createComment({ owner, repo, issue_number: number,
+                body: `Слито автоматически: тесты «${CHECK}» зелёные, Codex проверил коммит \`${sha.slice(0, 7)}\` без серьёзных замечаний` + (pr.head.ref.startsWith('codex/') ? ', Claude — тоже.' : '.') });
+              core.info(`#${number}: слито`);
+              merged++;
+            }
+
+            // слияние от имени GITHUB_TOKEN может не запустить пересборку сайта — просим GitHub Pages сами
+            if (merged) {
+              try { await github.request('POST /repos/{owner}/{repo}/pages/builds', { owner, repo }); core.info('Сайт пересобирается'); }
+              catch (e) { core.warning('Не удалось запросить сборку сайта: ' + e.message); }
+            }
