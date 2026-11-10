@@ -19,6 +19,14 @@ await ctx.addInitScript((cs) => {
     files: { items: [{ id: 'f1', type: 'sheet', name: 'Остатки на складах', t: 1, data: { sheets: [{ name: 'Лист1', rows: [['Товар', 'Остаток', 'Прогноз'], ['Лист 4 мм', '10', '25'], ['Электроды', '50', '30']], fmt: {}, widths: {}, charts: [] }] } }], open: [], active: 'desk' } }));
   localStorage.setItem('triosteum.proj.p3', JSON.stringify({ nodes: [{ id: 'n1', name: 'Расчёт дефицита', lang: 'csharp', x: 100, y: 100, codes: { csharp: cs }, pluginId: null, family: null, desc: 'прогноз минус остаток', colors: null }], edges: [], notes: [], cam: { x: 0, y: 0, k: 1 }, seq: 2 }));
   localStorage.setItem('triosteum.profile', JSON.stringify({ name: 'Тест', org: 'Завод' }));
+  const projects = JSON.parse(localStorage.getItem('triosteum.projects'));
+  projects.list.push({ id: 'p4', name: 'Финансы', t: 0, env: 'finance' });
+  localStorage.setItem('triosteum.projects', JSON.stringify(projects));
+  localStorage.setItem('triosteum.proj.p4', JSON.stringify({ nodes: [{ id: 'filter', name: 'Вне бюджета', lang: 'cond', x: 0, y: 0, codes: {}, desc: 'Статьи с перерасходом' }], edges: [], notes: [], seq: 2 }));
+  const office = JSON.parse(localStorage.getItem('triosteum.proj.p2'));
+  office.files.items.push({ id: 'budget', type: 'sheet', name: 'Бюджет отдела', t: 1, data: { sheets: [{ name: 'План', rows: [['Статья', 'План', 'Факт'], ['Материалы', '100', '120']], fmt: {}, widths: {}, charts: [] }] } },
+    { id: 'report', type: 'doc', name: 'Отчёт об исполнении бюджета', t: 1, data: { html: '<p>Статья: {{Статья}}</p>' } });
+  localStorage.setItem('triosteum.proj.p2', JSON.stringify(office));
 }, CS);
 // подмена ИИ (Claude) для второй части
 let lastPrompt = '';
@@ -71,6 +79,19 @@ await page.click('#arcW button:has-text("Поставить на доску")');
 check(await page.$$eval('#nodes .node.xref', (x) => x.length) === 2 && await page.$$eval('#nodes .node', (x) => x.length) === 3, 'в новом пространстве: две ссылки и новый блок');
 check(await page.$$eval('.edge-g', (x) => x.length) === 2, 'связи по схеме ИИ');
 check(!(await page.$eval('#runp', (x) => x.hidden)) && await page.$eval('#rtErrs', (x) => x.textContent) === '0', 'схема сразу скомпилировалась без ошибок');
+
+console.log('Точные названия не захватывают посторонний фильтр');
+await closeRes();
+await page.click('#aiFab');
+await page.fill('#arcW .arc-in', 'Используй «Бюджет отдела» и «Отчёт об исполнении бюджета» из Офиса.');
+await page.waitForTimeout(400);
+const budgetFound = await page.locator('#arcW .arc-x').innerText();
+check(budgetFound.includes('Бюджет отдела') && budgetFound.includes('Отчёт об исполнении бюджета') && !budgetFound.includes('Вне бюджета'), 'предпросмотр содержит только два указанных файла');
+await page.click('#arcW button:has-text("Собрать из готового и скомпилировать")');
+await page.waitForTimeout(2200);
+const budgetRefs = await page.$$eval('#nodes .node.xref .nt', nodes => nodes.map(n => n.textContent));
+check(budgetRefs.length === 2 && budgetRefs.includes('Бюджет отдела') && budgetRefs.includes('Отчёт об исполнении бюджета'), 'на доске только запрошенные файлы, без фильтра из другой среды');
+check(await page.$$eval('.edge-g', edges => edges.length) === 1, 'два файла соединены напрямую');
 
 console.log('Ошибки');
 check(errors.length === 0, 'ошибок в консоли нет' + (errors.length ? ': ' + errors.join(' | ') : ''));

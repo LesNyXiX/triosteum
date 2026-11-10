@@ -22,29 +22,34 @@
     });
     return out;
   }
-  // что из этого упомянуто в запросе: названия в кавычках — точно, остальное — по основам слов
+  // Точные названия имеют приоритет над похожими словами: лишний блок меняет исполнение схемы.
   function xFind(prompt, opts){
     opts = opts || {};
     var idx = xIndex(), q = xNorm(prompt), qs = {}, quoted = [];
     xStems(prompt).forEach(function(s){ qs[s] = 1; });
-    String(prompt).replace(/[«"]([^»"]{2,80})[»"]/g, function(m, x){ quoted.push(xNorm(x)); return m; });
-    var hits = [];
+    var unquoted = xNorm(String(prompt).replace(/[«"]([^»"]{2,80})[»"]/g, function(m, x){ quoted.push(xNorm(x)); return ' '; }));
+    var hits = [], exact = [];
     idx.forEach(function(it){
       if(it.here && !opts.withHere) return;
       var nm = xNorm(it.name), score = 0;
       if(!nm) return;
       if(quoted.indexOf(nm) >= 0) score = 2;
-      else if(nm.length >= 5 && (' ' + q + ' ').indexOf(' ' + nm + ' ') >= 0) score = 1.5;
+      else if(nm.length >= 5 && (' ' + unquoted + ' ').indexOf(' ' + nm + ' ') >= 0) score = 1.5;
       else {
         var st = xStems(it.name); if(!st.length) return;
         var m = st.filter(function(s){ return qs[s]; }).length;
         if(m && m / st.length >= 0.6 && (m >= 2 || st.length === 1)) score = m / st.length;
       }
       if(!score) return;
+      var isExact = score >= 1.5;
       if(it.kind === 'space' && /пространств|сред/.test(q)) score += 0.3;
       if(new RegExp('сред[аеуы]? «?' + xNorm(it.envName).split(' ')[0]).test(q) || q.indexOf(xNorm(it.envName)) >= 0) score += 0.2;
-      hits.push(Object.assign({ score:score }, it));
+      var hit = Object.assign({ score:score }, it);
+      hits.push(hit); if(isExact) exact.push(hit);
     });
+    // Если названия заданы явно, не добавляем фильтры и другие блоки по совпадению основ.
+    // Несуществующее название в кавычках также не заменяем похожим объектом.
+    if(exact.length || quoted.length) hits = exact;
     // целое пространство поглощает упоминания своих же блоков
     var spaces = {}; hits.forEach(function(x){ if(x.kind === 'space' && x.score >= 1) spaces[x.sp] = 1; });
     hits = hits.filter(function(x){ return x.kind === 'space' || !spaces[x.sp]; });
