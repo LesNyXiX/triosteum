@@ -16,7 +16,7 @@
     rlog('Маршрут: ' + plan.order.map(function(n){ return n.name; }).join(' → '), 'dim');
     if(plan.cyclic.length) rlog('Пропущены из-за замкнутого круга: ' + plan.cyclic.map(function(n){ return n.name; }).join(', '), 'warn');
     var needPy = plan.order.some(function(n){ return n.lang === 'python'; });
-    var results = cmpSeed(), stat = { ok:0, err:0, skip:0 }, days = {}, regN = 0, docN = 0;
+    var results = cmpSeed(), stat = { ok:0, err:0, skip:0 }, failed = {}, days = {}, regN = 0, docN = 0;
     running = true;
     if(needPy && RUN_SERVER) rlog('Python выполняется на сервере', 'dim');
     (needPy && !RUN_SERVER ? loadPyFor(rlog).then(null, function(e){ rlog('Python недоступен: ' + e.message + ' — расчётные блоки будут пропущены', 'warn'); return null; }) : Promise.resolve(null)).then(function(py){
@@ -29,14 +29,40 @@
         days[n.id] = plan.preds[n.id].reduce(function(m, p){ return Math.max(m, days[p] || 0); }, 0);
         if(d) d.classList.add('running');
         cmpBlockStart(n);
-        setTimeout(function(){
+        // настройки запуска блока (board/run-opts.js): ошибка выше, выключен, закреплён, повторы
+        var badUp = plan.preds[n.id].filter(function(q){ return failed[q]; });
+        if(badUp.length){
+          var bn = nodeById(badUp[0]);
+          rlog('⤼ ' + n.name + ' — пропущен: ошибка выше по схеме, в блоке «' + (bn ? bn.name : '?') + '»', 'warn'); results[n.id] = null; stat.skip++; failed[n.id] = true;
+          setRun(n, 'skip', 'Пропущен: ошибка выше по схеме — «' + (bn ? bn.name : '?') + '». Включите у того блока «Продолжать схему при ошибке», чтобы запускать дальше.');
+          if(d) d.classList.remove('running'); next(); return;
+        }
+        if(n.off && n.kind !== 'hub'){
+          rlog('⏸ ' + n.name + ' — выключен, записи проходят дальше без изменений: ' + rows.length, 'dim'); results[n.id] = rows; stat.skip++;
+          setRun(n, 'skip', 'Блок выключен — входные данные переданы дальше без изменений');
+          if(d) d.classList.remove('running'); next(); return;
+        }
+        if(n.pin && n.kind !== 'hub'){
+          results[n.id] = toRows(n.pin.v); stat.ok++;
+          rlog('📌 ' + n.name + ' — закреплённый результат, записей: ' + results[n.id].length, 'ok'); setRun(n, 'ok', 'Закреплённый результат — блок не выполнялся. Записей: ' + results[n.id].length);
+          if(d) d.classList.remove('running'); next(); return;
+        }
+        var tries = Math.max(0, Math.min(5, n.retry | 0)), attempt = 0;
+        function rfail(msg){   // true — назначен повтор
+          if(attempt < tries){ attempt++; rlog('  ↻ повтор ' + attempt + ' из ' + tries + ' — ' + msg, 'warn'); setTimeout(go, Math.min(4000, 400 * Math.pow(2, attempt - 1))); return true; }
+          rlog('  ✗ ошибка: ' + msg + (tries ? ' (после ' + tries + ' ' + (tries === 1 ? 'повтора' : 'повторов') + ')' : ''), 'err'); stat.err++; results[n.id] = null; setRun(n, 'err', 'Ошибка: ' + msg);
+          if(n.cont) rlog('  ↳ «Продолжать схему при ошибке» включено — следующие блоки получат пустой результат', 'dim'); else failed[n.id] = true;
+          return false;
+        }
+        setTimeout(go, 90);
+        function go(){
           // код из «Разработки» на сервере: результат идёт дальше по маршруту вместе с остальными блоками
           if(n.lang === 'python' && RUN_SERVER && !py){
             rlog('▶ ' + n.name + ' — Python на сервере');
             serverRun(nodeCode(n), hasIn ? rows.map(plainRow) : null, 'block').then(function(r){
               printLines(r.stdout, function(t){ rlog('   ' + t); }); printLines(r.stderr, function(t){ rlog('   ' + t, 'err'); });
               if(r.ok){ var back = toRows(r.output); back.forEach(function(x, k){ if(rows[k] && rows[k].__doc) x.__doc = rows[k].__doc; }); results[n.id] = back; stat.ok++; setRun(n, 'ok', 'Записей на выходе: ' + back.length); rlog('  ✓ записей на выходе: ' + back.length, 'ok'); }
-              else { rlog('  ✗ ошибка: ' + r.error, 'err'); stat.err++; results[n.id] = null; setRun(n, 'err', 'Ошибка: ' + r.error); }
+              else if(rfail(String(r.error))) return;
               if(d) d.classList.remove('running');
               next();
             });
@@ -135,11 +161,11 @@
             results[n.id] = out; stat.ok++;
           }catch(err){
             var msg = String(err && err.message || err).split('\n').filter(function(x){ return x.trim(); });
-            rlog('  ✗ ошибка: ' + msg.slice(-1)[0], 'err'); stat.err++; results[n.id] = null; setRun(n, 'err', 'Ошибка: ' + msg.slice(-1)[0]);
+            if(rfail(msg.slice(-1)[0])) return;
           }
           if(d) d.classList.remove('running');
           next();
-        }, 90);
+        }
       }
       function finish(stopped){
         running = false;

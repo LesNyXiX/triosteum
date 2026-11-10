@@ -12,14 +12,14 @@ const OK = 'int run(){ return 42; }', BAD = 'int run(){ return undefinedThing + 
 const browser = await browser0();
 async function browser0() { return chromium.launch(); }
 
-async function open(nodes) {
+async function open(nodes, edges) {
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   await ctx.addInitScript((g) => {
     if (sessionStorage.getItem('seeded')) return; sessionStorage.setItem('seeded', '1');
     localStorage.setItem('triosteum.projects', JSON.stringify({ cur: 'p1', list: [{ id: 'p1', name: 'Запуск', t: Date.now() }] }));
     localStorage.setItem('triosteum.proj.p1', JSON.stringify(g));
     localStorage.setItem('triosteum.profile', JSON.stringify({ name: 'Т', org: 'З' })); localStorage.setItem('triosteum.tour', '{"done":true}');
-  }, { nodes, edges: [{ id: 'e1', from: 'a', to: 'b', taps: [] }], notes: [], cam: { x: 0, y: 0, k: 1 }, seq: 9 });
+  }, { nodes, edges: edges || [{ id: 'e1', from: 'a', to: 'b', taps: [] }], notes: [], cam: { x: 0, y: 0, k: 1 }, seq: 9 });
   const page = await ctx.newPage(); const errors = [];
   page.on('pageerror', (e) => { if (!/sandboxed/.test(e.message)) errors.push(e.message); });
   await page.goto(URL); await page.waitForTimeout(1000);
@@ -71,6 +71,23 @@ console.log('Выключение и закреплённый результат
   check((await graph(page)).nodes.find((n) => n.id === 'a').off === true && await page.locator('.node[data-id="a"].n-off').count() === 1, 'палитра команд: «Выключить «Источник»» — блок выключен и выглядит выключенным');
   log = await run(page);
   check(/⏸ Источник — выключен/.test(log) && /▶ Приёмник/.test(log), 'выключенный блок пропускается, следующий выполняется');
+  check(errors.length === 0, 'ошибок JavaScript нет' + (errors.length ? ': ' + errors.join(' | ') : ''));
+  await ctx.close();
+}
+
+console.log('Ошибка проходит через выключенный блок; смешанная схема');
+{
+  let { page, ctx, errors } = await open([node('a', 'Источник', 120, BAD), node('b', 'Посредник', 420, OK, { off: true }), node('c', 'Итог', 720, OK)],
+    [{ id: 'e1', from: 'a', to: 'b', taps: [] }, { id: 'e2', from: 'b', to: 'c', taps: [] }]);
+  let log = await run(page);
+  check(/⤼ Посредник — пропущен: ошибка выше/.test(log) && /⤼ Итог — пропущен: ошибка выше/.test(log) && !/▶ Итог/.test(log), 'A падает, B выключен → C не запускается (ошибка не теряется на выключенном блоке)');
+  check(errors.length === 0, 'ошибок JavaScript нет' + (errors.length ? ': ' + errors.join(' | ') : ''));
+  await ctx.close();
+  // смешанная схема: таблица + код → идёт через исполнитель маршрутов, настройки тоже работают
+  ({ page, ctx, errors } = await open([{ id: 's', name: 'Таблица', lang: 'sheet', x: 120, y: 220, codes: { sheet: JSON.stringify({ rows: [['Имя', 'Сумма'], ['А', '1']] }) }, pluginId: null, family: null, desc: '', colors: null },
+    node('b', 'Расчёт', 420, BAD, { off: true })], [{ id: 'e1', from: 's', to: 'b', taps: [] }]));
+  log = await run(page);
+  check(/⏸ Расчёт — выключен/.test(log) && !/undefinedThing/.test(log), 'смешанная схема (таблица + код): выключенный блок не выполняется');
   check(errors.length === 0, 'ошибок JavaScript нет' + (errors.length ? ': ' + errors.join(' | ') : ''));
   await ctx.close();
 }

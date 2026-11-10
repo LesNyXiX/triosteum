@@ -60,18 +60,18 @@
         var ins = preds.map(function(p){ return results[p]; }).filter(function(v){ return v !== undefined && v !== null; });
         var input = ins.length === 0 ? null : (ins.length === 1 ? ins[0] : ins);
         function done(){ if(d) d.classList.remove('running'); next(); }
-        // блок выключен — пропускаем, входные данные идут дальше без изменений
-        if(n.off){
-          rlog('⏸ ' + n.name + ' — выключен, данные проходят дальше без изменений', 'dim'); results[n.id] = input; stat.skip++;
-          setRun(n, 'skip', 'Блок выключен — входные данные переданы дальше без изменений');
-          done(); return;
-        }
         // выше по схеме упал блок без «продолжать при ошибке» — этот не запускаем
         var badUp = preds.filter(function(p){ return failed[p]; });
         if(badUp.length){
           var bn = nodeById(badUp[0]);
           rlog('⤼ ' + n.name + ' — пропущен: ошибка выше по схеме, в блоке «' + (bn ? bn.name : '?') + '»', 'warn'); results[n.id] = null; stat.skip++; failed[n.id] = true;
           setRun(n, 'skip', 'Пропущен: ошибка выше по схеме — «' + (bn ? bn.name : '?') + '». Включите у того блока «Продолжать схему при ошибке», чтобы запускать дальше.');
+          done(); return;
+        }
+        // блок выключен — пропускаем, входные данные идут дальше без изменений
+        if(n.off){
+          rlog('⏸ ' + n.name + ' — выключен, данные проходят дальше без изменений', 'dim'); results[n.id] = input; stat.skip++;
+          setRun(n, 'skip', 'Блок выключен — входные данные переданы дальше без изменений');
           done(); return;
         }
         // закреплённый результат — блок не выполняется (не дёргаем внешние системы при отладке)
