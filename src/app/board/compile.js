@@ -45,7 +45,7 @@
     rlog('Порядок выполнения: ' + plan.order.map(function(n){ return n.name; }).join(' → '), 'dim');
     if(plan.cyclic.length) rlog('Пропущены из-за замкнутого круга связей: ' + plan.cyclic.map(function(n){ return n.name; }).join(', '), 'warn');
     var needPy = plan.order.some(function(n){ return n.lang === 'python'; });
-    var results = cmpSeed(), stat = { ok:0, err:0, skip:0 };
+    var results = cmpSeed(), stat = { ok:0, err:0, skip:0 }, failed = {};
     running = true;
     if(needPy && RUN_SERVER) rlog('Python выполняется на сервере', 'dim');
     (needPy && !RUN_SERVER ? loadPyFor(rlog) : Promise.resolve(null)).then(function(py){
@@ -56,29 +56,62 @@
         var n = plan.order[i++], d = domOf('node', n.id), l = langById(n.lang);
         if(d) d.classList.add('running');
         cmpBlockStart(n);
-        var ins = plan.preds[n.id].map(function(p){ return results[p]; }).filter(function(v){ return v !== undefined && v !== null; });
+        var preds = plan.preds[n.id];
+        var ins = preds.map(function(p){ return results[p]; }).filter(function(v){ return v !== undefined && v !== null; });
         var input = ins.length === 0 ? null : (ins.length === 1 ? ins[0] : ins);
-        setTimeout(function(){
+        function done(){ if(d) d.classList.remove('running'); next(); }
+        // блок выключен — пропускаем, входные данные идут дальше без изменений
+        if(n.off){
+          rlog('⏸ ' + n.name + ' — выключен, данные проходят дальше без изменений', 'dim'); results[n.id] = input; stat.skip++;
+          setRun(n, 'skip', 'Блок выключен — входные данные переданы дальше без изменений');
+          done(); return;
+        }
+        // выше по схеме упал блок без «продолжать при ошибке» — этот не запускаем
+        var badUp = preds.filter(function(p){ return failed[p]; });
+        if(badUp.length){
+          var bn = nodeById(badUp[0]);
+          rlog('⤼ ' + n.name + ' — пропущен: ошибка выше по схеме, в блоке «' + (bn ? bn.name : '?') + '»', 'warn'); results[n.id] = null; stat.skip++; failed[n.id] = true;
+          setRun(n, 'skip', 'Пропущен: ошибка выше по схеме — «' + (bn ? bn.name : '?') + '». Включите у того блока «Продолжать схему при ошибке», чтобы запускать дальше.');
+          done(); return;
+        }
+        // закреплённый результат — блок не выполняется (не дёргаем внешние системы при отладке)
+        if(n.pin && n.kind !== 'hub'){
+          results[n.id] = n.pin.v; var pj = JSON.stringify(n.pin.v);
+          rlog('📌 ' + n.name + ' — закреплённый результат' + (n.pin.t ? ' от ' + new Date(n.pin.t).toLocaleString('ru-RU') : '') + ': ' + (pj && pj.length > 160 ? pj.slice(0, 160) + '…' : pj), 'ok'); stat.ok++;
+          setRun(n, 'ok', 'Закреплённый результат — блок не выполнялся. ' + (pj && pj.length > 200 ? pj.slice(0, 200) + '…' : pj));
+          done(); return;
+        }
+        var tries = Math.max(0, Math.min(5, n.retry | 0)), attempt = 0;
+        function fail(msg){
+          if(attempt < tries){
+            attempt++; rlog('  ↻ повтор ' + attempt + ' из ' + tries + ' — ' + msg, 'warn');
+            setTimeout(go, Math.min(4000, 400 * Math.pow(2, attempt - 1)));   // пауза растёт: 0,4 с, 0,8 с, 1,6 с…
+            return;
+          }
+          rlog('  ✗ ошибка: ' + msg + (tries ? ' (после ' + tries + ' ' + (tries === 1 ? 'повтора' : 'повторов') + ')' : ''), 'err'); stat.err++; results[n.id] = null;
+          if(n.cont) rlog('  ↳ «Продолжать схему при ошибке» включено — следующие блоки получат пустой результат', 'dim');
+          else failed[n.id] = true;
+          setRun(n, 'err', 'Ошибка: ' + msg); done();
+        }
+        function ok(out, note){
+          results[n.id] = out === undefined ? null : out; var oj = out === undefined || out === null ? null : JSON.stringify(out);
+          rlog('  ✓ результат: ' + (oj ? (oj.length > 160 ? oj.slice(0, 160) + '…' : oj) : 'нет') + (note || '') + (attempt ? ' · с ' + (attempt + 1) + '-й попытки' : ''), 'ok'); stat.ok++;
+          setRun(n, 'ok', 'Выполнен' + (attempt ? ' с ' + (attempt + 1) + '-й попытки' : '') + '. Результат: ' + (oj ? (oj.length > 200 ? oj.slice(0, 200) + '…' : oj) : 'нет'));
+          done();
+        }
+        function go(){
+          if(cmpStopped()){ done(); return; }
           if(n.lang === 'python' && RUN_SERVER){
-            rlog('▶ ' + n.name + (input === null ? '  (входных данных нет — тестовые данные блока)' : ''));
+            if(!attempt) rlog('▶ ' + n.name + (input === null ? '  (входных данных нет — тестовые данные блока)' : ''));
             serverRun(nodeCode(n), input, 'block').then(function(r){
               printLines(r.stdout, function(t){ rlog('   ' + t); }); printLines(r.stderr, function(t){ rlog('   ' + t, 'err'); });
-              if(r.ok){
-                var oj = r.output === undefined ? null : JSON.stringify(r.output);
-                results[n.id] = r.output === undefined ? null : r.output;
-                rlog('  ✓ результат: ' + (oj ? (oj.length > 160 ? oj.slice(0, 160) + '…' : oj) : 'нет') + ' · ' + r.ms + ' мс', 'ok'); stat.ok++;
-                setRun(n, 'ok', 'Выполнен на сервере. Результат: ' + (oj ? (oj.length > 200 ? oj.slice(0, 200) + '…' : oj) : 'нет'));
-              } else {
-                rlog('  ✗ ошибка: ' + r.error, 'err'); stat.err++; results[n.id] = null; setRun(n, 'err', 'Ошибка: ' + r.error);
-              }
-              if(d) d.classList.remove('running');
-              next();
-            });
+              if(r.ok) ok(r.output, ' · ' + r.ms + ' мс'); else fail(String(r.error));
+            }, function(e){ fail(String(e && e.message || e)); });
             return;
           }
           try{
             if(n.lang === 'python' && py){
-              rlog('▶ ' + n.name + (input === null ? '  (входных данных нет — тестовые данные блока)' : ''));
+              if(!attempt) rlog('▶ ' + n.name + (input === null ? '  (входных данных нет — тестовые данные блока)' : ''));
               py.setStdout({ batched:function(t){ rlog('   ' + t); } });
               py.setStderr({ batched:function(t){ rlog('   ' + t, 'err'); } });
               py.runPython(PY_STUB);
@@ -86,30 +119,26 @@
               py.globals.set('_inp_json', JSON.stringify(input));
               py.runPython(PY_RUN_BOARD);
               var oj = py.globals.get('_out_json');
-              results[n.id] = oj ? JSON.parse(oj) : null;
-              rlog('  ✓ результат: ' + (oj ? (oj.length > 160 ? oj.slice(0, 160) + '…' : oj) : 'нет'), 'ok'); stat.ok++;
-              setRun(n, 'ok', 'Выполнен. Результат: ' + (oj ? (oj.length > 200 ? oj.slice(0, 200) + '…' : oj) : 'нет'));
+              ok(oj ? JSON.parse(oj) : null);
             } else if(n.kind === 'hub'){
-              rlog('▶ ' + n.name + ' — связующая точка: объединено входов: ' + ins.length, 'dim'); results[n.id] = input; stat.ok++; setRun(n, 'ok', 'Объединено входов: ' + ins.length);
+              rlog('▶ ' + n.name + ' — связующая точка: объединено входов: ' + ins.length, 'dim'); results[n.id] = input; stat.ok++; setRun(n, 'ok', 'Объединено входов: ' + ins.length); done();
             } else if(n.lang === 'html'){
-              rlog('▶ ' + n.name + ' — HTML-виджет, отображается в предпросмотре', 'dim'); stat.ok++; setRun(n, 'ok', 'HTML-виджет — смотрите предпросмотр в редакторе');
+              rlog('▶ ' + n.name + ' — HTML-виджет, отображается в предпросмотре', 'dim'); stat.ok++; setRun(n, 'ok', 'HTML-виджет — смотрите предпросмотр в редакторе'); done();
             } else if(FOREIGN_LANGS[n.lang]){
-              rlog('▶ ' + n.name + (input === null ? '  (входных данных нет — демо-данные блока)' : ''));
+              if(!attempt) rlog('▶ ' + n.name + (input === null ? '  (входных данных нет — демо-данные блока)' : ''));
               var fr = runForeign(n.lang, nodeCode(n), input, { resultName:n.name });
               fr.stdout.forEach(function(t){ rlog('   ' + t); }); fr.notes.forEach(function(t){ rlog('   ℹ ' + t, 'dim'); });
               if(!fr.ok) throw new Error(fr.error);
-              results[n.id] = fr.output; var oj2 = JSON.stringify(fr.output);
-              rlog('  ✓ результат: ' + (oj2 && oj2.length > 160 ? oj2.slice(0, 160) + '…' : oj2), 'ok'); stat.ok++; setRun(n, 'ok', 'Выполнен. Результат: ' + (oj2 && oj2.length > 200 ? oj2.slice(0, 200) + '…' : oj2));
+              ok(fr.output);
             } else {
-              rlog('▶ ' + n.name + ' — пропущен: для ' + shortName(l) + ' нет исполнителя', 'warn'); stat.skip++; setRun(n, 'skip', 'Пропущен: нет исполнителя');
+              rlog('▶ ' + n.name + ' — пропущен: для ' + shortName(l) + ' нет исполнителя', 'warn'); stat.skip++; setRun(n, 'skip', 'Пропущен: нет исполнителя'); done();
             }
           }catch(err){
             var msg = String(err && err.message || err).split('\n').filter(function(x){ return x.trim(); });
-            rlog('  ✗ ошибка: ' + msg.slice(-1)[0], 'err'); stat.err++; results[n.id] = null; setRun(n, 'err', 'Ошибка: ' + msg.slice(-1)[0]);
+            fail(msg.slice(-1)[0]);
           }
-          if(d) d.classList.remove('running');
-          next();
-        }, 120);
+        }
+        setTimeout(go, 120);
       }
       function finish(stopped){
         running = false;
