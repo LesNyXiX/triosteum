@@ -55,6 +55,7 @@ jobs:
           npm run test:errai
           npm run test:touch
           npm run test:arc
+          npm run test:vars
 
       - name: Хранение и резервные копии
         run: npm run test:storage

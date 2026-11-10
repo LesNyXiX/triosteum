@@ -55,6 +55,7 @@
     "app/editor/lang-cfam.js",
     "app/editor/lang-bsl.js",
     "app/editor/lang-run.js",
+    "app/board/vars.js",
     "app/ui/tooltips.js",
     "app/workspace/menu.js",
     "app/workspace/projects.js",
