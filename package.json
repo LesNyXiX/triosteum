@@ -25,7 +25,7 @@
     "test:split": "node tests/split-e2e.mjs",
     "test:a11y": "node tests/a11y-e2e.mjs",
     "test:library": "node tests/library-e2e.mjs",
-    "test:envdock": "node tests/envdock-e2e.mjs",
+    "test:envdock": "node tests/dock-morph-e2e.mjs && node tests/envdock-e2e.mjs",
     "test:errai": "node tests/err-ai-e2e.mjs",
     "test:touch": "node tests/touch-stem-e2e.mjs",
     "test:arc": "node tests/arc-ai-e2e.mjs"

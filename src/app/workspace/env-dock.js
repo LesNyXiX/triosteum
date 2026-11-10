@@ -99,34 +99,51 @@
   function envDockMini(on){
     if(!EDOCK.el) return;
     on = !!on && envDockMode() === 'mini';
-    var was = EDOCK.el.classList.contains('folded');
     if(EDOCK.morph){ EDOCK.morph.finish(); }
+    var was = EDOCK.el.classList.contains('folded');
     if(was === on){ EDOCK.mini.classList.toggle('on', on); return; }
     if(on){ EDOCK.mx = null; edFrame(); }
     var still = EDOCK.el.hidden || document.body.classList.contains('noanim') || (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) || !document.body.animate;
     if(still){ EDOCK.el.classList.toggle('folded', on); EDOCK.mini.classList.toggle('on', on); return; }
     edMorph(on);
   }
-  /* Переход «панель ↔ плашка»: значки исчезают, а сама панель плавно сжимается в размер и форму плашки
-     (или растягивается обратно). Без промежуточных кадров со сплющенными значками. */
+  /* Панель и значки движутся вместе: каждый значок втягивается в свой сегмент плашки.
+     Отдельный слой сохраняет пропорции SVG, пока оболочка меняет размер. */
   function edMorph(on){
     var z = (UI.scale || 100) / 100, A = EDOCK.shelf.getBoundingClientRect(), B = EDOCK.mini.getBoundingClientRect();
     if(!A.width || !B.width){ EDOCK.el.classList.toggle('folded', on); EDOCK.mini.classList.toggle('on', on); return; }
     var g = h('div', { 'class':'ed-morph', 'aria-hidden':'true' });
     document.body.appendChild(g);
+    var icons = h('div', { 'class':'ed-morph-icons', 'aria-hidden':'true' });
+    document.body.appendChild(icons);
     function box(r, rad){ return { left:(r.left / z) + 'px', top:(r.top / z) + 'px', width:(r.width / z) + 'px', height:(r.height / z) + 'px', borderRadius:rad }; }
     var from = on ? box(A, '20px') : box(B, '16px'), to = on ? box(B, '16px') : box(A, '20px');
+    var timing = { duration:on ? 460 : 400, easing:'cubic-bezier(.65,0,.3,1)', fill:'forwards' }, animations = [];
+    var segments = EDOCK.mini.querySelectorAll('.edm-seg');
+    EDOCK.items.forEach(function(item, i){
+      var tile = item.b.querySelector('.ed-tile'), seg = segments[i] || EDOCK.mini.querySelector('.edm-grip');
+      if(!tile || !seg) return;
+      var a = tile.getBoundingClientRect(), target = seg.querySelector('.edm-ic') || seg, b = target.getBoundingClientRect();
+      var size = Math.min(b.width, b.height), mini = { left:b.left + (b.width - size) / 2, top:b.top + (b.height - size) / 2, width:size, height:size };
+      var clone = tile.cloneNode(true); clone.classList.add('ed-morph-icon'); icons.appendChild(clone);
+      var big = box(a, '23%'), small = box(mini, '23%');
+      animations.push(clone.animate(on ? [big, small] : [small, big], timing));
+    });
     // с начала: прячем то, откуда уходим; в конце: показываем то, куда пришли
     if(on) EDOCK.el.classList.add('folded'); else EDOCK.mini.classList.remove('on');
-    var an = g.animate([from, to], { duration:on ? 460 : 400, easing:'cubic-bezier(.65,0,.3,1)', fill:'forwards' });
+    var an = g.animate([from, to], timing); animations.push(an);
     var done = false;
     function end(){
       if(done) return; done = true; EDOCK.morph = null;
-      if(on) EDOCK.mini.classList.add('on'); else EDOCK.el.classList.remove('folded');
-      setTimeout(function(){ g.remove(); }, 170);          // оболочка уходит, когда плашка или док уже проявились
+      // Передаём изображение настоящей панели без дополнительного пустого fade-кадра.
+      EDOCK.mini.classList.add('ed-instant'); EDOCK.el.classList.add('ed-instant');
+      EDOCK.el.classList.toggle('folded', on); EDOCK.mini.classList.toggle('on', on);
+      void EDOCK.mini.offsetWidth;
+      g.remove(); icons.remove();
+      EDOCK.mini.classList.remove('ed-instant'); EDOCK.el.classList.remove('ed-instant');
     }
     an.onfinish = end;
-    EDOCK.morph = { finish:function(){ try { an.cancel(); } catch(e){} end(); g.remove(); } };
+    EDOCK.morph = { finish:function(){ animations.forEach(function(a){ a.onfinish = null; a.cancel(); }); end(); } };
   }
   function envDockExpand(){ envDockMini(false); edIdle(); }
   function edIdle(){
