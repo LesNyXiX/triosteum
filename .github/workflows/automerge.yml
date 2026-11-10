@@ -69,11 +69,21 @@ jobs:
               if (!state || state.status !== 'completed' || !state.commit_sha || !sha.startsWith(state.commit_sha.slice(0, 7)) || !state.commit_sha.startsWith(sha.slice(0, 7))) { why('Codex ещё не проверил последний коммит'); continue; }
               if (state.has_unresolved_findings) { why('у Codex есть нерешённые замечания'); continue; }
               const reviews = await github.paginate(github.rest.pulls.listReviews, { owner, repo, pull_number: number });
-              if (reviews.some((r) => r.commit_id === sha && r.state === 'CHANGES_REQUESTED')) { why('в ревью просят изменений'); continue; }
+              // учитываем только последнее решение каждого рецензента (история ревью идёт по порядку)
+              const lastBy = {};
+              for (const r of reviews) if (r.state !== 'COMMENTED' && r.state !== 'PENDING') lastBy[r.user.login] = r;
+              if (Object.values(lastBy).some((r) => r.state === 'CHANGES_REQUESTED')) { why('в ревью просят изменений'); continue; }
 
               // 3) PR от Codex проверяет Claude
               if (pr.head.ref.startsWith('codex/')) {
-                const ok = comments.some((c) => (c.body.match(/<!-- claude-review: ok sha=([0-9a-f]{7,40}) -->/) || [])[1] && sha.startsWith(c.body.match(/<!-- claude-review: ok sha=([0-9a-f]{7,40}) -->/)[1]));
+                // отметку принимаем только от доверенных: владелец и соавторы репозитория (Claude пишет от имени владельца).
+                // Любой посторонний в публичном репозитории тоже может оставить такой комментарий — его не считаем.
+                const TRUSTED = ['OWNER', 'MEMBER', 'COLLABORATOR'];
+                const ok = comments.some((c) => {
+                  if (!TRUSTED.includes(c.author_association) || c.user.type === 'Bot') return false;
+                  const m = c.body.match(/<!-- claude-review: ok sha=([0-9a-f]{7,40}) -->/);
+                  return !!m && sha.startsWith(m[1]);
+                });
                 if (!ok) { why('Claude ещё не проверил последний коммит'); continue; }
               }
 
