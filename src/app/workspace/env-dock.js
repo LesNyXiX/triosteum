@@ -61,7 +61,7 @@
     b.addEventListener('focus', function(){ b.classList.add('kb'); });
     b.addEventListener('blur', function(){ b.classList.remove('kb'); });
     EDOCK.shelf.appendChild(b);
-    EDOCK.items.push({ b:b, here:!!opt.here });
+    EDOCK.items.push({ b:b, here:!!opt.here, key:opt.key });
     return b;
   }
   function envDockRender(){
@@ -89,7 +89,7 @@
     var cur = '';
     Object.keys(ENVS).forEach(function(k){
       var e = ENVS[k], here = ENV.id === k;
-      var seg = h('span', { 'class':'edm-seg' + (here ? ' here' : envProjects(k).length ? ' has' : ''), style:'--ec:' + (e.color || 'var(--red)') });
+      var seg = h('span', { 'class':'edm-seg' + (here ? ' here' : envProjects(k).length ? ' has' : ''), 'data-k':k, style:'--ec:' + (e.color || 'var(--red)') });
       if(here){ cur = e.name; seg.appendChild(h('i', { 'class':'edm-ic', html:envIconSvg(k, true) })); seg.appendChild(h('b', { text:e.name })); }
       m.appendChild(seg);
     });
@@ -100,50 +100,63 @@
     if(!EDOCK.el) return;
     on = !!on && envDockMode() === 'mini';
     if(EDOCK.morph){ EDOCK.morph.finish(); }
-    var was = EDOCK.el.classList.contains('folded');
+    var was = EDOCK.el.classList.contains('folded');   // после завершения прерванного перехода
     if(was === on){ EDOCK.mini.classList.toggle('on', on); return; }
-    if(on){ EDOCK.mx = null; edFrame(); }
     var still = EDOCK.el.hidden || document.body.classList.contains('noanim') || (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) || !document.body.animate;
-    if(still){ EDOCK.el.classList.toggle('folded', on); EDOCK.mini.classList.toggle('on', on); return; }
+    if(still){ if(on){ EDOCK.mx = null; edFrame(); } EDOCK.el.classList.toggle('folded', on); EDOCK.mini.classList.toggle('on', on); return; }
     edMorph(on);
   }
-  /* Панель и значки движутся вместе: каждый значок втягивается в свой сегмент плашки.
-     Отдельный слой сохраняет пропорции SVG, пока оболочка меняет размер. */
+  /* Переход «панель ↔ плашка»: каждая иконка втягивается в свой цветной сегмент плашки — сжимается, летит
+     и окрашивается в цвет среды (крайние — чуть позже центральных); фон панели сжимается вместе с ними.
+     Разворот — то же самое в обратную сторону: сегменты раскрываются в иконки. Пустых кадров нет. */
   function edMorph(on){
     var z = (UI.scale || 100) / 100, A = EDOCK.shelf.getBoundingClientRect(), B = EDOCK.mini.getBoundingClientRect();
     if(!A.width || !B.width){ EDOCK.el.classList.toggle('folded', on); EDOCK.mini.classList.toggle('on', on); return; }
-    var g = h('div', { 'class':'ed-morph', 'aria-hidden':'true' });
-    document.body.appendChild(g);
-    var icons = h('div', { 'class':'ed-morph-icons', 'aria-hidden':'true' });
-    document.body.appendChild(icons);
-    function box(r, rad){ return { left:(r.left / z) + 'px', top:(r.top / z) + 'px', width:(r.width / z) + 'px', height:(r.height / z) + 'px', borderRadius:rad }; }
-    var from = on ? box(A, '20px') : box(B, '16px'), to = on ? box(B, '16px') : box(A, '20px');
-    var timing = { duration:on ? 460 : 400, easing:'cubic-bezier(.65,0,.3,1)', fill:'forwards' }, animations = [];
-    var segments = EDOCK.mini.querySelectorAll('.edm-seg');
-    EDOCK.items.forEach(function(item, i){
-      var tile = item.b.querySelector('.ed-tile'), seg = segments[i] || EDOCK.mini.querySelector('.edm-grip');
-      if(!tile || !seg) return;
-      var a = tile.getBoundingClientRect(), target = seg.querySelector('.edm-ic') || seg, b = target.getBoundingClientRect();
-      var size = Math.min(b.width, b.height), mini = { left:b.left + (b.width - size) / 2, top:b.top + (b.height - size) / 2, width:size, height:size };
-      var clone = tile.cloneNode(true); clone.classList.add('ed-morph-icon'); icons.appendChild(clone);
-      var big = box(a, '23%'), small = box(mini, '23%');
-      animations.push(clone.animate(on ? [big, small] : [small, big], timing));
+    var dur = on ? 520 : 460, ease = on ? 'cubic-bezier(.55,0,.25,1)' : 'cubic-bezier(.2,.8,.3,1.08)';
+    var px = function(r){ return { left:(r.left / z) + 'px', top:(r.top / z) + 'px', width:(r.width / z) + 'px', height:(r.height / z) + 'px' }; };
+    var els = [], anims = [];
+    // фон панели ↔ фон плашки
+    var g = h('div', { 'class':'ed-morph', 'aria-hidden':'true' }); document.body.appendChild(g); els.push(g);
+    var fa = px(A), fb = px(B); fa.borderRadius = '20px'; fb.borderRadius = '16px';
+    anims.push(g.animate(on ? [fa, fb] : [fb, fa], { duration:dur, easing:ease, fill:'forwards' }));
+    // иконки ↔ сегменты
+    var segs = {}; Array.prototype.forEach.call(EDOCK.mini.querySelectorAll('.edm-seg'), function(sg){ segs[sg.dataset.k] = sg; });
+    var grip = EDOCK.mini.querySelector('.edm-grip');
+    var layer = h('div', { 'class':'ed-morph-icons', 'aria-hidden':'true' }); document.body.appendChild(layer); els.push(layer);
+    var list = EDOCK.items.filter(function(it){ return it.b.isConnected; }), mid = (list.length - 1) / 2;
+    list.forEach(function(it, i){
+      var tile = it.b.querySelector('.ed-tile'), segL = EDOCK.mini.querySelectorAll('.edm-seg'), tg = segs[it.key] || segL[segL.length - 1] || grip; if(!tile || !tg) return;   // «Все среды» — в правый край, а не через всю плашку
+      var r1 = tile.getBoundingClientRect(), r2 = tg.getBoundingClientRect(); if(!r1.width) return;
+      var cs = getComputedStyle(tg), col = tg.classList.contains('edm-grip') ? 'var(--muted)' : (tg.style.getPropertyValue('--ec') || 'var(--red)');
+      var f = h('div', { 'class':'ed-fly ed-morph-icon', style:'--ec:' + col });
+      f.appendChild(tile.cloneNode(true)); f.appendChild(h('i', { 'class':'ed-fly-c' }));
+      var b1 = px(r1); f.style.left = b1.left; f.style.top = b1.top; f.style.width = b1.width; f.style.height = b1.height;
+      layer.appendChild(f);
+      var dx = (r2.left + r2.width / 2 - r1.left - r1.width / 2) / z, dy = (r2.top + r2.height / 2 - r1.top - r1.height / 2) / z;
+      var sx = r2.width / r1.width, sy = r2.height / r1.height, rad = parseFloat(cs.borderTopLeftRadius) || 5;
+      var icon = { transform:'translate(0,0) scale(1,1)', borderRadius:'23%' }, seg = { transform:'translate(' + dx + 'px,' + dy + 'px) scale(' + sx + ',' + sy + ')', borderRadius:(rad / Math.max(sx, .05)) + 'px / ' + (rad / Math.max(sy, .05)) + 'px' };
+      var delay = Math.round(Math.abs(i - mid) * (on ? 16 : 10));
+      var d = Math.max(240, dur - delay);
+      anims.push(f.animate(on ? [icon, seg] : [seg, icon], { duration:d, delay:on ? delay : 0, easing:ease, fill:'both' }));
+      // цвет: иконка «перекрашивается» в сегмент по пути
+      anims.push(f.lastChild.animate(on ? [{ opacity:0 }, { opacity:0, offset:.3 }, { opacity:1 }] : [{ opacity:1 }, { opacity:0, offset:.7 }, { opacity:0 }], { duration:d, delay:on ? delay : 0, easing:'linear', fill:'both' }));
     });
-    // с начала: прячем то, откуда уходим; в конце: показываем то, куда пришли
-    if(on) EDOCK.el.classList.add('folded'); else EDOCK.mini.classList.remove('on');
-    var an = g.animate([from, to], timing); animations.push(an);
-    var done = false;
+    // прячем то, откуда уходим; размеры значков возвращаем к обычным (без увеличения под курсором)
+    if(on){ EDOCK.el.classList.add('folded'); EDOCK.mx = null; edFrame(); } else EDOCK.mini.classList.remove('on');
+    var done = false, total = dur + 40;
     function end(){
-      if(done) return; done = true; EDOCK.morph = null;
-      // Передаём изображение настоящей панели без дополнительного пустого fade-кадра.
+      if(done) return; done = true; EDOCK.morph = null; clearTimeout(tm);
+      // передаём картинку настоящей панели или плашке сразу, без дополнительного кадра с проявлением
       EDOCK.mini.classList.add('ed-instant'); EDOCK.el.classList.add('ed-instant');
       EDOCK.el.classList.toggle('folded', on); EDOCK.mini.classList.toggle('on', on);
       void EDOCK.mini.offsetWidth;
-      g.remove(); icons.remove();
+      els.forEach(function(e){ e.remove(); });
       EDOCK.mini.classList.remove('ed-instant'); EDOCK.el.classList.remove('ed-instant');
     }
-    an.onfinish = end;
-    EDOCK.morph = { finish:function(){ animations.forEach(function(a){ a.onfinish = null; a.cancel(); }); end(); } };
+    // конец — когда долетели все иконки; таймер — на случай, если вкладка в фоне и анимации стоят
+    var tm = setTimeout(end, total * 3);
+    Promise.all(anims.map(function(a){ return a.finished; })).then(end, function(){});
+    EDOCK.morph = { finish:function(){ anims.forEach(function(a){ try { a.cancel(); } catch(e){} }); end(); } };
   }
   function envDockExpand(){ envDockMini(false); edIdle(); }
   function edIdle(){

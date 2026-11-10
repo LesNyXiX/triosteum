@@ -558,12 +558,14 @@
   .env-dock.folded{opacity:0;transition:none}   /* без visibility:hidden — чтобы до значков можно было дойти клавишей Tab */
   .env-dock{transition:transform .38s cubic-bezier(.34,1.3,.64,1),opacity .18s ease}
   .env-dock.folded .ed-shelf{pointer-events:none}
+  .ed-fly{position:fixed;z-index:30;pointer-events:none;transform-origin:50% 50%;overflow:hidden;border-radius:23%;will-change:transform}
+  .ed-fly > .ed-tile{position:absolute;inset:0;width:100%;height:100%;display:block}
+  .ed-fly > .ed-tile svg{display:block;width:100%;height:100%}
+  .ed-fly-c{position:absolute;inset:0;opacity:0;background:linear-gradient(180deg,color-mix(in srgb,var(--ec) 70%,#fff),var(--ec))}
   .ed-morph{position:fixed;z-index:28;pointer-events:none;box-sizing:border-box;
     background:color-mix(in srgb,var(--panel) 88%,transparent);border:1px solid var(--line2);
     box-shadow:0 12px 34px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,255,255,.06)}
   .ed-morph-icons{position:fixed;inset:0;z-index:29;pointer-events:none}
-  .ed-morph-icon.ed-tile{position:absolute;display:grid;box-sizing:border-box;background:none;box-shadow:none;overflow:hidden}
-  .ed-morph-icon.ed-tile svg{display:block;width:100%;height:100%;filter:none}
   .env-dock.ed-instant,.ed-mini.ed-instant{transition:none !important}
   .ed-mini{position:absolute;z-index:28;bottom:calc(10px + var(--snap-b,0px));left:calc(var(--snap-l,0px) + (100% - var(--snap-l,0px) - var(--snap-r,0px)) / 2);
     display:flex;align-items:center;gap:6px;padding:6px 10px 6px 7px;border-radius:16px;cursor:pointer;
