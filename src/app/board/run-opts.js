@@ -57,9 +57,9 @@
     cmpEnd = function(results){
       if(results && typeof RES !== 'undefined' && RES && RES.items && RES.items !== seen){
         seen = RES.items; CMP.lastItems = CMP.lastItems || {};
-        // только блоки этого запуска: при запуске выделенного results дополнен прежними результатами (cmpSeed),
-        // а их элементы в новом RES.items не появляются — кэш остальных блоков не трогаем
-        var ran = {}; (CMP.order || []).forEach(function(id){ ran[id] = 1; });
+        // только блоки, успешно выполненные в этом запуске: при запуске выделенного results дополнен прежними
+        // результатами (cmpSeed), а при остановке или ошибке CMP.last блока остаётся прежним — их кэш не трогаем
+        var ran = {}; (CMP.order || []).forEach(function(id){ var b = CMP.blocks && CMP.blocks[id]; if(b && b.s === 'ok') ran[id] = 1; });
         for(var k in ran) delete CMP.lastItems[k];
         RES.items.forEach(function(x){
           if(!x || !x.node || !ran[x.node] || x.type === 'doc' || x.type === 'pack') return;
