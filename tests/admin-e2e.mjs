@@ -200,7 +200,11 @@ AG.msgs[7].push({ id: 4, who: 'claude', to: [], text: 'пришло во вре�
 await a.waitForTimeout(16500);
 ok(await a.locator('.ag-msg:has-text("пришло во время черновика")').count() === 1, 'лента обновилась сама');
 ok((await a.inputValue('.ag-main .ag-comp textarea')) === 'черновик для Codex' && (await a.getAttribute('.ag-main .ag-chip.codex', 'aria-pressed')) === 'true' && (await a.getAttribute('.ag-main .ag-chip.claude', 'aria-pressed')) === 'false', 'после обновления черновик и адресат Codex на месте');
-await a.fill('.ag-main .ag-comp textarea', '');
+// пустое поле в фокусе не останавливает обновление: ответ появляется, курсор остаётся в поле
+await a.fill('.ag-main .ag-comp textarea', ''); await a.focus('.ag-main .ag-comp textarea');
+AG.msgs[7].push({ id: 5, who: 'codex', to: [], text: 'ответ при пустом поле в фокусе', at: new Date().toISOString() });
+await a.waitForTimeout(16500);
+ok(await a.locator('.ag-msg:has-text("ответ при пустом поле в фокусе")').count() === 1 && await a.evaluate(() => document.activeElement && document.activeElement.matches('.ag-main .ag-comp textarea')), 'пустое поле в фокусе не мешает обновлению, курсор на месте');
 await a.click('.ag-head button:has-text("Закрыть задачу")'); await a.waitForTimeout(700);
 ok(await a.locator('.ag-it.closed').count() === 1, 'задачу можно закрыть');
 await shot(a, '8-agents');

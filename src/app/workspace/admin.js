@@ -498,16 +498,17 @@
     main.appendChild(c);
     setTimeout(function(){ c.focusText(); }, 30);
   }
-  // quiet — без «Загружаем…»; poll — фоновое обновление: не трогаем ленту, пока владелец в поле ввода
+  // quiet — без «Загружаем…»; poll — фоновое обновление: пропускаем, только пока владелец печатает (в поле есть текст)
+  function agTyping(ta){ return !!(ta && document.activeElement === ta && ta.value.trim()); }
   function agOpen(main, num, quiet, poll){
-    var keep0 = main.querySelector('.ag-comp textarea');
-    if(poll && keep0 && document.activeElement === keep0) return;
+    if(poll && agTyping(main.querySelector('.ag-comp textarea'))) return;
     if(!quiet){ main.innerHTML = ''; main.appendChild(h('p', { 'class':'adm-empty', text:'Загружаем переписку…' })); }
     SERVER.api('GET', '/admin/agents/' + num).then(function(r){
       if(ADM.agTask !== num) return;
       // черновик и адресатов берём прямо перед заменой формы: владелец мог начать печатать, пока шёл запрос
       var keep = quiet && main.querySelector('.ag-comp textarea'), draft = keep ? keep.value : '', tgBox = quiet && main.querySelector('.ag-comp .ag-to'), tgNow = tgBox && tgBox.get ? tgBox.get() : null;
-      if(poll && keep && document.activeElement === keep) return;
+      if(poll && agTyping(keep)) return;
+      var hadFocus = !!(keep && document.activeElement === keep);
       if(r.status !== 200){ if(!quiet){ main.innerHTML = ''; main.appendChild(h('p', { 'class':'adm-empty', text:admErr(r) })); } return; }
       var d = r.data, feed = main.querySelector('.ag-feed'), atBottom = !feed || feed.scrollHeight - feed.scrollTop - feed.clientHeight < 40;
       main.innerHTML = '';
@@ -537,7 +538,7 @@
       });
       if(draft) c.querySelector('textarea').value = draft;
       main.appendChild(c);
-      if(keep && !poll && document.activeElement !== c.querySelector('textarea') && quiet) c.focusText();   // после отправки — сразу писать дальше
+      if(hadFocus || (keep && !poll)) c.focusText();   // курсор остаётся в поле: после отправки и после обновления ленты
       if(atBottom) f.scrollTop = f.scrollHeight;
     });
   }
