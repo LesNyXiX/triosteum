@@ -46,6 +46,8 @@
           // копия снимка (согласование не должно менять закреплённое), документы — из текущего запуска
           var pinRows = toRows(JSON.parse(JSON.stringify(n.pin.v)));
           pinRows.forEach(function(x, k){ delete x.__doc; if(rows[k] && rows[k].__doc){ x.__doc = rows[k].__doc; if(!x['Документ'] && rows[k]['Документ']) x['Документ'] = rows[k]['Документ']; } });
+          // показатели, диаграммы и таблицы блока из снимка — их собирает дашборд ниже (ctx.upItems)
+          (n.pin.items || []).forEach(function(x){ var c = JSON.parse(JSON.stringify(x)); c.node = n.id; RES.items.push(c); });
           results[n.id] = pinRows; stat.ok++;
           rlog('📌 ' + n.name + ' — закреплённый результат, записей: ' + results[n.id].length, 'ok'); setRun(n, 'ok', 'Закреплённый результат — блок не выполнялся. Записей: ' + results[n.id].length);
           if(d) d.classList.remove('running'); next(); return;
