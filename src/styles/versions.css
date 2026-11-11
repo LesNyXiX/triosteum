@@ -1,0 +1,5 @@
+.ver-layer{position:fixed;inset:0;z-index:140;background:#0008;display:flex;align-items:center;justify-content:center;padding:12px}.ver-layer[hidden]{display:none}
+.ver-window{box-sizing:border-box;width:min(850px,100%);max-height:90vh;overflow:auto;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:16px;padding:18px;box-shadow:0 20px 70px #0006}
+.ver-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.ver-head h2{margin:0;font-size:18px}.ver-caption,.ver-row small{color:var(--dim);font-size:12px;line-height:1.6}.ver-save{display:flex;gap:8px}.ver-save .input{flex:1;min-width:0}.ver-row{display:grid;gap:8px;border-bottom:1px solid var(--line);padding:14px 0;overflow-wrap:anywhere}.ver-diff{font-size:13px}
+.ver-code{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--bg);padding:10px;border:1px solid var(--line);border-radius:8px;font-size:12px}.ver-code span{display:block}.ver-add{background:#19884722;color:var(--ink)}.ver-del{background:#d4444422;color:var(--ink)}.ver-info{color:var(--dim)}
+@media(max-width:640px){.ver-window{padding:12px}.ver-save{flex-direction:column}}
