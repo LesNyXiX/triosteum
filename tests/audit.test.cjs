@@ -2,8 +2,8 @@ const assert = require('node:assert/strict'), fs = require('node:fs'), path = re
 const source = fs.readFileSync(path.join(__dirname, '../src/app/workspace/audit.js'), 'utf8');
 const g = { nodes:[{ id:'a', name:'A', lang:'cpp', codes:{ cpp:'int run(){ return 1; }' } }], edges:[], notes:[] };
 const prefs={};
-const repo={pref:(name,d)=>name==='profile'?{name:'Тест'}:(prefs[name]||d),setPref:(name,v)=>{prefs[name]=v;}};
-const api = new Function('G','Repo','curId', source.slice(0, source.indexOf('  function audClose')) + '\nreturn {audDiff,audSnap,audAppend,audList};')(g, repo, ()=>'p1');
+const repo={pref:(name,d)=>name==='profile'?{name:'Тест'}:(prefs[name]||d),setPref:(name,v)=>{assert.match(name,/^[A-Za-z0-9_.-]{1,80}$/,'ключ совместим с серверным PREF_NAME');prefs[name]=v;}};
+const api = new Function('G','Repo','curId', source.slice(0, source.indexOf('  function audClose')) + '\nreturn {audDiff,audSnap,audAppend,audList,audRestoreData};')(g, repo, ()=>'p1');
 const before = api.audSnap();
 g.nodes[0].codes.cpp = 'SECRET_TOKEN\nsecond line';
 let diff = api.audDiff(before, api.audSnap());
@@ -18,7 +18,17 @@ assert.deepEqual(api.audDiff(now,old).map(r=>r.type).sort(),['edge_del','node_de
 assert.equal(api.audDiff(now,now).length,0);
 console.log('Аудит: сравнение снимков и отсутствие кода в записях — прошли');
 
-prefs['audit:p1']=Array.from({length:2000},(_,i)=>({id:String(i),t:i,type:'run',obj:'Схема'}));
+prefs['audit.p1']=Array.from({length:2000},(_,i)=>({id:String(i),t:i,type:'run',obj:'Схема'}));
 api.audAppend([{id:'new',t:9999,type:'run',obj:'Схема'}],'p1');
-assert.equal(prefs['audit:p1'].length,2000);assert.equal(prefs['audit:p1'][0].id,'new');
+assert.equal(prefs['audit.p1'].length,2000);assert.equal(prefs['audit.p1'][0].id,'new');
 assert.equal(api.audList('p2').length,0);
+prefs['audit:p2']=[{id:'legacy',t:1,type:'run',obj:'Старая схема'}];
+assert.equal(api.audList('p2')[0].id,'legacy','старый ключ читается без потери истории');
+api.audAppend([{id:'current',t:2,type:'run',obj:'Новая схема'}],'p2');
+assert.deepEqual(prefs['audit.p2'].map(x=>x.id),['current','legacy']);
+api.audAppend(Array.from({length:2000},(_,i)=>({id:String(i),t:i,type:'run',obj:'Ж'.repeat(100),detail:'Я'.repeat(200),who:'А'.repeat(80)})),'p3');
+assert(Buffer.byteLength(JSON.stringify(prefs['audit.p3']),'utf8')<1024*1024,'журнал помещается в лимит серверной настройки');
+const legacy={'triosteum.projects':{cur:'p2'},'triosteum.audit:p2':prefs['audit:p2'],'triosteum.audit:p3':[]};
+const migrated=api.audRestoreData(legacy,'Старая копия');
+assert(!Object.keys(migrated).some(k=>k.startsWith('triosteum.audit:')),'в сервер не уходят старые недопустимые ключи');
+assert.equal(migrated['triosteum.audit.p2'][0].type,'restore');assert.equal(migrated['triosteum.audit.p2'][1].id,'legacy');assert('triosteum.audit:p2' in legacy,'исходная копия не изменяется');

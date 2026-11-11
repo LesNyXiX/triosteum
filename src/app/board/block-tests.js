@@ -15,7 +15,7 @@
   var btLayer = h('div', { 'class':'bt-layer', hidden:'' });
   var btDialog = h('div', { 'class':'bt-dialog', role:'dialog', 'aria-modal':'true', 'aria-labelledby':'btTitle' });
   btLayer.appendChild(btDialog); document.body.appendChild(btLayer);
-  function btClose(){ btLayer.hidden = true; if(BT.back && document.contains(BT.back)) BT.back.focus(); }
+  function btClose(){ if(document.activeElement && document.activeElement.blur) document.activeElement.blur(); btLayer.hidden = true; if(BT.back && document.contains(BT.back)) BT.back.focus(); }
   btDialog.addEventListener('keydown', function(e){
     e.stopPropagation();
     if(e.key === 'Escape'){ e.preventDefault(); e.stopPropagation(); btClose(); }

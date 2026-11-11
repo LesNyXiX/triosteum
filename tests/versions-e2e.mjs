@@ -57,6 +57,11 @@ try{
   await page.locator('#pers button[aria-label="Закрыть"]').click();await open();await page.waitForFunction(()=>document.querySelectorAll('.ver-row').length===3);
   check(await page.locator('.ver-row').count()===3,'создание и обрезка полных копий сохраняют версии схем');
   await page.setViewportSize({width:390,height:844});const b=await page.getByRole('dialog',{name:'Версии схемы'}).boundingBox();check(b.x>=0&&b.x+b.width<=391,'окно помещается на телефоне');
+  await page.keyboard.press('Escape');
+  await page.evaluate(()=>{const put=IDBObjectStore.prototype.put;IDBObjectStore.prototype.put=function(v,...args){if(this.name==='snaps'&&String(v.id).startsWith('ver:'))throw new DOMException('quota','QuotaExceededError');return put.call(this,v,...args);};});
+  await page.locator('input[type="file"][accept=".tsm,.json,application/json"]').setInputFiles({name:'new-space.tsm',mimeType:'application/json',buffer:Buffer.from(JSON.stringify({app:'Triosteum',kind:'space',name:'Импорт при квоте',env:'code',graph:{nodes:[],edges:[],notes:[],seq:1}}))});
+  await page.waitForFunction(()=>document.querySelector('#projName').textContent.includes('Импорт при квоте'));
+  check(await page.evaluate(()=>JSON.parse(localStorage.getItem('triosteum.proj.p1')).nodes.length)===2,'при ошибке автоверсии импорт создаёт новое пространство, сохраняя исходное');
   check(errors.length===0,'нет ошибок JavaScript: '+errors.join('; '));await ctx.close();
 }finally{await browser.close();await new Promise(ok=>srv.close(ok));}
 console.log(failed?'Ошибок: '+failed:'Всё прошло');process.exitCode=failed?1:0;
