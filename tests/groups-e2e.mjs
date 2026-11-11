@@ -49,6 +49,19 @@ const na = g.nodes.find((n) => n.id === 'a'), nb = g.nodes.find((n) => n.id === 
 check(na.x === 240 && na.y === 240 && nb.x === 240 && nb.y === 420 && nc.x === 620, 'двигаются блоки группы, остальные на месте');
 const fb2 = await page.locator('.grp').boundingBox();
 check(Math.abs(fb2.x - fb.x - 80) < 2, 'рамка переехала вместе с блоками');
+console.log('Перетаскивание одного блока группы (быстрый путь связей)');
+{
+  const before = await page.locator('.grp').boundingBox();
+  const [sx, sy] = await center('a');
+  await page.mouse.move(sx, sy); await page.mouse.down();
+  for (let i = 1; i <= 6; i++) await page.mouse.move(sx - i * 10, sy);
+  await page.mouse.up(); await page.waitForTimeout(500);
+  const after = await page.locator('.grp').boundingBox(), na2 = await page.locator('.node[data-id="a"]').boundingBox();
+  check(after.x < before.x - 40 && after.x < na2.x, 'рамка расширилась за блоком, сдвинутым влево');
+  await page.keyboard.press('Control+z'); await page.waitForTimeout(400);
+  const back = await page.locator('.grp').boundingBox();
+  check(Math.abs(back.x - before.x) < 2, 'после отмены рамка вернулась');
+}
 console.log('Запуск группы');
 await page.locator('.grp-b[aria-label="Запустить только эту группу"]').click();
 await page.waitForFunction(() => !document.querySelector('#runp.busy') && /успешно/.test(document.querySelector('#runSum').textContent), null, { timeout: 15000 }).catch(() => {});

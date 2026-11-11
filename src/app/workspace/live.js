@@ -65,7 +65,7 @@
   }
   // ---- чужая правка ----
   var LIVE_KEYS = { cam:1 };
-  function hpick(o){ return { nodes:o.nodes || [], edges:o.edges || [], notes:o.notes || [], seq:o.seq || 1 }; }
+  function hpick(o){ return { nodes:o.nodes || [], edges:o.edges || [], notes:o.notes || [], groups:o.groups || [], seq:o.seq || 1 }; }   // группы — тоже часть схемы: чужая правка группы перерисовывает доску и перебазирует отмену
   function patchInto(t, src, path){
     Object.keys(t).forEach(function(k){ var p = path ? path + '.' + k : k; if(!(k in src) && !MERGE_LOCAL[p]) delete t[k]; });
     Object.keys(src).forEach(function(k){

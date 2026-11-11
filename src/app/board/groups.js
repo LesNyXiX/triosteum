@@ -40,8 +40,16 @@
     d.hidden = false;
     d.style.left = b.x + 'px'; d.style.top = b.y + 'px'; d.style.width = b.w + 'px'; d.style.height = b.h + 'px';
     d.style.setProperty('--gc', g.color || GRP_COLORS[0]);
-    var t = d.querySelector('.grp-name'); if(t.textContent !== g.name) t.textContent = g.name;
+    var t = d.querySelector('.grp-name'); if(t && t.textContent !== g.name) t.textContent = g.name;   // во время переименования на месте названия — поле ввода
     d.querySelector('.grp-cnt').textContent = g.ids.length;
+  }
+  function grpMoved(ids){   // пересчитать только рамки групп, в которые входят сдвинутые блоки
+    var m = {}; (ids || []).forEach(function(id){ m[id] = 1; });
+    grpList().forEach(function(g){
+      if(!g.ids.some(function(id){ return m[id]; })) return;
+      var d = grpLayer.querySelector('.grp[data-id="' + g.id + '"]');
+      if(d) grpPlace(d, g); else grpRender();
+    });
   }
   function grpEl(g){
     var d = h('div', { 'class':'grp', 'data-id':g.id });
@@ -71,12 +79,12 @@
       if(!moved && Math.abs(dx) + Math.abs(dy) < 3) return;
       moved = true;
       start.forEach(function(s){ s[0].x = Math.round(s[1] + dx); s[0].y = Math.round(s[2] + dy); var dn = domOf('node', s[0].id); if(dn){ dn.style.left = s[0].x + 'px'; dn.style.top = s[0].y + 'px'; } });
-      if(!raf) raf = requestAnimationFrame(function(){ raf = 0; renderEdges(); });
+      if(!raf) raf = requestAnimationFrame(function(){ raf = 0; edgesMoved(g.ids); });
     }
     function up(){
       head.removeEventListener('pointermove', move); head.removeEventListener('pointerup', up); head.removeEventListener('pointercancel', up);
       if(raf){ cancelAnimationFrame(raf); raf = 0; }
-      if(moved){ renderEdges(); saveGraph(); }
+      if(moved){ edgesMoved(g.ids); saveGraph(); }
     }
     head.addEventListener('pointermove', move); head.addEventListener('pointerup', up); head.addEventListener('pointercancel', up);
   }
@@ -147,6 +155,9 @@
     renderGraph = function(){ var r = _rg.apply(this, arguments); grpRender(); return r; };
     var _re = renderEdges;   // блоки двигают по-разному (перетаскивание, выравнивание, стрелки) — рамки догоняют вместе со связями
     renderEdges = function(){ var r = _re.apply(this, arguments); if(grpList().length) grpRender(); return r; };
+    // быстрый путь (edgeFast) обновляет только затронутые связи и не зовёт renderEdges — рамки этих блоков двигаем отдельно
+    var _em = edgesMoved;
+    edgesMoved = function(ids){ var r = _em.apply(this, arguments); grpMoved(ids); return r; };
     var _cc = cmdCommands;
     cmdCommands = function(){
       var t = grpTargets(), extra = [
