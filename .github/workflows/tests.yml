@@ -31,7 +31,12 @@ jobs:
       - name: Зависимости
         run: |
           npm install --no-audit --no-fund
-          npx playwright install --with-deps chromium
+          # Зеркала Ubuntu иногда недоступны с машин GitHub (DNS). Тогда ставим только Chromium:
+          # библиотеки для него в образе ubuntu-latest уже есть, не хватает лишь дополнительных шрифтов.
+          if timeout 300 npx playwright install --with-deps chromium; then :; else
+            echo "::warning::Системные пакеты для браузера не установились — ставлю только Chromium"
+            npx playwright install chromium
+          fi
 
       - name: Сборка совпадает с исходниками
         run: |

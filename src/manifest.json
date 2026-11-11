@@ -15,6 +15,7 @@
     "styles/block-tests.css",
     "styles/versions.css",
     "styles/audit.css",
+    "styles/admin.css",
     "styles/import-flows.css"
   ],
   "js": [
@@ -122,6 +123,7 @@
     "app/ui/cursor-glow.js",
     "app/workspace/welcome.js",
     "app/workspace/team.js",
+    "app/workspace/admin.js",
     "app/workspace/live.js",
     "app/workspace/universal.js",
     "app/workspace/cross-run.js",

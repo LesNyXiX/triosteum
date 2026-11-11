@@ -29,6 +29,8 @@
         headers:hd,
         body:body === undefined ? undefined : JSON.stringify(body) }).then(function(r){
           if(r.status === 401){ location.href = (boot.api || '') + '/login?next=' + encodeURIComponent(location.pathname); throw new Error('auth'); }
+          // администратор закрыл доступ к серверу: показываем страницу входа с причиной
+          if(r.status === 423 && path.indexOf('/admin/') !== 0){ location.href = (boot.api || '') + '/login?closed=1'; throw new Error('auth'); }
           return r.text().then(function(t){ var d = null; try{ d = t ? JSON.parse(t) : null; }catch(e){} return { status:r.status, data:d }; });
         });
     }
@@ -133,6 +135,7 @@
     var adapter = {
       name:'server',
       user:boot.user || null, org:boot.org || null, role:boot.role || 'editor',
+      admin:!!(boot.user && boot.user.is_admin), instance:boot.instance || null,
       get:function(k){
         if(k === LIST) return order.length ? listJSON() : null;
         if(k.indexOf(PJ) === 0){ var sp = spaces[k.slice(PJ.length)]; return sp ? sp.content : null; }

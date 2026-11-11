@@ -11,3 +11,9 @@ const next=JSON.parse(JSON.stringify(graph));next.nodes[0].name='B';next.nodes[0
 const changes=api.verDiff(graph,next);assert(changes.some(c=>/Переименован/.test(c.text)));assert(changes.some(c=>c.lines?.some(l=>l.type==='add'&&l.text==='new')));assert(changes.some(c=>/Удалена связь/.test(c.text)));
 assert.equal(api.verDiff(graph,graph).length,0);
 console.log('Версии: LCS, ограничение больших файлов, сохранение нового снимка и сравнение графов — прошли');
+let calls=0;
+const tx={objectStore:()=>({put:()=>{},openCursor:()=>({})})};
+const save=new Function('bkDb','curId','flushSave','G','IDBKeyRange',source.slice(0,source.indexOf('  function verClose'))+'\nreturn verSave;')(
+  ()=>({transaction:()=>tx}),()=>'p1',()=>{},{nodes:[],edges:[],notes:[]},{bound:()=>null});
+save('Ошибка',true,()=>calls++);tx.onerror();tx.onabort();
+assert.equal(calls,1,'ошибка и abort одной транзакции вызывают продолжение один раз');

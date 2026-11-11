@@ -4,12 +4,14 @@
   function audSnap(){
     return { nodes:G.nodes.map(function(n){ return { id:n.id, name:n.name, code:Object.keys(n.codes || {}).sort().map(function(k){ return k + '\n' + n.codes[k]; }).join('\n'), lang:n.lang }; }), edges:G.edges.map(function(e){ return { id:e.id, from:e.from, to:e.to, taps:JSON.stringify(e.taps || []) }; }), notes:G.notes.map(function(n){ return { id:n.id }; }) };
   }
-  function audList(space){ var a = Repo.pref('audit:' + (space || curId()), []); return Array.isArray(a) ? a.filter(function(r){ return r && typeof r.t === 'number' && isFinite(r.t) && Object.prototype.hasOwnProperty.call(AUD_TYPES, r.type); }).slice(0, AUD.max) : []; }
+  function audList(space){ var a = Repo.pref('audit.' + (space || curId()), undefined); if(a === undefined) a = Repo.pref('audit:' + (space || curId()), []); return Array.isArray(a) ? a.filter(function(r){ return r && typeof r.t === 'number' && isFinite(r.t) && Object.prototype.hasOwnProperty.call(AUD_TYPES, r.type); }).slice(0, AUD.max) : []; }
   function audWho(){ var p = typeof localProfile === 'function' ? localProfile() : Repo.pref('profile', {}); return String(p && p.name || 'Пользователь').slice(0, 80); }
   function audEntry(type, obj, detail){ return { id:Date.now().toString(36) + '-' + (++AUD.seq), t:Date.now(), who:audWho(), type:type, obj:String(obj || '').slice(0, 100), detail:String(detail || '').slice(0, 200) }; }
   function audAppend(rows, space){
     if(!rows.length) return;
-    space = space || curId(); Repo.setPref('audit:' + space, rows.slice().reverse().concat(audList(space)).slice(0, AUD.max));
+    space = space || curId(); var size=2, list=[];
+    rows.slice().reverse().concat(audList(space)).slice(0,AUD.max).some(function(r){size+=JSON.stringify(r).length+1;if(size>200000)return true;list.push(r);return false;});
+    Repo.setPref('audit.' + space,list);
     if(AUD.ui && !AUD.ui.layer.hidden && AUD.view === space) audRender();
   }
   function audMap(a){ var m = Object.create(null); a.forEach(function(v){ m[v.id] = v; }); return m; }
@@ -40,7 +42,14 @@
     if(!AUD.quiet && AUD.last && AUD.space === space) audAppend(audDiff(AUD.last, next), space);
     AUD.last = next; AUD.space = space;
   }
-  function audClose(){ if(AUD.ui) AUD.ui.layer.hidden = true; if(AUD.back && document.contains(AUD.back)) AUD.back.focus(); }
+  function audRestoreData(data,label){
+    var copy=Object.assign({},data);
+    Object.keys(copy).forEach(function(k){if(k.indexOf('triosteum.audit:')===0){var next='triosteum.audit.'+k.slice('triosteum.audit:'.length);if(!Object.prototype.hasOwnProperty.call(copy,next))copy[next]=copy[k];delete copy[k];}});
+    var projects=copy['triosteum.projects'],space=projects&&projects.cur||curId(),key='triosteum.audit.'+space;
+    copy[key]=[audEntry('restore','Резервная копия',label)].concat(Array.isArray(copy[key])?copy[key]:[]).slice(0,AUD.max);
+    return copy;
+  }
+  function audClose(){ if(document.activeElement && document.activeElement.blur) document.activeElement.blur(); if(AUD.ui) AUD.ui.layer.hidden = true; if(AUD.back && document.contains(AUD.back)) AUD.back.focus(); }
   function audOpen(){
     flushSave(); AUD.back = document.activeElement; AUD.view = curId();
     if(!AUD.ui){
@@ -52,7 +61,7 @@
       box.appendChild(h('div', { 'class':'aud-head' }, [h('h2', { id:'audTitle', text:'Журнал действий' }), h('button', { type:'button', 'class':'icon-btn', text:'×', 'aria-label':'Закрыть журнал', on:{ click:audClose } })]));
       box.appendChild(h('p', { 'class':'aud-caption', text:'Локальная история этого браузера, последние 2000 записей. Журнал можно очистить; это не защищённый серверный аудит.' }));
       box.appendChild(h('div', { 'class':'aud-filters' }, [q, type]));
-      box.appendChild(h('div', { 'class':'acts' }, [h('button', { type:'button', 'class':'btn sm', text:'Выгрузить CSV', on:{ click:audCsv } }), h('button', { type:'button', 'class':'btn sm danger', text:'Очистить журнал', on:{ click:function(){ var space = AUD.view; askConfirm('Очистить журнал действий?', 'Записи этого пространства будут удалены из журнала.', 'Очистить', function(){ Repo.setPref('audit:' + space, []); audRender(); }); } } })]));
+      box.appendChild(h('div', { 'class':'acts' }, [h('button', { type:'button', 'class':'btn sm', text:'Выгрузить CSV', on:{ click:audCsv } }), h('button', { type:'button', 'class':'btn sm danger', text:'Очистить журнал', on:{ click:function(){ var space = AUD.view; askConfirm('Очистить журнал действий?', 'Записи этого пространства будут удалены из журнала.', 'Очистить', function(){ Repo.setPref('audit.' + space, []); audRender(); }); } } })]));
       box.appendChild(rows); layer.appendChild(box); document.body.appendChild(layer);
       AUD.ui = { layer:layer, box:box, q:q, type:type, rows:rows };
       q.addEventListener('input', audRender); type.addEventListener('change', audRender);
@@ -96,9 +105,7 @@
       var r = end.apply(this, arguments); audAppend([audEntry('run', 'Схема', detail)], space); return r;
     };
     var apply = bkApply; bkApply = function(data, label){
-      var copy = Object.assign({}, data), projects = copy['triosteum.projects'], space = projects && projects.cur || curId(), key = 'triosteum.audit:' + space;
-      copy[key] = [audEntry('restore', 'Резервная копия', label)].concat(Array.isArray(copy[key]) ? copy[key] : []).slice(0, AUD.max);
-      return apply(copy, label);
+      return apply(audRestoreData(data,label), label);
     };
     var commands = cmdCommands; cmdCommands = function(){ return commands().concat([{ sec:'space', label:'Журнал действий', d:'Кто и когда менял блоки и связи в этом браузере', icon:'file', act:audOpen, k:'аудит история изменения audit' }]); };
     var menu = projItems; projItems = function(){ return menu().concat([{ label:'Журнал действий', icon:'file', act:audOpen }]); };

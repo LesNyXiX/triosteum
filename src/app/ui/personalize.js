@@ -23,7 +23,8 @@
     { id:'fit', btn:'bFit', name:'Вписать всё в экран' },
     { id:'grid', btn:'bGrid', name:'Сетка доски' },
     { id:'pers', btn:'bPers', name:'Персонализация' },
-    { id:'keys', btn:'bKeys', name:'Горячие клавиши', core:true }
+    { id:'keys', btn:'bKeys', name:'Горячие клавиши', core:true },
+    { id:'admin', btn:'admBtn', name:'Панель администратора (в шапке)', core:true, admin:true }
   ];
   // контраст по WCAG: подбираем читаемый цвет текста для любого акцента и темы
   function lum(hex){ return hexRgb(hex).map(function(v){ v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }).reduce(function(s, v, i){ return s + v * [0.2126, 0.7152, 0.0722][i]; }, 0); }
@@ -81,6 +82,7 @@
     TOOL_OPTS.forEach(function(t){
       var b = t.btn ? $(t.btn) : document.querySelector(t.sel); if(!b) return;
       var on = tools[t.id] === undefined ? !!t.core : !!tools[t.id];
+      if(t.admin && !(SERVER && SERVER.admin)) on = false;                 // кнопка панели — только у администратора сервера
       b.hidden = !on;
     });
     save('triosteum.ui', UI);
@@ -142,6 +144,7 @@
     b.appendChild(section('Док сред внизу — значки сред, как на Mac. «Сворачивать»: через 3 секунды без наведения превращается в полоску, наведите — развернётся. «Прятать»: выезжает у нижнего края', dseg));
     var tgrid = h('div', { 'class':'toolgrid docks-grid' });
     TOOL_OPTS.forEach(function(t){
+      if(t.admin && !(SERVER && SERVER.admin)) return;
       var tools = UI.tools || {}, on = tools[t.id] === undefined ? !!t.core : !!tools[t.id];
       var btn = t.btn ? $(t.btn) : document.querySelector(t.sel), key = btn && btn._dk;
       var row = toggleRow(t.name, on, function(v){ UI.tools = UI.tools || {}; UI.tools[t.id] = v; applyTheme(); renderPers(); });
@@ -206,7 +209,8 @@
   $('setBtn').addEventListener('click', function(e){ var open = e.detail ? setWasOpen : !$('pers').hidden; if(open) $('pers').hidden = true; else openPers(); $('setBtn').setAttribute('aria-expanded', $('pers').hidden ? 'false' : 'true'); });
 
   // клавиша кнопки в Персонализации: нажать — затем нажать новую клавишу (Esc — отмена, Backspace — без клавиши)
-  function keyCatcher(tk, name){
+  function keyCatcher(tk, name, after){
+    function re(){ if(after) after(); else renderPers(); }
     var b = h('button', { type:'button', 'class':'tgl-key key-set' + (tk.label ? '' : ' none'), text:tk.label || '—', title:'Горячая клавиша — нажмите, чтобы задать свою', 'aria-label':'Клавиша для «' + name + '»: ' + (tk.label || 'нет') + '. Нажмите, чтобы изменить' });
     b.addEventListener('click', function(e){
       e.preventDefault(); e.stopPropagation();
@@ -218,14 +222,14 @@
         if(/^(Shift|Control|Alt|Meta)/.test(ev.code)) return;
         ev.preventDefault(); ev.stopPropagation();
         if(ev.key === 'Escape'){ done(); b.textContent = tk.label || '—'; return; }
-        if(ev.code === 'Backspace' || ev.code === 'Delete'){ done(); toolKeySet(tk.sel, null); toast('«' + name + '» — без клавиши'); renderPers(); return; }
+        if(ev.code === 'Backspace' || ev.code === 'Delete'){ done(); toolKeySet(tk.sel, null); toast('«' + name + '» — без клавиши'); re(); return; }
         var c = { code:ev.code, shift:ev.shiftKey, mod:ev.ctrlKey || ev.metaKey };
         if(ev.altKey){ toast('Alt не используется — браузер занимает его сочетания'); return; }
         var bad = keyFree(c); if(bad){ toast(bad); return; }
         done();
         var taken = toolKeySet(tk.sel, c);
         toast('«' + name + '» — ' + keyLabel(c) + (taken ? '. У «' + taken.name + '» клавиша снята' : ''));
-        renderPers();
+        re();
       }
       document.addEventListener('keydown', on, true); document.addEventListener('pointerdown', off, true);
     });
