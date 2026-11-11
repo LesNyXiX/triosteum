@@ -307,7 +307,10 @@ def register(body: RegisterIn, request: Request, response: Response):
         raise HTTPException(422, "Нужно согласие на обработку персональных данных")
     if not login_limiter.hit("ip:" + (client_ip(request) or "?")):
         raise HTTPException(429, "Слишком много попыток — подождите минуту")
+    pw_hash = hash_password(body.password)               # до блокировки: хеширование медленное
     with tx() as c:
+        # регистрации идут по одной: иначе две одновременные на пустом сервере обе станут администраторами
+        c.execute(text("SELECT pg_advisory_xact_lock(87214)"))
         first = c.execute(text("SELECT NOT EXISTS (SELECT 1 FROM users)")).scalar_one()
         inv = None
         if body.invite:
@@ -325,8 +328,7 @@ def register(body: RegisterIn, request: Request, response: Response):
                            {"n": body.org.strip()}).scalar_one()
         # самый первый человек на сервере становится его администратором
         user_id = c.execute(text("INSERT INTO users (email, name, password_hash, is_admin) VALUES (:e, :n, :p, :a) RETURNING id"),
-                            {"e": email, "n": body.name.strip(), "p": hash_password(body.password),
-                             "a": bool(first)}).scalar_one()
+                            {"e": email, "n": body.name.strip(), "p": pw_hash, "a": bool(first)}).scalar_one()
         c.execute(text("INSERT INTO memberships (org_id, user_id, role) VALUES (:o, :u, 'owner')"),
                   {"o": org_id, "u": user_id})
         if inv:

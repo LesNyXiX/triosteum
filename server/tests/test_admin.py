@@ -173,3 +173,15 @@ def test_restore_point_and_undo(client, boss):
     assert create["can_undo"]
     assert boss.post(f"/api/admin/actions/{create['id']}/undo").status_code == 200
     assert all(x["id"] != p.json()["id"] for x in boss.get("/api/admin/points").json())
+
+
+def test_restore_point_brings_back_default_settings(client, boss):
+    """Точка, сохранённая до первого изменения настроек, возвращает их значения по умолчанию."""
+    from app.main import _inst
+    p = boss.post("/api/admin/points", json={"label": "Чистый сервер"}).json()["id"]
+    assert boss.post("/api/admin/access", json={"open": False, "message": "тест"}).status_code == 200
+    assert boss.post("/api/admin/registration", json={"mode": "invite"}).status_code == 200
+    assert boss.post(f"/api/admin/points/{p}/restore").status_code == 200
+    _inst["t"] = 0.0
+    opts = new_client(client).get("/api/auth/options").json()
+    assert opts["access"]["open"] is True and opts["registration"] == "open"

@@ -15,7 +15,7 @@ from sqlalchemy import text
 
 from .db import tx
 from .live import hub
-from .main import EMAIL, ROLES, Who, inst, inst_set, need
+from .main import EMAIL, INST_DEFAULTS, ROLES, Who, _inst, inst, inst_set, need
 from .security import new_token, token_hash
 
 router = APIRouter(prefix="/api/admin")
@@ -205,7 +205,8 @@ def _snapshot_data() -> tuple[dict, dict]:
         mem = [{"org": str(r["org_id"]), "user": str(r["user_id"]), "role": r["role"]}
                for r in c.execute(text("SELECT org_id, user_id, role FROM memberships")).mappings()]
         orgs = [{"id": str(o["id"]), "name": o["name"]} for o in _orgs(c)]
-        settings = {k: v for k, v in c.execute(text("SELECT key, value FROM instance_settings")).all()}
+        # действующие значения всех настроек, в том числе ещё не менявшихся (значения по умолчанию)
+        settings = {**INST_DEFAULTS, **{k: v for k, v in c.execute(text("SELECT key, value FROM instance_settings")).all()}}
     spaces, size = [], 0
     for o in orgs:
         with tx(o["id"]) as c:
@@ -243,8 +244,12 @@ def _apply_point(w: Who, data: dict, label: str) -> None:
         mem_by_org.setdefault(m["org"], {})[m["user"]] = m["role"]
     kicked: set[str] = set()
     with tx() as c:
-        for k, v in (data.get("settings") or {}).items():
+        snap_settings = data.get("settings") or {}
+        for k, v in snap_settings.items():
             inst_set(c, k, v, w.user_id)
+        # настройки, которых в точке не было, возвращаются к значению по умолчанию
+        c.execute(text("DELETE FROM instance_settings WHERE NOT (key = ANY(:keys))"), {"keys": list(snap_settings)})
+        _inst["t"] = 0.0
         existing = {str(r[0]): r for r in c.execute(text("SELECT id, disabled, deleted_at, is_admin FROM users")).all()}
         for uid in existing:
             if uid == w.user_id:
@@ -274,8 +279,13 @@ def _apply_point(w: Who, data: dict, label: str) -> None:
         if kicked:
             c.execute(text("DELETE FROM sessions WHERE user_id = ANY(CAST(:ids AS uuid[]))"), {"ids": list(kicked)})
         live_orgs = {str(o["id"]) for o in _orgs(c)}
+        admins = {str(r[0]) for r in c.execute(text("SELECT id FROM users WHERE is_admin AND NOT disabled AND deleted_at IS NULL"))}
     for uid in kicked:
         _kick_user(uid)
+    access = snap_settings.get("access", INST_DEFAULTS["access"])
+    if isinstance(access, dict) and access.get("open") is False:
+        # в точке доступ был закрыт: открытые вкладки всех, кроме администраторов, теряют доступ сразу
+        hub.kick_where(lambda _o, p: p.user_id not in admins)
     # пространства: изменённые получают новую правку (прежняя остаётся в истории версий), новые — удаляются (30 дней можно вернуть)
     by_org: dict[str, dict[str, dict]] = {}
     for s in data.get("spaces", []):
