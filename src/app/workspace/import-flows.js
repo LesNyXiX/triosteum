@@ -30,7 +30,7 @@
       if(python)warnings.push(n.name+': проверьте API Python исходной платформы');
       nodes.push(n);return n;
     }
-    function link(a,b,label){if(!a||!b)throw new Error('Связь ссылается на отсутствующий узел. Проверьте экспорт.');if(edges.length>=2000)throw new Error('Слишком много связей для одного импорта.');edges.push({id:'flowedge'+(edges.length+1),from:a.id,to:b.id,taps:[],label:label||''});}
+    function link(a,b,label,meta){if(!a||!b)throw new Error('Связь ссылается на отсутствующий узел. Проверьте экспорт.');if(edges.length>=2000)throw new Error('Слишком много связей для одного импорта.');var edge={id:'flowedge'+(edges.length+1),from:a.id,to:b.id,taps:[],label:label||''};if(meta)edge.imported=JSON.parse(JSON.stringify(meta));edges.push(edge);}
     if(format==='n8n'){
       o.nodes.forEach(function(n){
         if(!n||typeof n.name!=='string'||names[n.name])throw new Error('В n8n должны быть уникальные имена узлов.');
@@ -39,18 +39,20 @@
       });
       Object.keys(o.connections).forEach(function(name){var groups=o.connections[name];if(!groups||typeof groups!=='object')throw new Error('Неверный формат connections.');Object.keys(groups).forEach(function(channel){
         var ports=groups[channel];if(!Array.isArray(ports))throw new Error('Неверный список портов n8n.');
-        ports.forEach(function(targets,port){if(!Array.isArray(targets))throw new Error('Неверный список связей n8n.');targets.forEach(function(t){link(names[name],t&&names[t.node],channel+' '+(port+1));});});
+        ports.forEach(function(targets,port){if(!Array.isArray(targets))throw new Error('Неверный список связей n8n.');targets.forEach(function(t){link(names[name],t&&names[t.node],channel+' '+(port+1),{platform:'n8n',source:{name:name,type:channel,index:port},target:t});});});
       });});
     }else{
-      function sequence(flow,previous,depth){
+      function sequence(flow,previous,depth,routeFilter){
         if(depth>30)throw new Error('Слишком глубокое ветвление Make.');if(!Array.isArray(flow))throw new Error('У ветки Make отсутствует flow.');
         var last=previous?previous.slice():[];
-        flow.forEach(function(m){
+        flow.forEach(function(m,ix){
           if(!m||!m.module)throw new Error('У модуля Make не указан module.');
           if(m.id!==undefined&&Object.prototype.hasOwnProperty.call(ids,String(m.id)))throw new Error('Повторяется id модуля Make.');
-          var pos=m.metadata&&m.metadata.designer,n=add(m.name||String(m.module),String(m.module),{mapper:m.mapper||{},parameters:m.parameters||{}},pos?[pos.x,pos.y]:null,'','',m.id);if(m.id!==undefined)ids[String(m.id)]=n;
-          last.forEach(function(a){link(a,n);});last=[n];
-          if(Array.isArray(m.routes)&&m.routes.length){var ends=[];m.routes.forEach(function(r){ends=ends.concat(sequence(r.flow,[n],depth+1));});last=ends;}
+          var filter={filter:m.filter||null,routeFilter:ix===0?routeFilter||null:null};
+          var pos=m.metadata&&m.metadata.designer,n=add(m.name||String(m.module),String(m.module),{mapper:m.mapper||{},parameters:m.parameters||{},filter:filter.filter,routeFilter:filter.routeFilter},pos?[pos.x,pos.y]:null,'','',m.id);if(m.id!==undefined)ids[String(m.id)]=n;
+          if(filter.filter||filter.routeFilter)warnings.push(n.name+': фильтр Make сохранён в параметрах и связях; его нужно адаптировать вручную');
+          last.forEach(function(a){link(a,n,'',{platform:'Make',filter:filter.filter,routeFilter:filter.routeFilter});});last=[n];
+          if(Array.isArray(m.routes)&&m.routes.length){var ends=[];m.routes.forEach(function(r){ends=ends.concat(sequence(r.flow,[n],depth+1,r.filter));});last=ends;}
         });return last;
       }
       sequence(o.flow,[],0);

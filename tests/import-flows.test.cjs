@@ -8,4 +8,8 @@ const branch={flow:[{id:1,module:'router',routes:[{flow:[{id:2,module:'A'}]},{fl
 assert.throws(()=>api.flowParse({foo:1}),/Неизвестный/);assert.throws(()=>api.flowParse({nodes:[{name:'A',type:'t'},{name:'A',type:'t'}],connections:{}}),/уникальные/);assert.throws(()=>api.flowParse({nodes:[{name:'A',type:'t'}],connections:{A:{main:[[{node:'B'}]]}}}),/отсутствующий/);
 const js=api.flowCode('n8n: custom',{'triple':'"""\nprint("danger")'},'', 'console.log(1);');assert(js.includes('# console.log(1);'));assert(js.includes('NotImplementedError'));assert(!js.includes('\nprint("danger")'));
 const odd=api.flowParse({nodes:[{name:'__proto__',type:'x'}],connections:{}});assert.equal(odd.nodes.length,1);
+const ports=read('n8n-small.json');ports.connections['Условие'].main[0][0].index=1;
+let portPlan=api.flowParse(ports);assert.equal(portPlan.edges[2].imported.target.index,1);assert.equal(portPlan.edges[2].imported.target.type,'main');assert.equal(portPlan.edges[2].imported.source.index,0);
+const filtered=read('make-small.json');filtered.flow[1].routes[0].flow[0].filter={name:'Положительная сумма',conditions:[[{a:'{{1.amount}}',o:'number:greater',b:'0'}]]};
+let filterPlan=api.flowParse(filtered);assert.deepEqual(filterPlan.nodes[2].imported.parameters.filter,filtered.flow[1].routes[0].flow[0].filter);assert.deepEqual(filterPlan.edges[1].imported.filter,filtered.flow[1].routes[0].flow[0].filter);assert(filterPlan.warnings.some(x=>x.includes('фильтр Make')));
 console.log('Импорт: форматы, ветвление, позиции, безопасные заготовки и ошибочные связи — прошли');
