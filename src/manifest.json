@@ -16,6 +16,7 @@
     "styles/versions.css",
     "styles/audit.css",
     "styles/admin.css",
+    "styles/docgen.css",
     "styles/import-flows.css"
   ],
   "js": [
@@ -134,6 +135,7 @@
     "app/workspace/whats-new.js",
     "app/workspace/versions.js",
     "app/workspace/audit.js",
+    "app/workspace/docgen.js",
     "app/workspace/import-flows.js",
     "app/main.js"
   ]
