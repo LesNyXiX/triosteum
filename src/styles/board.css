@@ -616,6 +616,22 @@
   .ea-ok{font-size:12px;font-weight:600;color:var(--okc,#34D399)}
   .ea-code{margin:8px 0 0 26px;max-height:260px;overflow:auto;padding:8px 10px;border-radius:8px;background:var(--bg);border:1px solid var(--line);font:12px/1.5 var(--mono);white-space:pre;color:var(--ink)}
 
+  /* переменные пространства */
+  .vars-w{width:680px;left:calc(50% - 340px);top:8%;height:auto;max-height:84vh}
+  .vars-top{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .vars-prof{display:grid !important;grid-template-columns:1fr 1fr;gap:4px;min-width:220px}
+  .vars-tbl{width:100%;border-collapse:collapse;font-size:12.5px}
+  .vars-tbl th{text-align:left;font-weight:600;color:var(--muted);padding:4px 4px 6px}
+  .vars-tbl td{padding:3px 4px;vertical-align:middle}
+  .vars-tbl .input{width:100%;min-width:0;height:32px;font-size:12.5px}
+  .vars-tbl td:first-child .input{font-family:var(--mono);font-weight:600}
+  .vars-act{white-space:nowrap;width:1%}
+  .vars-act .icon-btn{display:inline-flex;vertical-align:middle;width:30px;height:30px}
+  .vars-empty{padding:12px 4px !important;color:var(--muted)}
+  .vars-miss{margin:0;font-size:12.5px;color:var(--warn,#FBBF24)}
+  #topRun.prof-prod{box-shadow:0 0 0 2px #F59E0B}
+  #topRun.prof-prod::after{content:"боевой";margin-left:8px;padding:1px 6px;border-radius:999px;background:#F59E0B;color:#1a1300;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.03em}
+  @media (max-width:720px){ .vars-w{left:8px;width:calc(100vw - 16px)} }
   /* надёжность запуска: выключенный блок, закреплённый результат, повторы */
   .node.n-off .node-in{opacity:.45;filter:saturate(.3)}
   .node.n-off{outline:2px dashed color-mix(in srgb,var(--muted) 60%,transparent);outline-offset:3px;border-radius:14px}
@@ -672,6 +688,16 @@
   .rh-run .acts{padding:0 12px 10px 34px}
   .rh-log{margin:0 12px 12px;max-height:240px}
   @media (max-width:640px){ .rh-sum{grid-template-columns:repeat(2,minmax(0,1fr))} }
+  .rh-trig{margin-left:8px;padding:1px 7px;border-radius:999px;font-size:10.5px;font-weight:600;color:var(--ink-strong);background:color-mix(in srgb,#60A5FA 25%,transparent)}
+
+  /* расписание запуска */
+  .sch-w{width:520px;left:calc(50% - 260px);top:10%;height:auto;max-height:84vh}
+  .sch-kind{display:grid !important;grid-template-columns:repeat(3,1fr);gap:4px}
+  .sch-info{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--ink);padding:10px 12px;border-radius:10px;background:color-mix(in srgb,var(--bg) 70%,transparent);border:1px solid var(--line)}
+  .sch-info b{color:var(--muted);font-weight:600}
+  .sch-chip{height:32px;margin-right:6px;padding:0 10px;border-radius:9px;border:1px solid color-mix(in srgb,#60A5FA 55%,transparent);background:color-mix(in srgb,#60A5FA 14%,transparent);color:var(--ink-strong);font:600 12.5px/1 inherit;font-family:inherit;cursor:pointer;white-space:nowrap}
+  .sch-chip:hover{background:color-mix(in srgb,#60A5FA 24%,transparent)}
+  @media (max-width:720px){ .sch-w{left:8px;width:calc(100vw - 16px)} .sch-chip{display:none} }
 
   /* данные на связях: плашки и таблицы последнего запуска */
   .df-layer{position:absolute;left:0;top:0;width:0;height:0;pointer-events:none;z-index:2}

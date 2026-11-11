@@ -25,7 +25,12 @@
     L.push('        _blocks.append(fn)');
     L.push('        return fn');
     L.push('    return deco');
-    L.push('_mod = types.ModuleType("triosteum"); _mod.block = block; sys.modules["triosteum"] = _mod');
+    // var()/secret() берём у модуля среды запуска (сервер Triosteum), вне Triosteum — значения по умолчанию
+    L.push('_prev = sys.modules.get("triosteum")');
+    L.push('_mod = types.ModuleType("triosteum"); _mod.block = block');
+    L.push('_mod.var = getattr(_prev, "var", lambda name, default=None: default)');
+    L.push('_mod.secret = getattr(_prev, "secret", lambda name, default=None: default)');
+    L.push('sys.modules["triosteum"] = _mod');
     L.push('');
     L.push('def external(runtime, name, source, data):');
     L.push('    """Адаптер внешней среды. На сервере Triosteum передаёт код и данные в ' + "1С / .NET / GCC" + '."""');
@@ -141,7 +146,8 @@
   }
   function runScheme(code){
     SC.out = RUN_SERVER ? 'Запуск на сервере…\n' : 'Загружаю Python…\n'; SC.err = null; renderScheme();
-    function log(t){ SC.out += t + '\n'; var o = $('scBody').querySelector('.sc-out'); if(!o){ renderScheme(); o = $('scBody').querySelector('.sc-out'); } if(o){ o.textContent = SC.out; o.scrollTop = o.scrollHeight; } }
+    // секреты блоков в выводе схемы не показываем
+    function log(t){ SC.out += (typeof varMask === 'function' ? varMask(String(t)) : t) + '\n'; var o = $('scBody').querySelector('.sc-out'); if(!o){ renderScheme(); o = $('scBody').querySelector('.sc-out'); } if(o){ o.textContent = SC.out; o.scrollTop = o.scrollHeight; } }
     if(RUN_SERVER){
       serverRun(code, null, 'script').then(function(r){
         SC.out = ''; renderScheme();
