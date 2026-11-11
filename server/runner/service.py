@@ -48,7 +48,9 @@ class Handler(BaseHTTPRequestHandler):
         if not SLOTS.acquire(timeout=30):
             return self._send(503, {"detail": "Исполнитель занят — попробуйте через минуту"})
         try:
-            self._send(200, sandbox.run(str(job.get("code", "")), job.get("input"), job.get("mode", "block")))
+            self._send(200, sandbox.run(str(job.get("code", "")), job.get("input"), job.get("mode", "block"),
+                                             job.get("vars") if isinstance(job.get("vars"), dict) else None,
+                                             job.get("secrets") if isinstance(job.get("secrets"), dict) else None))
         finally:
             SLOTS.release()
 

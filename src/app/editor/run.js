@@ -8,8 +8,10 @@
   }
   // Python на сервере Triosteum (песочница), если сервер его поддерживает; иначе — Pyodide в браузере
   var RUN_SERVER = !!(SERVER && window.TRIOSTEUM_BOOT.runner && window.TRIOSTEUM_BOOT.runner.enabled);
-  function serverRun(code, input, mode){
-    return SERVER.api('POST', '/run/python', { code:code, input:input === undefined ? null : input, mode:mode || 'block' }).then(function(r){
+  function serverRun(code, input, mode, extra){   // extra — { vars, secrets } для triosteum.var()/secret() (board/vars.js)
+    var body = { code:code, input:input === undefined ? null : input, mode:mode || 'block' };
+    if(extra) for(var k in extra) body[k] = extra[k];
+    return SERVER.api('POST', '/run/python', body).then(function(r){
       if(r.status !== 200) return { ok:false, stdout:'', stderr:'', error:(r.data && r.data.detail) || ('ошибка ' + r.status) };
       return r.data;
     }, function(){ return { ok:false, stdout:'', stderr:'', error:'нет связи с сервером' }; });

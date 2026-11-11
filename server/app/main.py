@@ -857,6 +857,8 @@ class RunIn(BaseModel):
     code: str = Field(max_length=500_000)
     input: Any = None
     mode: str = Field(default="block", pattern="^(block|script)$")
+    vars: dict[str, Any] | None = None       # переменные пространства для triosteum.var()
+    secrets: dict[str, str] | None = None    # секреты, названные в коде, для triosteum.secret()
 
 
 def _run_local(job: dict) -> dict:
@@ -865,7 +867,7 @@ def _run_local(job: dict) -> dict:
     if runner_dir not in _sys.path:
         _sys.path.insert(0, runner_dir)
     import sandbox  # type: ignore
-    return sandbox.run(job["code"], job["input"], job["mode"])
+    return sandbox.run(job["code"], job["input"], job["mode"], job.get("vars"), job.get("secrets"))
 
 
 @app.post("/api/run/python")
@@ -878,7 +880,9 @@ def run_python(body: RunIn, w: Who = Depends(need)):
         raise HTTPException(429, "Слишком много запусков — подождите минуту")
     if len(json.dumps(body.input, ensure_ascii=False, default=str)) > 1_000_000:
         raise HTTPException(413, "Входные данные слишком большие")
-    job = {"code": body.code, "input": body.input, "mode": body.mode}
+    if len(json.dumps([body.vars, body.secrets], ensure_ascii=False, default=str)) > 200_000:
+        raise HTTPException(413, "Слишком много переменных")
+    job = {"code": body.code, "input": body.input, "mode": body.mode, "vars": body.vars or {}, "secrets": body.secrets or {}}
     if RUNNER_URL:
         try:
             r = httpx.post(RUNNER_URL + "/run", json=job, headers={"X-Runner-Token": RUNNER_TOKEN}, timeout=90)
