@@ -40,6 +40,7 @@ services:
       AI_BASE_URL: ${AI_BASE_URL:-http://ollama:11434/v1}
       AI_MODEL: ${AI_MODEL:-}
       AI_API_KEY: ${AI_API_KEY:-}
+      AI_TIMEOUT: ${AI_TIMEOUT:-300}
       YANDEX_API_KEY: ${YANDEX_API_KEY:-}
       YANDEX_FOLDER_ID: ${YANDEX_FOLDER_ID:-}
       # почта для приглашений и «Забыли пароль?» (необязательно)
@@ -86,14 +87,20 @@ services:
     # ещё надёжнее — gVisor (https://gvisor.dev), если установлен на сервере:
     # runtime: runsc
 
-  # своя модель на этом же сервере (нужна видеокарта NVIDIA или много памяти):
-  #   docker compose --profile ai up -d
-  #   docker compose exec ollama ollama pull qwen2.5-coder:14b
-  # и в .env: AI_PROVIDER=openai, AI_MODEL=qwen2.5-coder:14b
+  # своя модель на этом же сервере — мозг Infinitum (собственного ИИ Triosteum).
+  # В .env: COMPOSE_PROFILES=ai, AI_PROVIDER=openai, AI_MODEL=<модель>; затем обновить сервер и скачать модель:
+  #   docker compose exec ollama ollama pull <модель>
+  # Без видеокарты: 2 ядра и 4 ГБ — qwen2.5:1.5b; 8 ядер и 16 ГБ — qwen2.5:7b; с видеокартой NVIDIA — qwen2.5-coder:14b и больше.
   ollama:
     image: ${OLLAMA_IMAGE:-ollama/ollama}
     profiles: ["ai"]
     restart: unless-stopped
+    environment:
+      OLLAMA_CONTEXT_LENGTH: ${OLLAMA_CONTEXT_LENGTH:-8192}   # запросы Triosteum длинные: схема, код блоков
+      OLLAMA_NUM_PARALLEL: ${OLLAMA_NUM_PARALLEL:-1}          # на маленьком сервере — по одному запросу
+      OLLAMA_MAX_LOADED_MODELS: "1"
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-30m}            # модель остаётся в памяти между запросами
+    mem_limit: ${OLLAMA_MEM_LIMIT:-2500m}                    # не даёт модели вытеснить базу и сервер
     volumes:
       - ollama:/root/.ollama
     # для видеокарты NVIDIA раскомментируйте:

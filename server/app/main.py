@@ -23,6 +23,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 
 from . import ai as ai_mod
+from . import infinitum
 from . import mail
 from .live import Peer, hub
 from . import migrate
@@ -234,7 +235,7 @@ def index(request: Request):
     boot = {"user": {"id": w.user_id, "email": w.email, "name": w.name, "is_admin": w.is_admin},
             "org": {"id": w.org_id, "name": w.org_name},
             "role": w.role, "cur": prefs.get("cur"), "prefs": prefs, "spaces": spaces,
-            "ai": {"enabled": AI is not None, "provider": AI.name if AI else None, "model": AI.model if AI else None},
+            "ai": {"enabled": AI is not None, "name": infinitum.NAME, "provider": AI.name if AI else None, "model": AI.model if AI else None},
             "runner": {"enabled": RUNNER_ON}, "mail": {"enabled": mail.configured()}}
     if w.is_admin:
         boot["instance"] = {"registration": inst("registration"), "access": inst("access")}
@@ -1003,8 +1004,7 @@ def get_version(space_id: str, version_id: int, w: Who = Depends(need)):
 
 # ---------- ИИ ----------
 
-AI_SYSTEM = ("Ты — ИИ-помощник в Triosteum, платформе для автоматизации и аналитики производственных компаний. "
-             "Отвечай по-русски, точно и по делу. Следуй формату ответа, который задан в запросе.")
+# системный ИИ сервера — Infinitum: характер и знание Triosteum поверх подключённой модели (см. infinitum.py)
 AI_TASKS = {"block", "architect", "constructor", "scheme", "office", "other"}
 
 
@@ -1024,7 +1024,7 @@ def ai_status(w: Who = Depends(need)):
     with tx(w.org_id) as c:
         used = month_tokens(c)
         budget = c.execute(text("SELECT ai_budget_tokens FROM organizations WHERE id = :o"), {"o": w.org_id}).scalar_one()
-    return {"enabled": AI is not None, "provider": AI.name if AI else None, "model": AI.model if AI else None,
+    return {"enabled": AI is not None, "name": infinitum.NAME, "provider": AI.name if AI else None, "model": AI.model if AI else None,
             "used_tokens": int(used), "budget_tokens": int(budget)}
 
 
@@ -1048,7 +1048,7 @@ def ai_complete(body: AIIn, w: Who = Depends(need)):
     def gen():
         failed = None
         try:
-            for piece in provider.stream(AI_SYSTEM, body.prompt, body.max_tokens, result):
+            for piece in provider.stream(infinitum.system_prompt(), body.prompt, body.max_tokens, result):
                 yield piece
         except ai_mod.AIError as e:
             failed = str(e)
