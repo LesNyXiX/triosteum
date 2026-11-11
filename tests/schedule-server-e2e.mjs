@@ -1,0 +1,82 @@
+// Расписание на сервере: одно пространство открыто «на двух компьютерах» (два профиля браузера) —
+// наступивший срок выполняет только один клиент (общий захват срока на сервере).
+// Запуск: TRIOSTEUM_URL=http://127.0.0.1:8000 node tests/schedule-server-e2e.mjs
+import { chromium } from 'playwright';
+const B = process.env.TRIOSTEUM_URL || 'http://127.0.0.1:8000';
+const b = await chromium.launch(); const errs = []; let fail = 0;
+const ok = (c, n) => { console.log((c ? '  ✓ ' : '  ✗ ') + n); if (!c) fail++; };
+const page = async () => { const p = await (await b.newContext({ viewport: { width: 1280, height: 800 } })).newPage(); p.on('pageerror', (e) => errs.push(e.message)); return p; };
+const email = 'sched' + Date.now() + '@z.ru';
+const a = await page();
+await a.goto(B + '/login#register');
+await a.fill('#org', 'Завод Расписание'); await a.fill('#name', 'Анна'); await a.fill('#email', email); await a.fill('#pw', 'password123'); await a.check('#pd');
+await a.click('#go'); await a.waitForURL(B + '/'); await a.waitForTimeout(600);
+await a.evaluate(async () => {
+  const id = window.TRIOSTEUM_BOOT.cur || 'p1';
+  const g = { nodes: [{ id: 'n1', name: 'Блок', lang: 'cpp', x: 200, y: 200, codes: { cpp: 'int run(){ return 1; }' } }], edges: [], notes: [], cam: { x: 0, y: 0, k: 1 }, seq: 5,
+    schedule: { on: true, kind: 'every', every: 60, notify: false, last: Date.now() - 3 * 3600e3 } };
+  const cur = await (await fetch('/api/spaces/' + id)).json().catch(() => null);
+  await fetch('/api/spaces/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'Цех', env: 'code', content: g, base_rev: cur && cur.rev ? cur.rev : 0 }) });
+});
+const c2 = await page();
+await c2.goto(B + '/login'); await c2.fill('#email', email); await c2.fill('#pw', 'password123'); await c2.click('#go'); await c2.waitForURL(B + '/');
+// запуск записывается в историю (настройка runs.<пространство>) — по этим запросам видно, какой клиент выполнил схему
+const saves = new Map(); for (const p of [a, c2]) { saves.set(p, 0); p.on('request', (q) => { if (q.method() === 'PUT' && /\/api\/prefs\/runs\./.test(q.url())) saves.set(p, saves.get(p) + 1); }); }
+await Promise.all([a.reload(), c2.reload()]);
+await a.waitForTimeout(9000);
+const r1 = saves.get(a) > 0, r2 = saves.get(c2) > 0;
+ok(r1 !== r2, 'наступивший срок выполнил ровно один из двух клиентов (' + [r1, r2].join(', ') + ')');
+const sp = await a.evaluate(async () => (await (await fetch('/api/spaces/' + (window.TRIOSTEUM_BOOT.cur || 'p1'))).json()).content.schedule);
+ok(sp && sp.last > Date.now() - 60e3, 'отметка о запуске сохранена в пространстве на сервере');
+// ответ о захвате потерялся (сервер срок сохранил, клиент ответа не получил) — повтор той же вкладкой подтверждается, расписание не встаёт
+{
+  const d = await page(), em = 'sched2' + Date.now() + '@z.ru';
+  await d.goto(B + '/login#register');
+  await d.fill('#org', 'Завод Обрыв'); await d.fill('#name', 'Борис'); await d.fill('#email', em); await d.fill('#pw', 'password123'); await d.check('#pd');
+  await d.click('#go'); await d.waitForURL(B + '/'); await d.waitForTimeout(600);
+  await d.evaluate(async () => {
+    const id = window.TRIOSTEUM_BOOT.cur || 'p1';
+    const g = { nodes: [{ id: 'n1', name: 'Блок', lang: 'cpp', x: 200, y: 200, codes: { cpp: 'int run(){ return 1; }' } }], edges: [], notes: [], cam: { x: 0, y: 0, k: 1 }, seq: 5,
+      schedule: { on: true, kind: 'every', every: 60, notify: false, last: Date.now() - 3 * 3600e3 } };
+    const cur = await (await fetch('/api/spaces/' + id)).json().catch(() => null);
+    await fetch('/api/spaces/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'Цех', env: 'code', content: g, base_rev: cur && cur.rev ? cur.rev : 0 }) });
+  });
+  let lost = 0, runs = 0;
+  d.on('request', (q) => { if (q.method() === 'PUT' && /\/api\/prefs\/runs\./.test(q.url())) runs++; });
+  await d.route('**/schedule-claim', async (route) => { if (lost) return route.continue(); lost++; await route.fetch(); await route.abort('connectionreset'); });
+  await d.reload(); await d.waitForTimeout(20000);
+  ok(lost === 1 && runs > 0, 'после потерянного ответа о захвате срок выполнен при повторе (' + lost + ', ' + runs + ')');
+  await d.close();
+}
+// отметка «срок запущен» не дошла до сервера — она повторяется до подтверждения
+{
+  const d = await page(), em = 'sched3' + Date.now() + '@z.ru';
+  await d.goto(B + '/login#register');
+  await d.fill('#org', 'Завод Отметка'); await d.fill('#name', 'Вера'); await d.fill('#email', em); await d.fill('#pw', 'password123'); await d.check('#pd');
+  await d.click('#go'); await d.waitForURL(B + '/'); await d.waitForTimeout(600);
+  await d.evaluate(async () => {
+    const id = window.TRIOSTEUM_BOOT.cur || 'p1';
+    const g = { nodes: [{ id: 'n1', name: 'Блок', lang: 'cpp', x: 200, y: 200, codes: { cpp: 'int run(){ return 1; }' } }], edges: [], notes: [], cam: { x: 0, y: 0, k: 1 }, seq: 5,
+      schedule: { on: true, kind: 'every', every: 60, notify: false, last: Date.now() - 3 * 3600e3 } };
+    const cur = await (await fetch('/api/spaces/' + id)).json().catch(() => null);
+    await fetch('/api/spaces/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'Цех', env: 'code', content: g, base_rev: cur && cur.rev ? cur.rev : 0 }) });
+  });
+  let tries = 0; const answers = [];
+  await d.route('**/schedule-done', async (route) => { tries++; if (tries === 1) return route.abort('connectionreset'); return route.continue(); });
+  d.on('response', async (r) => { if (/schedule-done/.test(r.url())) answers.push(await r.json().catch(() => null)); });
+  await d.reload(); await d.waitForTimeout(25000);
+  ok(tries >= 2 && answers.some((x) => x && x.ok === true), 'потерянная отметка о запуске отправлена снова и принята (' + tries + ', ' + JSON.stringify(answers) + ')');
+  const left = await d.evaluate(() => localStorage.getItem('triosteum.sched.done'));
+  ok(!left, 'подтверждённая отметка больше не хранится');
+  // другой клиент с устаревшим пространством (старая отметка last) этот срок не получает и сдвигает свой
+  const st = await d.evaluate(async () => {
+    const id = window.TRIOSTEUM_BOOT.cur || 'p1';
+    const r = await fetch('/api/spaces/' + id + '/schedule-claim', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slot: Date.now() - 2 * 3600e3, token: 'stale' }) });
+    return r.json();
+  });
+  ok(st.ok === false && st.last > Date.now() - 120e3, 'устаревший срок не выдаётся, сервер сообщает время последнего запуска: ' + JSON.stringify(st));
+  await d.close();
+}
+ok(errs.length === 0, 'нет ошибок JavaScript' + (errs.length ? ': ' + errs.join(' | ') : ''));
+await b.close();
+console.log(fail ? `\nПровалено: ${fail}` : '\nВсе проверки пройдены'); process.exit(fail ? 1 : 0);
