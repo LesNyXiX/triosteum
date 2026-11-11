@@ -672,6 +672,23 @@
   .sch-chip:hover{background:color-mix(in srgb,#60A5FA 24%,transparent)}
   @media (max-width:720px){ .sch-w{left:8px;width:calc(100vw - 16px)} .sch-chip{display:none} }
 
+  /* данные на связях: плашки и таблицы последнего запуска */
+  .df-layer{position:absolute;left:0;top:0;width:0;height:0;pointer-events:none;z-index:2}
+  .df-chip{position:absolute;pointer-events:auto;white-space:nowrap;padding:2px 8px;border-radius:999px;
+    font:600 11px/16px inherit;font-family:inherit;color:var(--ink-strong);background:var(--panel);border:1px solid color-mix(in srgb,var(--okc,#34D399) 55%,var(--line2));
+    box-shadow:0 2px 8px rgba(0,0,0,.35);cursor:pointer;transform-origin:50% 50%;transform:translate(-50%,-50%) scale(var(--ik,1))}
+  .df-chip:hover,.df-chip:focus-visible{background:color-mix(in srgb,var(--okc,#34D399) 18%,var(--panel))}
+  .df-chip.empty{border-color:color-mix(in srgb,var(--warn,#FBBF24) 60%,var(--line2));color:var(--muted)}
+  .df-view{display:flex;flex-direction:column;gap:6px}
+  .df-k{font-size:12.5px;font-weight:600;color:var(--ink-strong)}
+  .df-none{font-size:12.5px;color:var(--muted);line-height:1.45}
+  .df-scroll{max-height:240px;overflow:auto;border:1px solid var(--line);border-radius:8px}
+  .df-tbl{border-collapse:collapse;font-size:12px;width:100%}
+  .df-tbl th{position:sticky;top:0;background:var(--panel);text-align:left;font-weight:600;color:var(--muted);padding:4px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+  .df-tbl td{padding:3px 8px;border-bottom:1px solid color-mix(in srgb,var(--line) 55%,transparent);color:var(--ink);white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis}
+  .df-i{color:var(--dim) !important}
+  .df-more{font-size:11.5px;color:var(--muted)}
+  .df-json{margin:0;max-height:240px;overflow:auto;padding:8px 10px;border-radius:8px;background:var(--bg);border:1px solid var(--line);font:12px/1.45 var(--mono);white-space:pre-wrap;word-break:break-word;color:var(--ink)}
   /* что нового */
   .wn-w{width:560px;left:calc(50% - 280px);top:8%;height:auto;max-height:84vh}
   .wn-lead{margin:0;font-size:13px;line-height:1.5;color:var(--muted)}
