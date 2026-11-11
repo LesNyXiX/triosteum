@@ -1,10 +1,16 @@
 // Надёжность запуска: выключение блока, закреплённый результат, повторы при ошибке, «продолжать при ошибке».
 // Запуск: npm run build && node tests/run-opts-e2e.mjs
 import { chromium } from 'playwright';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { createServer } from 'node:http';
+import { readFileSync } from 'node:fs';
 
-const URL = pathToFileURL(join(dirname(fileURLToPath(import.meta.url)), '..', 'docs', 'index.html')).href;
+// по http: на file:// Chromium иногда теряет localStorage и sessionStorage при перезагрузке
+const HTML = join(dirname(fileURLToPath(import.meta.url)), '..', 'docs', 'index.html');
+const srv = createServer((q, r) => { if (q.url === '/' || q.url.startsWith('/?')) { r.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); r.end(readFileSync(HTML)); } else { r.writeHead(404); r.end(); } });
+await new Promise((ok) => srv.listen(0, '127.0.0.1', ok));
+const URL = 'http://127.0.0.1:' + srv.address().port + '/';
 let failed = 0;
 const check = (ok, name) => { console.log((ok ? '  ✓ ' : '  ✗ ') + name); if (!ok) failed++; };
 const node = (id, name, x, code, extra) => Object.assign({ id, name, lang: 'cpp', x, y: 220, codes: { cpp: code }, pluginId: null, family: null, desc: '', colors: null }, extra || {});
@@ -15,7 +21,7 @@ async function browser0() { return chromium.launch(); }
 async function open(nodes, edges) {
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   await ctx.addInitScript((g) => {
-    if (sessionStorage.getItem('seeded')) return; sessionStorage.setItem('seeded', '1');
+    if (window.top !== window || sessionStorage.getItem('seeded')) return; /* только главная страница, один раз */ sessionStorage.setItem('seeded', '1');
     localStorage.setItem('triosteum.projects', JSON.stringify({ cur: 'p1', list: [{ id: 'p1', name: 'Запуск', t: Date.now() }] }));
     localStorage.setItem('triosteum.proj.p1', JSON.stringify(g));
     localStorage.setItem('triosteum.profile', JSON.stringify({ name: 'Т', org: 'З' })); localStorage.setItem('triosteum.tour', '{"done":true}');
@@ -123,6 +129,6 @@ console.log('Повторное ревью Codex: пространство, ос
   check(errors.length === 0, 'ошибок JavaScript нет' + (errors.length ? ': ' + errors.join(' | ') : ''));
   await ctx.close();
 }
-await browser.close();
+await browser.close(); srv.close();
 console.log(failed ? '\nПровалено: ' + failed : '\nВсё прошло');
 process.exit(failed ? 1 : 0);
