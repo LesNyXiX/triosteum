@@ -1,0 +1,24 @@
+const assert = require('node:assert/strict'), fs = require('node:fs'), path = require('node:path');
+const source = fs.readFileSync(path.join(__dirname, '../src/app/workspace/audit.js'), 'utf8');
+const g = { nodes:[{ id:'a', name:'A', lang:'cpp', codes:{ cpp:'int run(){ return 1; }' } }], edges:[], notes:[] };
+const prefs={};
+const repo={pref:(name,d)=>name==='profile'?{name:'Тест'}:(prefs[name]||d),setPref:(name,v)=>{prefs[name]=v;}};
+const api = new Function('G','Repo','curId', source.slice(0, source.indexOf('  function audClose')) + '\nreturn {audDiff,audSnap,audAppend,audList};')(g, repo, ()=>'p1');
+const before = api.audSnap();
+g.nodes[0].codes.cpp = 'SECRET_TOKEN\nsecond line';
+let diff = api.audDiff(before, api.audSnap());
+assert.equal(diff.length,1); assert.equal(diff[0].type,'code');
+assert(!JSON.stringify(diff).includes('SECRET_TOKEN')); assert.match(diff[0].detail,/\+2.*−1/);
+const old = {nodes:[{id:'a',name:'A',code:'',lang:'cpp'}],edges:[],notes:[]};
+const now = {nodes:[{id:'a',name:'B',code:'',lang:'cpp'},{id:'b',name:'C',code:'',lang:'cpp'}],edges:[{id:'e',from:'a',to:'b',taps:'[]'}],notes:[{id:'t'}]};
+diff = api.audDiff(old,now);
+assert.deepEqual(diff.map(r=>r.type).sort(),['edge_add','node_add','node_name','note_add']);
+assert.equal(diff.find(r=>r.type==='node_name').detail,'A → B');
+assert.deepEqual(api.audDiff(now,old).map(r=>r.type).sort(),['edge_del','node_del','node_name','note_del']);
+assert.equal(api.audDiff(now,now).length,0);
+console.log('Аудит: сравнение снимков и отсутствие кода в записях — прошли');
+
+prefs['audit:p1']=Array.from({length:2000},(_,i)=>({id:String(i),t:i,type:'run',obj:'Схема'}));
+api.audAppend([{id:'new',t:9999,type:'run',obj:'Схема'}],'p1');
+assert.equal(prefs['audit:p1'].length,2000);assert.equal(prefs['audit:p1'][0].id,'new');
+assert.equal(api.audList('p2').length,0);

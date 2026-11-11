@@ -11,7 +11,8 @@
     "styles/animations.css",
     "styles/welcome.css",
     "styles/team.css",
-    "styles/live.css"
+    "styles/live.css",
+    "styles/audit.css"
   ],
   "js": [
     "app/core/langs-plugins.js",
@@ -123,6 +124,7 @@
     "app/workspace/env-dock.js",
     "app/workspace/tour.js",
     "app/workspace/whats-new.js",
+    "app/workspace/audit.js",
     "app/main.js"
   ]
 }
