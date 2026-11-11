@@ -25,7 +25,12 @@
     var j; try { j = JSON.stringify(pinClean(v)); } catch(e){ j = null; }
     if(j === undefined || j === null && v !== null){ toast('Этот результат нельзя закрепить'); return false; }
     if(j && j.length > PIN_MAX){ toast('Результат слишком большой для закрепления (' + Math.round(j.length / 1000) + ' тыс. символов, можно до ' + PIN_MAX / 1000 + ' тыс.)'); return false; }
+    // элементы результатов маршрута от этого блока (показатели, диаграммы, таблицы) — вместе с записями, их берёт дашборд
+    var it = CMP && CMP.lastItems && CMP.lastItems[n.id], ij = null;
+    if(it && it.length){ try { ij = JSON.stringify(it); } catch(e){ ij = null; } }
+    if(ij && (j || '').length + ij.length > PIN_MAX){ toast('Результат слишком большой для закрепления (' + Math.round(((j || '').length + ij.length) / 1000) + ' тыс. символов, можно до ' + PIN_MAX / 1000 + ' тыс.)'); return false; }
     n.pin = { v:v === undefined ? null : JSON.parse(j || 'null'), t:Date.now() };
+    if(ij) n.pin.items = JSON.parse(ij);
     refreshNode(n); return true;
   }
   function unpinNode(n){ delete n.pin; refreshNode(n); }
@@ -43,7 +48,26 @@
   // сбрасываем их, иначе блок с тем же id мог бы закрепить чужой результат
   (function(){
     var _sg = setGraph;
-    setGraph = function(o){ if(CMP) CMP.last = {}; return _sg(o); };
+    setGraph = function(o){ if(CMP){ CMP.last = {}; CMP.lastItems = {}; } return _sg(o); };
+  })();
+  // элементы результатов последнего запуска маршрута по блокам. Запуск маршрута создаёт новый RES.items —
+  // по нему и отличаем: запуск кодовой доски старые элементы маршрута не трогает
+  (function(){
+    var seen = null, _end = cmpEnd;
+    cmpEnd = function(results){
+      if(results && typeof RES !== 'undefined' && RES && RES.items && RES.items !== seen){
+        seen = RES.items; CMP.lastItems = CMP.lastItems || {};
+        // только блоки этого запуска: при запуске выделенного results дополнен прежними результатами (cmpSeed),
+        // а их элементы в новом RES.items не появляются — кэш остальных блоков не трогаем
+        var ran = {}; (CMP.order || []).forEach(function(id){ ran[id] = 1; });
+        for(var k in ran) delete CMP.lastItems[k];
+        RES.items.forEach(function(x){
+          if(!x || !x.node || !ran[x.node] || x.type === 'doc' || x.type === 'pack') return;
+          (CMP.lastItems[x.node] = CMP.lastItems[x.node] || []).push(x);
+        });
+      }
+      return _end.apply(this, arguments);
+    };
   })();
 
   // метки на блоке: выключен, закреплён, повторы

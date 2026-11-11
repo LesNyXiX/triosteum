@@ -145,6 +145,41 @@ console.log('Третий раунд Codex: вложенные поля «__…�
   check(errors.length === 0, 'ошибок JavaScript нет' + (errors.length ? ': ' + errors.join(' | ') : ''));
   await ctx.close();
 }
+console.log('Четвёртый раунд Codex: снимок не меняется, показатели закреплённого блока доходят до дашборда');
+{
+  const CS = 'public class R { public object Run(dynamic d){ d.value = d.value + 1; return d; } }';
+  let { page, ctx, errors } = await open([node('a', 'Источник', 160, OK, { pin: { v: { value: 1 }, t: 1 } }), node('b', 'Меняет вход', 520, CS, { lang: 'csharp', codes: { csharp: CS } })]);
+  await run(page); const l2 = await run(page);
+  check(/✓/.test(l2) && !/Меняет вход[^\n]*ошибк/i.test(l2) && !/✗/.test(l2), 'блок ниже выполнился (меняет полученный объект)');
+  const g1 = await graph(page);
+  check(JSON.stringify(g1.nodes.find((n) => n.id === 'a').pin.v) === '{"value":1}', 'закреплённый снимок не изменился после двух запусков: ' + JSON.stringify(g1.nodes.find((n) => n.id === 'a').pin.v));
+  await ctx.close();
+  const opn = (id, name, x, lang, p) => ({ id, name, lang, x, y: 220, codes: { [lang]: JSON.stringify(p) }, pluginId: null, family: null, desc: '', colors: null });
+  ({ page, ctx, errors } = await open([
+    { id: 's', name: 'Продажи', lang: 'sheet', x: 80, y: 220, codes: { sheet: JSON.stringify({ rows: [['Имя', 'Сумма'], ['А', '5'], ['Б', '7']] }) }, pluginId: null, family: null, desc: '', colors: null },
+    opn('m', 'Выручка', 380, 'metric', { title: 'Выручка', field: 'Сумма', fn: 'sum', target: 0, unit: 'руб.' }),
+    opn('d', 'Сводка', 680, 'dashboard', { title: 'Сводка', tables: 'no' })],
+    [{ id: 'e1', from: 's', to: 'm', taps: [] }, { id: 'e2', from: 'm', to: 'd', taps: [] }]));
+  let log = await run(page);
+  check(/Показателей: 1/.test(log), 'до закрепления: на дашборде один показатель');
+  await pop(page, 'm'); await page.locator('#pop .ropts button', { hasText: 'Закрепить результат последнего запуска' }).click(); await page.waitForTimeout(300);
+  const pin = (await graph(page)).nodes.find((n) => n.id === 'm').pin;
+  check(pin && Array.isArray(pin.items) && pin.items.some((x) => x.type === 'metric' && x.value === 12), 'в снимке сохранён и сам показатель (12)');
+  log = await run(page);
+  check(/📌 Выручка — закреплённый результат/.test(log) && /Показателей: 1/.test(log), 'после закрепления дашборд по-прежнему получает показатель');
+  // запуск только таблицы не стирает показатель из кэша: закреплённый потом показатель сохраняет элементы
+  await pop(page, 'm'); await page.locator('#pop .ropts button', { hasText: 'Открепить' }).click(); await page.waitForTimeout(200);
+  await run(page);
+  await page.keyboard.press('Escape'); const sb = await page.locator('.node[data-id="s"]').boundingBox(); await page.mouse.click(sb.x + sb.width / 2, sb.y + 20); await page.waitForTimeout(200);
+  await page.evaluate(() => document.getElementById('runSel').click()); await page.waitForFunction(() => !document.querySelector('#runp.busy'), null, { timeout: 15000 }); await page.waitForTimeout(300);
+  await pop(page, 'm'); await page.locator('#pop .ropts button', { hasText: 'Закрепить результат последнего запуска' }).click(); await page.waitForTimeout(300);
+  const pin2 = (await graph(page)).nodes.find((n) => n.id === 'm').pin;
+  check(pin2 && Array.isArray(pin2.items) && pin2.items.some((x) => x.type === 'metric'), 'после запуска только таблицы показатель закрепляется вместе с элементом');
+  log = await run(page);
+  check(/Показателей: 1/.test(log), 'и дашборд его получает');
+  check(errors.length === 0, 'ошибок JavaScript нет' + (errors.length ? ': ' + errors.join(' | ') : ''));
+  await ctx.close();
+}
 await browser.close(); srv.close();
 console.log(failed ? '\nПровалено: ' + failed : '\nВсё прошло');
 process.exit(failed ? 1 : 0);
