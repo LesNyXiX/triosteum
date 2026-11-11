@@ -1,5 +1,5 @@
   /* Самодостаточное описание текущей доски. Код и результаты всегда выводятся как текст. */
-  var DOCGEN = { ui:null, snapshot:null, extra:{}, busy:false, back:null };
+  var DOCGEN = { ui:null, snapshot:null, extra:{}, busy:false, back:null, inert:null };
   var DG_CSS = 'body{font:15px/1.5 system-ui,sans-serif;color:#18202a;background:white;margin:0;padding:28px;overflow-wrap:anywhere}h1{font-size:26px}h2{font-size:21px;margin-top:28px}h3{font-size:17px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #ccd2dc;padding:8px;text-align:left}pre{white-space:pre-wrap;background:#f1f3f7;padding:12px;border-radius:8px;overflow-wrap:anywhere}svg{max-width:100%;height:auto}.dg-block{border-top:1px solid #ccd2dc;padding:12px 0}.dg-caption{color:#596473}.dg-ai{border-left:3px solid #8163ba;padding-left:12px}@media print{body{padding:0}details{display:block}details>pre{display:block!important}.dg-block{break-inside:avoid}svg{max-height:70vh}}';
   function dgEsc(v){ return String(v === undefined || v === null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   function dgText(v,max){ var t=typeof v==='string'?v:JSON.stringify(v);t=t===undefined?'':t;if(typeof varMask==='function')t=varMask(t);return t.length>(max||1500)?t.slice(0,max||1500)+'…':t; }
@@ -9,7 +9,7 @@
     nodes.forEach(function(n){(plan.preds[n.id]||[]).forEach(function(id){if(map[id])flows.push({from:id,to:n.id});});});
     var profile=localProfile()||{},user=SERVER&&SERVER.user||{};
     return {name:curProj().name,env:ENV.name,date:new Date().toLocaleString('ru-RU'),author:profile.name||user.name||'Не указан',space:curId(),flows:flows,cyclic:plan.cyclic.map(function(n){return n.id;}),nodes:nodes.map(function(n){
-      var b=CMP.blocks[n.id],notes=(G.notes||[]).filter(function(t){return t.attach===n.id||(!t.attach&&!t.hidden&&Math.abs(t.x-n.x)<250&&Math.abs(t.y-n.y)<180);});
+      var b=!CMP.busy&&Object.prototype.hasOwnProperty.call(CMP.last,n.id)?CMP.blocks[n.id]:null,notes=(G.notes||[]).filter(function(t){return t.attach===n.id||(!t.attach&&!t.hidden&&Math.abs(t.x-n.x)<250&&Math.abs(t.y-n.y)<180);});
       return {id:n.id,name:n.name,lang:cmpLangName(n),desc:n.desc||'',x:isFinite(n.x)?n.x:0,y:isFinite(n.y)?n.y:0,code:nodeCode(n)||'',notes:notes.map(function(t){return String(t.text||'');}),status:b?b.s:'',info:b?dgText(b.info):'',result:b&&Object.prototype.hasOwnProperty.call(CMP.last,n.id)?dgText(CMP.last[n.id]):''};
     })};
   }
@@ -46,7 +46,9 @@
       n.notes.forEach(function(t){out.push('','Заметка: '+dgMdText(t));});if(n.status)out.push('','Последний запуск: '+dgMdText(n.status+' · '+n.info+' · '+n.result));if(extra[n.id])out.push('','Пояснение ИИ (проверьте): '+dgMdText(extra[n.id]));out.push('',fence,n.code,fence);
     });return out.join('\n');
   }
-  function dgClose(){ if(document.activeElement && document.activeElement.blur) document.activeElement.blur();if(DOCGEN.ui)DOCGEN.ui.layer.hidden=true;if(DOCGEN.back&&document.contains(DOCGEN.back))DOCGEN.back.focus();}
+  function dgClose(){ if(document.activeElement && document.activeElement.blur) document.activeElement.blur();if(DOCGEN.inert){DOCGEN.inert.forEach(function(x){x.el.inert=x.was;});DOCGEN.inert=null;}if(DOCGEN.ui)DOCGEN.ui.layer.hidden=true;if(DOCGEN.back&&document.contains(DOCGEN.back))DOCGEN.back.focus();}
+  function dgButtons(){return Array.prototype.filter.call(DOCGEN.ui.box.querySelectorAll('button'),function(b){return !b.disabled&&b.getClientRects().length;});}
+  function dgPreviewFocus(last){var d=DOCGEN.ui.frame.contentDocument,a=d&&d.querySelectorAll('summary');if(a&&a.length){a[last?a.length-1:0].focus();return true;}return false;}
   function dgRefresh(){DOCGEN.ui.frame.srcdoc=dgHtml(DOCGEN.snapshot,DOCGEN.extra);}
   function dgAI(){
     if(!AI.api||DOCGEN.busy)return;var snap=DOCGEN.snapshot;DOCGEN.busy=true;DOCGEN.ui.ai.disabled=true;DOCGEN.ui.status.textContent='Готовлю пояснения…';
@@ -65,11 +67,15 @@
       box.appendChild(h('div',{'class':'dg-actions'},[
         h('button',{type:'button','class':'btn sm',text:'Скачать HTML',on:{click:function(){download(fileBase(DOCGEN.snapshot.name,'shema')+'-opisanie.html',dgHtml(DOCGEN.snapshot,DOCGEN.extra),'text/html;charset=utf-8','Описание сохранено');}}}),
         h('button',{type:'button','class':'btn sm',text:'Скачать Markdown',on:{click:function(){download(fileBase(DOCGEN.snapshot.name,'shema')+'-opisanie.md',dgMarkdown(DOCGEN.snapshot,DOCGEN.extra),'text/markdown;charset=utf-8','Описание сохранено');}}}),
-        h('button',{type:'button','class':'btn sm',text:'Печать / PDF',on:{click:function(){frame.contentDocument.querySelectorAll('details').forEach(function(d){d.open=true;});frame.contentWindow.focus();frame.contentWindow.print();}}}),ai]));
+        h('button',{type:'button','class':'btn sm',text:'Печать / PDF',on:{click:function(){if(!frame.contentDocument||!frame.contentDocument.body)return;frame.contentDocument.querySelectorAll('details').forEach(function(d){d.open=true;});frame.contentWindow.focus();frame.contentWindow.print();}}}),ai]));
       box.appendChild(status);box.appendChild(frame);layer.appendChild(box);document.body.appendChild(layer);DOCGEN.ui={layer:layer,box:box,frame:frame,status:status,ai:ai};
-      box.addEventListener('keydown',function(e){e.stopPropagation();if(e.key==='Escape'){e.preventDefault();dgClose();}if(e.key==='Tab'){var a=box.querySelectorAll('button:not([disabled]),iframe');if(e.shiftKey&&document.activeElement===a[0]){e.preventDefault();a[a.length-1].focus();}else if(!e.shiftKey&&document.activeElement===a[a.length-1]){e.preventDefault();a[0].focus();}}});
-      frame.addEventListener('load',function(){frame.contentDocument.addEventListener('keydown',function(e){if(e.key==='Escape'){e.preventDefault();dgClose();}});});
+      box.addEventListener('keydown',function(e){e.stopPropagation();if(e.key==='Escape'){e.preventDefault();dgClose();}if(e.key==='Tab'){var a=dgButtons();if(e.shiftKey&&document.activeElement===a[0]){e.preventDefault();if(!dgPreviewFocus(true))a[a.length-1].focus();}else if(!e.shiftKey&&document.activeElement===a[a.length-1]){e.preventDefault();if(!dgPreviewFocus(false))a[0].focus();}}});
+      frame.addEventListener('load',function(){frame.contentDocument.addEventListener('keydown',function(e){
+        if(e.key==='Escape'){e.preventDefault();dgClose();return;}if(e.key!=='Tab')return;
+        var a=frame.contentDocument.querySelectorAll('summary'),buttons=dgButtons(),active=frame.contentDocument.activeElement;
+        if(!a.length||(!e.shiftKey&&active===a[a.length-1])||(e.shiftKey&&active===a[0])){e.preventDefault();buttons[e.shiftKey?buttons.length-1:0].focus();}
+      });});
     }
-    DOCGEN.ui.layer.hidden=false;DOCGEN.ui.ai.hidden=!AI.api;DOCGEN.ui.ai.disabled=DOCGEN.busy;DOCGEN.ui.status.textContent='HTML и Markdown создаются локально. Пояснения ИИ отправляют код подключённому помощнику только по кнопке.';dgRefresh();DOCGEN.ui.box.querySelector('button').focus();
+    DOCGEN.ui.layer.hidden=false;if(!DOCGEN.inert){DOCGEN.inert=[];Array.prototype.forEach.call(document.body.children,function(el){if(el!==DOCGEN.ui.layer){DOCGEN.inert.push({el:el,was:el.inert});el.inert=true;}});}DOCGEN.ui.ai.hidden=!AI.api;DOCGEN.ui.ai.disabled=DOCGEN.busy;DOCGEN.ui.status.textContent='HTML и Markdown создаются локально. Пояснения ИИ отправляют код подключённому помощнику только по кнопке.';dgRefresh();DOCGEN.ui.box.querySelector('button').focus();
   }
   (function(){var cmd=cmdCommands;cmdCommands=function(){return cmd().concat([{sec:'space',label:'Описание схемы',icon:'file',act:dgOpen,k:'документация html markdown pdf'}]);};var items=projItems;projItems=function(){return items().concat([{label:'Описание схемы',icon:'file',act:dgOpen}]);};})();

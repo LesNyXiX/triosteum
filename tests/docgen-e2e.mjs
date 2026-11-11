@@ -23,6 +23,11 @@ try{
   check(await preview.locator('img,script').count()===0,'название блока экранировано и не превращается в HTML');
   check((await preview.locator('body').innerText()).includes('Автор: Автор')&&(await preview.locator('body').innerText()).includes('Примечание'),'профиль и заметка включены');
   check((await preview.locator('.dg-block').first().innerText()).includes('Последний запуск: успешно'),'статус последнего запуска включён');
+  await preview.locator('summary').last().focus();await page.keyboard.press('Tab');
+  check(await page.getByRole('button',{name:'Закрыть описание схемы'}).evaluate(e=>e===document.activeElement),'Tab из последнего раздела iframe возвращается к кнопкам окна');
+  await page.getByRole('button',{name:'Закрыть описание схемы'}).focus();await page.keyboard.press('Shift+Tab');
+  check(await preview.locator('summary').last().evaluate(e=>e===document.activeElement),'Shift+Tab с первой кнопки возвращается в последний раздел предпросмотра');
+  await page.keyboard.press('Tab');await page.keyboard.press('Delete');check(await page.locator('.node').count()===3,'после обхода iframe Delete не удаляет фоновые блоки');
   check(!(await page.getByRole('button',{name:'Дописать пояснения ИИ'}).isVisible()),'без подключения ИИ документ работает автономно');
   const readDownload=async(name)=>{const [dl]=await Promise.all([page.waitForEvent('download'),page.getByRole('button',{name,exact:true}).click()]);const s=await dl.createReadStream();let text='';for await(const part of s)text+=part;return text;};
   const h=await readDownload('Скачать HTML'),md=await readDownload('Скачать Markdown');
@@ -33,7 +38,11 @@ try{
   await page.getByRole('button',{name:'Скачать HTML'}).focus();await page.keyboard.press('Delete');await page.keyboard.press('ArrowDown');
   check(await page.locator('.node').count()===3,'клавиши окна не удаляют блоки');
   await page.setViewportSize({width:390,height:844});const b=await dialog.boundingBox();check(b.x>=0&&b.x+b.width<=391,'окно помещается на телефоне');
-  await page.keyboard.press('Escape');check(!(await dialog.isVisible()),'Escape закрывает окно');check(errors.length===0,'нет ошибок JavaScript: '+errors.join('; '));
+  await page.keyboard.press('Escape');check(!(await dialog.isVisible()),'Escape закрывает окно');
+  await page.setViewportSize({width:1400,height:900});await page.locator('#projBtn').click();await page.getByText('Дублировать',{exact:true}).click();
+  await page.keyboard.press('Control+k');await page.locator('#cmdQ').fill('Описание схемы');await page.keyboard.press('Enter');await preview.locator('.dg-block').first().waitFor();
+  check(!(await preview.locator('body').innerText()).includes('Последний запуск:'),'копия пространства не получает статусы прежнего запуска');await page.keyboard.press('Escape');
+  check(errors.length===0,'нет ошибок JavaScript: '+errors.join('; '));
   const aiPage=await ctx.newPage();await aiPage.addInitScript(()=>{window.claude={use:async name=>name==='sample'?async()=>({text:'[{"id":"a","text":"Объяснение <img src=x onerror=alert(1)>"}]'}):null};});
   await aiPage.goto('http://127.0.0.1:'+srv.address().port);await aiPage.locator('.node').first().waitFor();await aiPage.waitForTimeout(150);await aiPage.keyboard.press('Control+k');await aiPage.locator('#cmdQ').fill('Описание схемы');await aiPage.keyboard.press('Enter');await aiPage.getByRole('button',{name:'Дописать пояснения ИИ',exact:true}).click();
   const aiPreview=aiPage.frameLocator('iframe[title="Предпросмотр описания схемы"]');await aiPreview.locator('.dg-ai').waitFor();
