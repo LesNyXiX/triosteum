@@ -184,4 +184,4 @@
   }
   var FOREIGN_LANGS = { cpp:1, csharp:1, '1c':1 };
   function foreignLabel(lang){ return lang === 'cpp' ? 'C++' : lang === 'csharp' ? 'C#' : '1С'; }
-  function fmtOut(v){ var s = JSON.stringify(v); return s && s.length > 200 ? s.slice(0, 200) + '…' : s; }
+  function fmtOut(v){ var s = JSON.stringify(v); if(s && typeof varMask === 'function') s = varMask(s); return s && s.length > 200 ? s.slice(0, 200) + '…' : s; }   // секреты — до обрезки

@@ -1,6 +1,7 @@
 """Обвязка, которая выполняется ВНУТРИ песочницы.
 
-Читает задание из stdin: {"code": "...", "input": <данные или null>, "mode": "block" | "script"}.
+Читает задание из stdin: {"code": "...", "input": <данные или null>, "mode": "block" | "script",
+                         "vars": {имя: значение}?, "secrets": {имя: значение}?}.
 mode=block — как блок на доске: код объявляет функцию с @block, она вызывается с входными данными
              (или с тестовыми данными блока), результат пишется в result.json.
 mode=script — просто выполняет код (целостный код схемы).
@@ -24,9 +25,25 @@ def block(name="Блок", sample=None, **kw):
     return deco
 
 
+_vars = job.get("vars") if isinstance(job.get("vars"), dict) else {}        # переменные пространства (активный профиль)
+_secrets = job.get("secrets") if isinstance(job.get("secrets"), dict) else {}  # только секреты, названные в коде
+
+
+def var(name, default=None):
+    v = _vars.get(name)
+    return default if v is None else v
+
+
+def secret(name, default=None):
+    v = _secrets.get(name)
+    return default if v is None else v
+
+
 for _m in ("triosteum", "yadro"):
     mod = types.ModuleType(_m)
     mod.block = block
+    mod.var = var
+    mod.secret = secret
     sys.modules[_m] = mod
 
 ns = {"__name__": "__main__" if job.get("mode") == "script" else "triosteum_block", "block": block}

@@ -1,0 +1,62 @@
+import {chromium} from 'playwright';
+import {createServer} from 'node:http';
+import {readFileSync} from 'node:fs';
+const html=readFileSync(new URL('../docs/index.html',import.meta.url));
+const srv=createServer((q,r)=>{r.writeHead(200,{'content-type':'text/html; charset=utf-8'});r.end(html);});await new Promise(ok=>srv.listen(0,'127.0.0.1',ok));
+const browser=await chromium.launch();let failed=0;const check=(ok,name)=>{console.log((ok?'  ✓ ':'  ✗ ')+name);if(!ok)failed++;};
+try{
+  const ctx=await browser.newContext({viewport:{width:1400,height:900}});
+  await ctx.addInitScript(()=>{
+    if(window.top!==window||localStorage.getItem('__verSeed'))return;localStorage.setItem('__verSeed','1');
+    const node=(id,x)=>({id,name:id.toUpperCase(),kind:'block',lang:'cpp',x,y:180,codes:{cpp:'int run(){ return 1; }'}});
+    const g={nodes:[node('a',100),node('b',500)],edges:[{id:'e1',from:'a',to:'b',taps:[]}],notes:[],seq:5,cam:{x:0,y:0,k:1}};
+    localStorage.setItem('triosteum.projects',JSON.stringify({cur:'p1',list:[{id:'p1',name:'Версии',env:'code',t:Date.now()},{id:'p2',name:'Другое',env:'code',t:Date.now()}]}));
+    localStorage.setItem('triosteum.proj.p1',JSON.stringify(g));localStorage.setItem('triosteum.proj.p2',JSON.stringify({...g,nodes:[],edges:[]}));
+    localStorage.setItem('triosteum.profile','{"name":"Тест","org":"Тест"}');localStorage.setItem('triosteum.tour','{"done":true}');
+  });
+  const page=await ctx.newPage(),errors=[];page.on('pageerror',e=>{if(!/sandboxed/.test(e.message))errors.push(e.message);});
+  await page.clock.install();
+  const url='http://127.0.0.1:'+srv.address().port;await page.goto(url);await page.locator('.node').first().waitFor();
+  const open=async()=>{await page.keyboard.press('Control+Alt+s');await page.getByRole('dialog',{name:'Версии схемы'}).waitFor();};
+  const graph=()=>page.evaluate(()=>JSON.parse(localStorage.getItem('triosteum.proj.p1')));
+  await open();await page.getByRole('textbox',{name:'Название версии',exact:true}).fill('Исходная');await page.getByRole('button',{name:'Сохранить версию',exact:true}).click();await page.locator('.ver-row').waitFor();
+  check(await page.locator('.ver-row').count()===1,'Ctrl+Alt+S открывает окно и сохраняет подписанную версию');
+  check(/блоков 2 · связей 1/.test(await page.locator('.ver-row').innerText()),'версия показывает число блоков и связей');
+  await page.keyboard.press('Escape');await page.locator('.node[data-id="a"]').dblclick();await page.locator('#code').fill('int run(){ return 9; }');await page.locator('#backBtn').click();await page.waitForTimeout(400);
+  const point=await page.locator('.edge-hit').evaluate(e=>{const p=e.getPointAtLength(e.getTotalLength()/2),m=e.getScreenCTM();return {x:p.x*m.a+m.e,y:p.y*m.d+m.f};});await page.mouse.click(point.x,point.y,{button:'right'});await page.locator('#pop').getByRole('button',{name:'Удалить',exact:true}).click();await page.waitForTimeout(400);
+  await open();await page.locator('.ver-row').getByRole('button',{name:'Сравнить с текущей'}).click();
+  check(/Изменён код/.test(await page.locator('.ver-diff').innerText())&&/Удалена связь/.test(await page.locator('.ver-diff').innerText()),'сравнение находит код и удалённую связь');
+  check(/return 1/.test(await page.locator('.ver-del').innerText())&&/return 9/.test(await page.locator('.ver-add').innerText()),'построчное сравнение показывает удалённый и добавленный код');
+  await page.getByRole('button',{name:'Вернуть эту версию',exact:true}).click();await page.locator('#askYes').click();
+  await page.waitForFunction(()=>document.querySelectorAll('.ver-row').length===2);
+  let g=await graph();check(g.edges.length===1&&g.nodes[0].codes.cpp.includes('return 1'),'версия вернула код и связь');
+  check((await page.locator('.ver-list').innerText()).includes('Перед возвратом'),'текущее состояние предварительно сохранено');
+  await page.reload();await page.locator('.node').first().waitFor();await open();await page.waitForFunction(()=>document.querySelectorAll('.ver-row').length===2);
+  check(await page.locator('.ver-row').count()===2,'версии остаются после перезагрузки');
+  await page.keyboard.press('Escape');await page.locator('#projBtn').click();await page.getByText('Другое',{exact:true}).click();await open();
+  await page.waitForFunction(()=>/Версий пока нет/.test(document.querySelector('.ver-list').textContent));
+  check(await page.locator('.ver-row').count()===0,'версии разделены по пространствам');
+  await page.keyboard.press('Escape');await page.locator('#projBtn').click();await page.getByText('Версии',{exact:true}).click();
+  // Обычные резервные копии не должны включать записи ver: в свой список и удалять их при обрезке.
+  const stored=await page.evaluate(async()=>{
+    const db=window.__tsIDB.db;return await new Promise((ok,fail)=>{const tx=db.transaction('snaps','readonly'),rq=tx.objectStore('snaps').getAll();rq.onsuccess=()=>ok(rq.result.map(v=>({id:v.id,space:v.space})));rq.onerror=fail;});
+  });
+  check(stored.filter(v=>v.id.startsWith('ver:p1:')).length===2,'снимки находятся в IndexedDB с отдельным префиксом');
+  await page.keyboard.press('Control+k');await page.locator('#cmdQ').fill('Версии схемы');await page.keyboard.press('Enter');
+  check(await page.getByRole('dialog',{name:'Версии схемы'}).isVisible(),'команда палитры открывает версии');
+  await page.keyboard.press('Escape');
+  await page.locator('.node[data-id="a"]').click();const beforeKeys=await graph();await open();
+  await page.getByRole('button',{name:'Сохранить версию',exact:true}).focus();await page.keyboard.press('Delete');await page.keyboard.press('ArrowDown');
+  check(JSON.stringify((await graph()).nodes)===JSON.stringify(beforeKeys.nodes),'клавиши модального окна не меняют выделенные блоки');
+  await page.keyboard.press('Escape');await page.locator('.node[data-id="a"]').dblclick();await page.locator('#code').fill('int run(){ return 17; }');await page.locator('#backBtn').click();
+  await page.clock.fastForward(30*60*1000);await open();await page.waitForFunction(()=>document.querySelectorAll('.ver-row').length===3);
+  check((await page.locator('.ver-list').innerText()).includes('Автоматическая версия'),'изменённая схема сохраняется каждые 30 минут');
+  await page.keyboard.press('Escape');await page.locator('#setBtn').click();
+  await page.locator('.bk-bar button').filter({hasText:'Сделать копию сейчас'}).click();await page.waitForTimeout(400);
+  check(await page.locator('.bk-row').count()<=2,'версии схем не попадают в список полных резервных копий');
+  await page.locator('#pers button[aria-label="Закрыть"]').click();await open();await page.waitForFunction(()=>document.querySelectorAll('.ver-row').length===3);
+  check(await page.locator('.ver-row').count()===3,'создание и обрезка полных копий сохраняют версии схем');
+  await page.setViewportSize({width:390,height:844});const b=await page.getByRole('dialog',{name:'Версии схемы'}).boundingBox();check(b.x>=0&&b.x+b.width<=391,'окно помещается на телефоне');
+  check(errors.length===0,'нет ошибок JavaScript: '+errors.join('; '));await ctx.close();
+}finally{await browser.close();await new Promise(ok=>srv.close(ok));}
+console.log(failed?'Ошибок: '+failed:'Всё прошло');process.exitCode=failed?1:0;

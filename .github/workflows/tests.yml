@@ -54,7 +54,18 @@ jobs:
           npm run test:envdock
           npm run test:errai
           npm run test:touch
+          npm run test:importflows
           npm run test:arc
+          npm run test:vars
+          npm run test:runopts
+          npm run test:groups
+          npm run test:runhist
+          npm run test:block-tests
+          npm run test:versions
+          npm run test:audit
+          npm run test:schedule
+          npm run test:dataflow
+          npm run test:whatsnew
 
       - name: Хранение и резервные копии
         run: npm run test:storage

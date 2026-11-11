@@ -36,12 +36,13 @@ DATABASE_URL=postgresql+psycopg://triosteum_app:app@localhost/triosteum COOKIE_S
 
 ```bash
 cd server
-TEST_ADMIN_URL=postgresql://postgres@localhost/postgres pytest     # 67 тестов: API, песочница Python, письма, совместная работа
+TEST_ADMIN_URL=postgresql://postgres@localhost/postgres pytest     # 71 тест: API, песочница Python, письма, совместная работа
 cd .. && TRIOSTEUM_URL=http://localhost:8000 npm run test:server   # сквозная проверка в браузере
 TRIOSTEUM_URL=http://localhost:8000 node tests/team-e2e.mjs         # команда и история версий в браузере
 TRIOSTEUM_URL=http://localhost:8000 node tests/run-e2e.mjs          # Python-блоки выполняются на сервере
 TRIOSTEUM_URL=… MAIL_DIR=… node tests/mail-e2e.mjs                  # письма: приглашение и смена пароля
 TRIOSTEUM_URL=http://localhost:8000 node tests/live-e2e.mjs         # совместная работа в двух браузерах
+TRIOSTEUM_URL=http://localhost:8000 node tests/schedule-server-e2e.mjs  # расписание: срок выполняет один клиент из двух
 ```
 
 Тесты API проверяют вход и выход, правила регистрации, хранение паролей (argon2id), ограничение попыток входа (в том числе с подставным X-Forwarded-For), сохранение с номером правки и конфликт, переименование и удаление, историю версий. Ещё они проверяют изоляцию организаций (через API и прямым SQL), права наблюдателя, защиту от CSRF, лимит размера запроса, экранирование данных в странице, настройки, перенос из браузера и журнал.

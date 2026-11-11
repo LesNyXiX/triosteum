@@ -1,0 +1,25 @@
+// Сравнение результатов: порядок полей, вложенные объекты, массивы и числовой допуск.
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const { btMatches } = new Function(fs.readFileSync(path.join(__dirname, '../src/app/board/block-test-match.js'), 'utf8') + '\nreturn { btMatches };')();
+const match = (actual, expected, mode = 'exact', tolerance = 0.001) => btMatches(actual, { expected, mode, tolerance });
+assert(match({ b: 2, a: 1 }, { a: 1, b: 2 }));
+assert(!match({ a: 1, b: 2 }, { a: 1 }));
+assert(match({ a: { b: 2, c: 3 }, d: 4 }, { a: { b: 2 } }, 'subset'));
+assert(!match({ a: null }, { a: { b: 2 } }, 'subset'));
+assert(!match({}, { toString: 'x' }, 'subset'));
+assert(!match({}, JSON.parse('{"__proto__":{"x":1}}'), 'subset'));
+assert(!match([1, 2], [1], 'subset'));
+assert(!match({ 0: 1 }, [1], 'subset'));
+assert(match([null, false, { a: 1 }], [null, false, { a: 1 }]));
+assert(!match(false, 0));
+assert(!match(1, '1'));
+assert(match(null, null));
+assert(match(1.001, 1, 'number', 0.01));
+assert(!match(1.1, 1, 'number', 0.01));
+assert(match(2, 2, 'number', 0));
+assert(!match('2', 2, 'number', 1));
+assert(!match(Infinity, 2, 'number', 1));
+assert(!match(2, 2, 'number', -1));
+console.log('Сравнение результатов: 18 проверок прошли');
