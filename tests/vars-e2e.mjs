@@ -59,6 +59,13 @@ check(runs.length > 0 && !/tok-secret-12345/.test(runs) && /••••••/.
 await page.keyboard.press('Escape'); await page.waitForTimeout(400);
 const shown = await page.evaluate(() => [...document.querySelectorAll('.df-chip')].map((c) => c.textContent).join(' ') + document.body.innerText);
 check(!/tok-secret-12345/.test(shown), 'и не виден на доске (плашки данных на связях)');
+{
+  await page.keyboard.press('Escape'); const rb = await page.locator('.node[data-id="r"]').boundingBox(); await page.mouse.click(rb.x + rb.width / 2, rb.y + 20, { button: 'right' }); await page.waitForTimeout(400);
+  await page.locator('#pop .ropts button', { hasText: 'Закрепить результат последнего запуска' }).click(); await page.waitForTimeout(700);
+  const gp = await page.evaluate(() => localStorage.getItem('triosteum.proj.p1'));
+  check(!/tok-secret-12345/.test(gp) && !JSON.parse(gp).nodes.find((n) => n.id === 'r').pin && /содержит секрет/.test(await page.textContent('body')), 'результат с секретом не закрепляется (снимок ушёл бы в пространство)');
+  await page.keyboard.press('Escape');
+}
 check(!/tok-secr/.test(log) && !/tok-secr/.test(runs), 'секрет на границе обрезки результата (160 символов) не виден даже частично');
 const errsTxt = await page.$eval('#runErrs', (e) => e.textContent);
 check(/доступ запрещён для ••••••/.test(errsTxt) && !/tok-secret-12345/.test(errsTxt) && !/tok-secret-12345/.test(await page.evaluate(() => document.body.innerText)), 'секрет в тексте ошибки скрыт и во вкладке «Ошибки», и на странице');

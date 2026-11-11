@@ -52,8 +52,11 @@
     Object.keys(VARS_RUN.used).forEach(function(s){
       if(!s) return;
       // сам секрет и его вид внутри JSON (кавычки, \\, переводы строк экранированы) — результаты блоков сериализуются
-      [s, JSON.stringify(s).slice(1, -1)].forEach(function(x, i){
-        if(i && x === s) return;
+      // многострочный секрет: вывод Python приходит по строкам — скрываем и каждую его строку
+      var parts = [s, JSON.stringify(s).slice(1, -1)];
+      if(/[\r\n]/.test(s)) s.split(/\r?\n|\r/).forEach(function(x){ if(x.trim()) parts.push(x); });
+      parts.forEach(function(x, i){
+        if(i === 1 && x === s) return;
         if(x.length >= 4){ t = t.split(x).join('••••••'); return; }
         // короткий секрет (PIN, код) — только отдельным значением, не внутри других чисел и слов
         t = t.replace(new RegExp('(^|[^\\p{L}\\p{N}])' + x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![\\p{L}\\p{N}])', 'gu'), '$1••••••');
@@ -118,6 +121,17 @@
     // данные на связях и результат блока в его настройках
     if(typeof dfView === 'function'){ var _dfv = dfView; dfView = function(v){ return _dfv(varMaskDeep(v)); }; }
     if(typeof dfKind === 'function'){ var _dfk = dfKind; dfKind = function(v){ return _dfk(varMaskDeep(v)); }; }
+    // вывод по строкам (stdout/stderr сервера): маскируем целиком до разбиения
+    if(typeof printLines === 'function'){ var _pl = printLines; printLines = function(text, fn, cls){ return _pl(varMask(String(text || '')), fn, cls); }; }
+    // закреплённый результат сохраняется в пространстве (экспорт, сервер) — результат с секретом не закрепляем
+    if(typeof pinNode === 'function'){
+      var _pn = pinNode;
+      pinNode = function(n, v){
+        var j; try { j = JSON.stringify(v); } catch(e){ j = null; }
+        if(j && varMask(j) !== j){ toast('Результат «' + n.name + '» содержит секрет — его нельзя закрепить: снимок сохраняется вместе с пространством'); return false; }
+        return _pn(n, v);
+      };
+    }
     var _rlog = rlog;
     rlog = function(text, cls){ return _rlog(varMask(text), cls); };
     var _std = cmpStd;

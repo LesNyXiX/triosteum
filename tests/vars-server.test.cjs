@@ -61,4 +61,10 @@ check(api.varMask('ошибка: tok-12345 не принят') === 'ошибка
   try { execFileSync('python3', ['-c', prelude + 'import triosteum\nassert triosteum.var("X", 5) == 5 and triosteum.secret("Y") is None\n'], { stdio: 'pipe' }); } catch (e) { ok2 = false; }
   check(ok2, 'вне Triosteum var()/secret() возвращают значения по умолчанию');
 }
+{
+  // многострочный секрет: вывод приходит по строкам — каждая строка секрета тоже скрыта
+  const api4 = new Function('G', 'secretGet', 'toast', 'rlog', 'CMP', head + '\nreturn { varSubst: varSubst, varMask: varMask };')(G, (n) => (n === 'М' ? 'abcd\nefgh' : undefined), () => {}, () => {}, { busy: false });
+  api4.varSubst('{{secret:М}}');
+  check(api4.varMask('abcd') === '••••••' && api4.varMask('  efgh') === '  ••••••' && api4.varMask('abcd\nefgh') === '••••••', 'многострочный секрет скрыт и по строкам: ' + JSON.stringify([api4.varMask('abcd'), api4.varMask('  efgh')]));
+}
 console.log(failed ? '\nПровалено: ' + failed : '\nВсё прошло'); process.exit(failed ? 1 : 0);
