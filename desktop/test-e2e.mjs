@@ -50,6 +50,18 @@ if (ollamaUp) {
   const r = await w.evaluate(() => fetch('http://localhost:11434/api/tags', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
     .then((x) => x.json()).then((d) => d.models[0].name, (e) => 'ошибка: ' + e.message));
   ok(r === 'qwen2.5:1.5b', 'Ollama на компьютере отвечает без настройки OLLAMA_ORIGINS (' + r + ')');
+  // изолированный предпросмотр (sandbox, Origin: null) с посторонним кодом до Ollama не достаёт
+  const leak = await w.evaluate(() => new Promise((resolve) => {
+    const f = document.createElement('iframe');
+    f.setAttribute('sandbox', 'allow-scripts');
+    f.srcdoc = '<script>fetch("http://localhost:11434/api/tags").then(function(x){return x.text()}).then(function(t){parent.postMessage("got:"+t,"*")},function(){parent.postMessage("blocked","*")})<\/script>';
+    addEventListener('message', function on(e) { if (typeof e.data === 'string') { removeEventListener('message', on); f.remove(); resolve(e.data); } });
+    document.body.appendChild(f);
+    setTimeout(() => resolve('timeout'), 8000);
+  }));
+  ok(leak === 'blocked', 'изолированный предпросмотр не получает доступ к Ollama (' + leak.slice(0, 40) + ')');
+  const del = await w.evaluate(() => fetch('http://localhost:11434/api/delete', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: '{"name":"x"}' }).then(() => 'прошло', () => 'blocked'));
+  ok(del === 'blocked', 'удалять модели через приложение нельзя');
 } else ok(true, 'порт 11434 занят — проверка Ollama пропущена');
 await app.close();
 

@@ -83,21 +83,40 @@ function buildMenu() {
   Menu.setApplicationMenu(Menu.buildFromTemplate(tpl));
 }
 
-// Ollama на этом компьютере отвечает приложению без настройки OLLAMA_ORIGINS: снимаем Origin и разрешаем ответ
+// Ollama на этом компьютере отвечает приложению без настройки OLLAMA_ORIGINS — но только страницам самого Triosteum
+// (встроенная копия или выбранный сервер). Изолированный предпросмотр (Origin: null) и посторонние страницы
+// получают обычную защиту Ollama. Удалять модели через это разрешение нельзя.
+function trustedOrigin(origin) {
+  if (!origin || origin === 'null') return '';
+  if (origin === 'triosteum://app') return origin;
+  return cfg.mode === 'server' && origin === serverOrigin() ? origin : '';
+}
 function allowLocalOllama(ses) {
-  ses.webRequest.onBeforeSendHeaders({ urls: ['http://localhost:11434/*', 'http://127.0.0.1:11434/*'] }, (d, cb) => {
-    const h = { ...d.requestHeaders }; delete h.Origin; delete h.origin; cb({ requestHeaders: h });
+  const filter = { urls: ['http://localhost:11434/*', 'http://127.0.0.1:11434/*'] };
+  const allowed = new Map();                         // id запроса → доверенный Origin
+  ses.webRequest.onBeforeSendHeaders(filter, (d, cb) => {
+    const h = { ...d.requestHeaders };
+    const key = Object.keys(h).find((k) => k.toLowerCase() === 'origin');
+    const origin = trustedOrigin(key ? h[key] : '');
+    if (!origin || d.method === 'DELETE') return cb({ requestHeaders: h });
+    allowed.set(d.id, origin);
+    delete h[key];
+    cb({ requestHeaders: h });
   });
-  ses.webRequest.onHeadersReceived({ urls: ['http://localhost:11434/*', 'http://127.0.0.1:11434/*'] }, (d, cb) => {
-    if (!OLLAMA.test(d.url)) return cb({});
+  ses.webRequest.onHeadersReceived(filter, (d, cb) => {
+    const origin = allowed.get(d.id);
+    allowed.delete(d.id);
+    if (!origin || !OLLAMA.test(d.url)) return cb({});
     const h = { ...d.responseHeaders };
     for (const k of Object.keys(h)) if (/^access-control-/i.test(k)) delete h[k];
-    h['Access-Control-Allow-Origin'] = ['*'];
-    h['Access-Control-Allow-Headers'] = ['*'];
-    h['Access-Control-Allow-Methods'] = ['GET, POST, DELETE, OPTIONS'];
+    h['Access-Control-Allow-Origin'] = [origin];
+    h['Access-Control-Allow-Headers'] = ['Content-Type, Authorization'];
+    h['Access-Control-Allow-Methods'] = ['GET, POST, OPTIONS'];
     h['Access-Control-Allow-Private-Network'] = ['true'];
+    h['Vary'] = ['Origin'];
     cb(d.method === 'OPTIONS' ? { responseHeaders: h, statusLine: 'HTTP/1.1 204 No Content' } : { responseHeaders: h });
   });
+  ses.webRequest.onErrorOccurred(filter, (d) => allowed.delete(d.id));
 }
 
 function createWindow() {
