@@ -57,9 +57,12 @@
     cmpEnd = function(results){
       if(results && typeof RES !== 'undefined' && RES && RES.items && RES.items !== seen){
         seen = RES.items; CMP.lastItems = CMP.lastItems || {};
-        for(var k in results) delete CMP.lastItems[k];
+        // только блоки этого запуска: при запуске выделенного results дополнен прежними результатами (cmpSeed),
+        // а их элементы в новом RES.items не появляются — кэш остальных блоков не трогаем
+        var ran = {}; (CMP.order || []).forEach(function(id){ ran[id] = 1; });
+        for(var k in ran) delete CMP.lastItems[k];
         RES.items.forEach(function(x){
-          if(!x || !x.node || !Object.prototype.hasOwnProperty.call(results, x.node) || x.type === 'doc' || x.type === 'pack') return;
+          if(!x || !x.node || !ran[x.node] || x.type === 'doc' || x.type === 'pack') return;
           (CMP.lastItems[x.node] = CMP.lastItems[x.node] || []).push(x);
         });
       }

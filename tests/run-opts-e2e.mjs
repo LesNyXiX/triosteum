@@ -167,6 +167,16 @@ console.log('Четвёртый раунд Codex: снимок не меняет
   check(pin && Array.isArray(pin.items) && pin.items.some((x) => x.type === 'metric' && x.value === 12), 'в снимке сохранён и сам показатель (12)');
   log = await run(page);
   check(/📌 Выручка — закреплённый результат/.test(log) && /Показателей: 1/.test(log), 'после закрепления дашборд по-прежнему получает показатель');
+  // запуск только таблицы не стирает показатель из кэша: закреплённый потом показатель сохраняет элементы
+  await pop(page, 'm'); await page.locator('#pop .ropts button', { hasText: 'Открепить' }).click(); await page.waitForTimeout(200);
+  await run(page);
+  await page.keyboard.press('Escape'); const sb = await page.locator('.node[data-id="s"]').boundingBox(); await page.mouse.click(sb.x + sb.width / 2, sb.y + 20); await page.waitForTimeout(200);
+  await page.evaluate(() => document.getElementById('runSel').click()); await page.waitForFunction(() => !document.querySelector('#runp.busy'), null, { timeout: 15000 }); await page.waitForTimeout(300);
+  await pop(page, 'm'); await page.locator('#pop .ropts button', { hasText: 'Закрепить результат последнего запуска' }).click(); await page.waitForTimeout(300);
+  const pin2 = (await graph(page)).nodes.find((n) => n.id === 'm').pin;
+  check(pin2 && Array.isArray(pin2.items) && pin2.items.some((x) => x.type === 'metric'), 'после запуска только таблицы показатель закрепляется вместе с элементом');
+  log = await run(page);
+  check(/Показателей: 1/.test(log), 'и дашборд его получает');
   check(errors.length === 0, 'ошибок JavaScript нет' + (errors.length ? ': ' + errors.join(' | ') : ''));
   await ctx.close();
 }
