@@ -13,7 +13,7 @@ const srv = createServer(async (req, res) => {
   if (req.url !== '/python') { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(html); return; }
   let body = ''; for await (const chunk of req) body += chunk;
   const job = JSON.parse(body); pythonRuns++;
-  const script = job.source + '\nprint("__TS_RESULT__" + json.dumps({"result":_out_json}, ensure_ascii=False))';
+  const script = 'import json\n_scope = {"__name__":"__main__"}\n' + job.chunks.map((chunk) => 'exec(compile(' + JSON.stringify(chunk) + ', "<block>", "exec"), _scope)').join('\n') + '\nprint("__TS_RESULT__" + json.dumps({"result":_scope.get("_out_json")}, ensure_ascii=False))';
   const r = spawnSync(python, ['-c', script], { encoding: 'utf8', env: {...process.env, PYTHONIOENCODING:'utf-8'}, timeout: 10000, maxBuffer: 1024 * 1024 });
   const lines = (r.stdout || '').trim().split('\n'), marker = lines.find((l) => l.startsWith('__TS_RESULT__'));
   res.writeHead(200, { 'content-type': 'application/json' });
@@ -39,7 +39,7 @@ try {
           if (!source.includes('_out_json = None')) return;
           const xhr = new XMLHttpRequest(); xhr.open('POST', endpoint + '/python', false);
           xhr.setRequestHeader('content-type', 'application/json');
-          xhr.send(JSON.stringify({ source: '_inp_json = ' + JSON.stringify(input) + '\n' + chunks.join('\n') }));
+          xhr.send(JSON.stringify({ chunks: ['_inp_json = ' + JSON.stringify(input)].concat(chunks) }));
           const r = JSON.parse(xhr.responseText);
           if (r.stdout) stdout(r.stdout);
           if (!r.ok) { stderr(r.error); throw new Error(r.error); }
@@ -50,7 +50,7 @@ try {
     if (localStorage.getItem('__btSeed')) return;
     localStorage.setItem('__btSeed', '1');
     const node = (id, name, lang, code, x, tests) => ({ id, name, lang, x, y: 180, codes: { [lang]: code }, tests, kind: 'block', desc: '' });
-    const plain = 'def run(data):\n    return data.get("a", 2) + data.get("b", 3)';
+    const plain = 'from __future__ import annotations\ndef run(data):\n    return data.get("a", 2) + data.get("b", 3)';
     const decorated = 'from triosteum import block\n@block(sample={"demo":1})\ndef nullable(data):\n    return data is None';
     localStorage.setItem('triosteum.projects', JSON.stringify({ cur: 'p1', list: [{ id: 'p1', name: 'Тесты', env: 'code', t: Date.now() }, { id: 'p2', name: 'Другое', env: 'code', t: Date.now() }] }));
     const graph = { nodes: [node('a', 'Сложение', 'python', plain, 100, []), node('b', 'Пустой вход', 'python', decorated, 500, [{ name: 'Буквальный null', input: null, expected: true, mode: 'exact' }]), node('c', 'Число C++', 'cpp', 'int run(){ return 2; }', 900, [{ name: 'Допуск', input: {}, expected: 2.001, mode: 'number', tolerance: 0.01 }])], edges: [], notes: [], seq: 5, cam: { x: 0, y: 0, k: 1 } };
@@ -109,6 +109,10 @@ try {
   await page.addScriptTag({ path: fileURLToPath(new URL('../node_modules/axe-core/axe.min.js', import.meta.url)) });
   const audit = async () => page.evaluate(async () => (await window.axe.run(document.querySelector('.bt-dialog'), { runOnly: { type: 'tag', values: ['wcag2a','wcag2aa','wcag21aa'] } })).violations.filter((v) => ['serious','critical'].includes(v.impact)).map((v) => v.id));
   check((await audit()).length === 0, 'редактор тестов: нет серьёзных ошибок доступности в тёмной теме');
+  const beforeArrow = await page.locator('.node[data-id=\"a\"]').getAttribute('style');
+  await page.getByRole('combobox', {name:'Сравнение теста 1',exact:true}).focus(); await page.keyboard.press('ArrowDown');
+  await page.getByRole('button', {name:'Сохранить тесты',exact:true}).focus(); await page.keyboard.press('Delete');
+  check(await page.locator('.node[data-id=\"a\"]').count() === 1 && await page.locator('.node[data-id=\"a\"]').getAttribute('style') === beforeArrow, 'клавиши редактора тестов не перемещают и не удаляют блок');
   await page.screenshot({ path: process.env.BT_SCREENSHOT || 'tests/.block-tests-preview.png' });
   await page.keyboard.press('Escape');
   check(!await page.getByRole('dialog', { name: 'Тесты блока «Сложение»' }).isVisible(), 'Escape закрывает редактор кейсов');

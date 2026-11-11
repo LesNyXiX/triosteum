@@ -17,6 +17,7 @@
   btLayer.appendChild(btDialog); document.body.appendChild(btLayer);
   function btClose(){ btLayer.hidden = true; if(BT.back && document.contains(BT.back)) BT.back.focus(); }
   btDialog.addEventListener('keydown', function(e){
+    e.stopPropagation();
     if(e.key === 'Escape'){ e.preventDefault(); e.stopPropagation(); btClose(); }
     if(e.key !== 'Tab') return;
     var items = Array.prototype.filter.call(btDialog.querySelectorAll('button,input,textarea,select'), function(x){ return !x.disabled; });
@@ -66,7 +67,7 @@
     btDialog.appendChild(h('div', { 'class':'acts bt-actions' }, [
       h('button', { type:'button', 'class':'btn sm', text:'Добавить тест', on:{ click:function(){ if(BT.drafts.length >= 50) return toast('Не больше 50 тестов на блок'); BT.drafts.push(btDraft({ input:{}, expected:null })); btRenderEditor(); var fields = btDialog.querySelectorAll('input[aria-label^="Название"]'); fields[fields.length - 1].focus(); } } }),
       h('button', { type:'button', 'class':'btn sm', text:'Взять из последнего запуска', disabled:btSample() ? null : '', on:{ click:function(){ var s = btSample(); if(!s) return; if(BT.drafts.length >= 50) return toast('Не больше 50 тестов на блок'); BT.drafts.push(btDraft({ name:'Последний запуск', input:s.input, expected:s.output })); btRenderEditor(); } } }),
-      h('button', { type:'button', 'class':'btn sm', text:'Сохранить тесты', on:{ click:function(){ if(btSave()) toast('Тесты блока сохранены'); } } }),
+      h('button', { type:'button', 'class':'btn sm', text:'Сохранить тесты', on:{ click:function(){ if(btSave()) $('btEditStatus').textContent = 'Тесты блока сохранены'; } } }),
       h('button', { type:'button', 'class':'btn sm primary', text:'Прогнать тесты блока', disabled:BT.busy ? '' : null, on:{ click:function(){ var tests = btSave(); if(tests) btRun([{ node:n, tests:tests }]); } } })
     ]));
     btDialog.appendChild(h('div', { id:'btEditStatus', role:'status', 'aria-live':'polite', 'class':'bt-note' }));
@@ -127,7 +128,8 @@
         x.rec.items.push(result); if(ok) passed++; else failed++;
         var card = h('div', { 'class':'bt-result ' + (ok ? 'bt-pass' : 'bt-fail') });
         card.appendChild(h('b', { text:(ok ? '✓ ' : '✗ ') + x.node.name + ' · ' + (t.name || 'Тест') }));
-        card.appendChild(h('pre', { text:'Вход: ' + JSON.stringify(t.input, null, 2) + '\nОжидалось: ' + JSON.stringify(t.expected, null, 2) + '\nПолучено: ' + (r.ok ? JSON.stringify(r.output, null, 2) : 'Ошибка: ' + r.error) }));
+        var report = 'Вход: ' + JSON.stringify(t.input, null, 2) + '\nОжидалось: ' + JSON.stringify(t.expected, null, 2) + '\nПолучено: ' + (r.ok ? JSON.stringify(r.output, null, 2) : 'Ошибка: ' + r.error);
+        card.appendChild(h('pre', { text:typeof varMask === 'function' ? varMask(report) : report }));
         btPanel.appendChild(card); next();
       }, function(e){ failed++; summary.textContent = 'Не удалось выполнить тест: ' + e.message; finish(); });
     }

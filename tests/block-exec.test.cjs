@@ -23,11 +23,11 @@ async function serverRun(code, input, mode) {
   assert(marker, r.stdout);
   return JSON.parse(marker.slice(13));
 }
-const api = new Function('RUN_SERVER', 'serverRun', 'nodeCode', 'curId', 'nodeById', 'CMP',
+const api = new Function('RUN_SERVER', 'serverRun', 'nodeCode', 'curId', 'nodeById', 'CMP', 'varMask',
   fs.readFileSync(path.join(root, 'src/app/board/block-exec.js'), 'utf8') + '\nreturn { executeBlock };')(
-  true, serverRun, (node) => node.codes.python, () => 'p1', () => n, CMP);
+  true, serverRun, (node) => node.codes.python, () => 'p1', () => n, CMP, t => t.replaceAll('SENSITIVE_VALUE','••••••'));
 (async () => {
-  n.codes.python = 'def run(data):\n    return data["a"] + data["b"]';
+  n.codes.python = 'from __future__ import annotations\ndef run(data):\n    return data["a"] + data["b"]';
   let r = await api.executeBlock(n, { a:2, b:3 }, { exact:true });
   assert.equal(r.ok, true); assert.equal(r.output, 5);
   n.codes.python = 'from triosteum import block\n@block(sample={"a":2,"b":3})\ndef f(data):\n    return data is None';
@@ -35,8 +35,12 @@ const api = new Function('RUN_SERVER', 'serverRun', 'nodeCode', 'curId', 'nodeBy
   n.codes.python = 'from triosteum import block\n@block(sample={"a":2,"b":3})\ndef f(data):\n    return data["a"] + data["b"]';
   r = await api.executeBlock(n, null, { capture:true }); assert.equal(r.output, 5);
   assert.deepEqual(CMP.samples.a.input, { a:2, b:3 }); assert.equal(CMP.samples.a.output, 5);
+  n.codes.python = 'def run(data):\n    data["a"] += 1\n    return data["a"]';
+  r = await api.executeBlock(n, {a:2}, {capture:true}); assert.equal(r.output,3); assert.deepEqual(CMP.samples.a.input,{a:2});
+  r = await api.executeBlock(n, CMP.samples.a.input, {exact:true}); assert.equal(r.output,3);
   n.codes.python = 'def run(data):\n    raise ValueError("ошибка теста")';
   r = await api.executeBlock(n, {}, { exact:true }); assert.equal(r.ok, false); assert.match(r.error, /ошибка теста/);
+  n.codes.python = 'def run(data):\n    return data'; r = await api.executeBlock(n, 'SENSITIVE_VALUE', {capture:true}); assert.equal(r.ok,true); assert.equal(CMP.samples.a,undefined,'секрет не сохраняется как тестовый пример');
   n.codes.python = 'x = 1'; r = await api.executeBlock(n, {}, { exact:true });
   assert.equal(r.ok, false); assert.match(r.error, /нет функции/);
   console.log('Серверный Python: обычная функция, декоратор, null, фактический вход и ошибки — прошли');

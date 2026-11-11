@@ -8,7 +8,7 @@
 
   function eaKey(x){ var n = nodeById(x.id); return x.id + '|' + x.msg + '|' + (n ? nodeCode(n).length + ':' + nodeCode(n).slice(0, 400) : ''); }
   function eaTag(n){ return n.lang === 'csharp' ? 'csharp' : n.lang === '1c' ? 'bsl' : n.lang === 'doc' ? 'html' : (n.lang === 'sheet' || n.lang === 'step' || n.lang === 'cond' || n.lang === 'out') ? 'json' : n.lang; }
-  function eaShort(v, max){ var t; try { t = typeof v === 'string' ? v : JSON.stringify(v); } catch(e){ t = String(v); } t = t || ''; return t.length > max ? t.slice(0, max) + ' …(обрезано)' : t; }
+  function eaShort(v, max){ var t; try { t = typeof v === 'string' ? v : JSON.stringify(v); } catch(e){ t = String(v); } t = t || ''; if(typeof varMask === 'function') t = varMask(t); return t.length > max ? t.slice(0, max) + ' …(обрезано)' : t; }
 
   function eaPrompt(x, n){
     var l = langById(n.lang), b = CMP.blocks[x.id] || {};

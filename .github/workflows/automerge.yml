@@ -67,7 +67,22 @@ jobs:
                 .map((c) => { try { return JSON.parse(/codex-review-state:v1 (\{.*?\}) -->/s.exec(c.body)[1]).code_review; } catch (e) { return null; } })
                 .filter(Boolean).pop();
               if (!state || state.status !== 'completed' || !state.commit_sha || !sha.startsWith(state.commit_sha.slice(0, 7)) || !state.commit_sha.startsWith(sha.slice(0, 7))) { why('Codex ещё не проверил последний коммит'); continue; }
-              if (state.has_unresolved_findings) { why('у Codex есть нерешённые замечания'); continue; }
+              if (state.has_unresolved_findings) {
+                // Codex считает «нерешёнными» и старые обсуждения, которые исправлены, но не отмечены resolved
+                // (отметить их можно только через GraphQL). Засчитываем замечание закрытым, если оно сделано
+                // к прежнему коммиту и последний ответ владельца или соавтора в обсуждении — явное «Исправлено в <коммит>»;
+                // вопрос или «пока не исправлено» замечание не закрывает. Замечание к последнему коммиту блокирует.
+                const rc = await github.paginate(github.rest.pulls.listReviewComments, { owner, repo, pull_number: number });
+                const TRUST = ['OWNER', 'MEMBER', 'COLLABORATOR'];
+                const FIXED = /^\s*Исправлено\s+в\s+`?[0-9a-f]{7,40}\b/i;
+                const open = rc.filter((c) => c.user.login === CODEX && !c.in_reply_to_id).filter((c) => {
+                  if (c.original_commit_id === sha || c.commit_id === sha && c.original_commit_id === c.commit_id) return true;
+                  const last = rc.filter((r) => r.in_reply_to_id === c.id && TRUST.includes(r.author_association) && r.user.type !== 'Bot').pop();
+                  return !(last && FIXED.test(last.body));
+                });
+                if (open.length) { why('у Codex есть нерешённые замечания: ' + open.length); continue; }
+                core.info(`#${number}: старые замечания Codex отвечены, новых к последнему коммиту нет`);
+              }
               const reviews = await github.paginate(github.rest.pulls.listReviews, { owner, repo, pull_number: number });
               // учитываем только последнее решение каждого рецензента (история ревью идёт по порядку)
               const lastBy = {};

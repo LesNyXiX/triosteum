@@ -10,8 +10,8 @@
     // Общая обёртка сообщает фактический вход, включая sample: такой кейс можно повторить.
     tail.push('import json as __ts_json', '__ts_input = __ts_json.loads(' + JSON.stringify(JSON.stringify(input)) + ')');
     if(!exact) tail.push('if __ts_input is None:', '    __ts_input = getattr(__ts_fn, "_t_sample", None)', '    if __ts_input is None:', '        __ts_input = {"values": [120, 340, 95]}');
-    tail.push('if callable(__ts_fn):', '    @__ts_block()', '    def __ts_case(_ignored, _fn=__ts_fn, _data=__ts_input):', '        return {"__triosteum_exec": True, "input": _data, "value": _fn(_data)}');
-    return 'run = None\n' + code + '\n\n' + tail.join('\n');
+    tail.push('if callable(__ts_fn):', '    @__ts_block()', '    def __ts_case(_ignored, _fn=__ts_fn, _data=__ts_input):', '        _before = __ts_json.loads(__ts_json.dumps(_data, ensure_ascii=False, default=str))', '        return {"__triosteum_exec": True, "input": _before, "value": _fn(_data)}');
+    return code + '\n\n' + tail.join('\n');
   }
   function executeBlock(n, input, opts){
     opts = opts || {};
@@ -20,6 +20,8 @@
       if(n.lang === 'python' && r.ok && r.output && r.output.__triosteum_exec === true){ r.input = r.output.input; r.output = r.output.value; }
       if(opts.capture && r.ok && curId() === space && nodeById(n.id) === original){
         if(!CMP.samples) CMP.samples = {};
+        var encoded = JSON.stringify([Object.prototype.hasOwnProperty.call(r, 'input') ? r.input : data, r.output]);
+        if(typeof varMask === 'function' && varMask(encoded) !== encoded){ delete CMP.samples[n.id]; return r; }
         CMP.samples[n.id] = { node:n, space:space, lang:n.lang, code:code, input:blockSnapshot(Object.prototype.hasOwnProperty.call(r, 'input') ? r.input : data), output:blockSnapshot(r.output) };
       }
       return r;
@@ -33,6 +35,7 @@
           py.setStdout({ batched:function(t){ stdout.push(t); } });
           py.setStderr({ batched:function(t){ stderr.push(t); } });
           try{
+            py.runPython('run = None');
             py.runPython(PY_STUB);
             py.runPython(source);
             py.globals.set('_inp_json', JSON.stringify(data));
