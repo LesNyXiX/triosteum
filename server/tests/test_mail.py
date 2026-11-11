@@ -121,7 +121,7 @@ def test_reset_token_expired(client, smtp, admin):
 def test_forgot_without_mail(client, monkeypatch):
     monkeypatch.delenv("SMTP_HOST", raising=False)
     assert client.post("/api/auth/forgot", json={"email": "a@b.ru"}).status_code == 503
-    assert client.get("/api/auth/options").json() == {"mail": False}
+    assert client.get("/api/auth/options").json()["mail"] is False
 
 
 def test_brand_files_and_mail_logo(client, monkeypatch):
