@@ -19,7 +19,7 @@ try {
   const page=await ctx.newPage(), errors=[];page.on('pageerror',e=>{if(!/sandboxed/.test(e.message))errors.push(e.message);});
   await page.goto('http://127.0.0.1:'+srv.address().port);await page.locator('.node').first().waitFor();
   const cmd=async(text)=>{await page.keyboard.press('Control+k');await page.locator('#cmdQ').fill(text);await page.keyboard.press('Enter');};
-  const records=()=>page.evaluate(()=>JSON.parse(localStorage.getItem('triosteum.audit:p1')||'[]'));
+  const records=()=>page.evaluate(()=>JSON.parse(localStorage.getItem('triosteum.audit.p1')||'[]'));
   await cmd('Новый блок C++');await page.waitForTimeout(550);
   const added=page.locator('.node').last();await added.click({button:'right'});await page.locator('#popName').fill('Переименованный');await page.waitForTimeout(450);
   await page.locator('#pop').getByRole('button',{name:'Удалить',exact:true}).click();await page.waitForTimeout(450);

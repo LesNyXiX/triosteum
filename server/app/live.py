@@ -88,6 +88,22 @@ class Hub:
         if self.loop:
             asyncio.run_coroutine_threadsafe(go(), self.loop)
 
+    def kick_where(self, pred):
+        """Закрыть соединения, для которых pred(org_id, peer) истинно (панель администратора)."""
+        async def go():
+            for (o, _s), room in list(self.rooms.items()):
+                for p in list(room.values()):
+                    if pred(o, p):
+                        try:
+                            await p.ws.close(code=4403)
+                        except Exception:
+                            pass
+        if self.loop:
+            asyncio.run_coroutine_threadsafe(go(), self.loop)
+
+    def online_users(self) -> set[str]:
+        return {p.user_id for room in self.rooms.values() for p in room.values()}
+
     def online(self, org_id: str, space_id: str) -> int:
         return len(self.rooms.get((org_id, space_id), {}))
 

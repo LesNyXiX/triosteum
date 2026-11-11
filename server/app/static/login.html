@@ -35,6 +35,8 @@
   .link{border:0;background:none;padding:0;color:var(--red-soft);font:inherit;font-size:13.5px;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
   .ok{min-height:20px;margin:4px 0 0;color:#86efac;font-size:13.5px;line-height:1.5}
   .foot{margin-top:18px;font-size:12px;color:var(--dim);text-align:center}
+  .note{margin:0 0 16px;padding:10px 12px;border-radius:10px;border:1px solid var(--line);font-size:13.5px;line-height:1.5;color:var(--ink)}
+  .note.warn{border-color:#a16207;background:rgba(161,98,7,.12);color:#fde68a}
 </style>
 </head>
 <body>
@@ -42,6 +44,7 @@
   <div class="brand"><svg class="logo" viewBox="12 28 176 164" aria-hidden="true"><path d="M22.07 61.83 A150 150 0 0 1 177.93 61.83" stroke="#D7263D" stroke-width="13" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M35.58 84.05 A124 124 0 0 1 57.45 73.53 A22 22 0 0 1 87.00 94.19 L87.00 182" stroke="#E8566A" stroke-width="13" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M164.42 84.05 A124 124 0 0 0 142.55 73.53 A22 22 0 0 0 113.00 94.19 L113.00 182" stroke="#F39AA8" stroke-width="13" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>Triosteum</div>
   <h1 id="title">Вход</h1>
   <p class="sub" id="sub">Войдите, чтобы открыть пространства вашей организации.</p>
+  <p class="note warn" id="closedNote" role="status" hidden></p>
   <div class="tabs" role="tablist" aria-label="Вход или регистрация">
     <button type="button" role="tab" id="tLogin" aria-selected="true">Вход</button>
     <button type="button" role="tab" id="tReg" aria-selected="false">Новая организация</button>
@@ -64,7 +67,7 @@
     <button class="go" id="go" type="submit">Войти</button>
     <p class="alt" id="altRow" hidden><button type="button" class="link" id="forgotBtn">Забыли пароль?</button></p>
   </form>
-  <p class="foot">Данные хранятся на серверах в России.</p>
+  <p class="foot"><span id="regHint" hidden>Регистрация — по приглашению администратора. </span>Данные хранятся на серверах в России.</p>
 </main>
 <script>
 (function(){
@@ -102,6 +105,31 @@
       $('pw').focus();
     }, function(){ $('sub').textContent = 'Нет связи с сервером'; });
   }
+  // режим приглашения на сервер: /join?t=… — новая организация (kind=org) или вход в существующую (kind=member)
+  var join = location.pathname.replace(/\/+$/, '').slice(-5) === '/join' ? new URLSearchParams(location.search).get('t') : null, jn = null;
+  if(join){
+    document.querySelector('.tabs').style.display = 'none';
+    $('title').textContent = 'Приглашение'; $('sub').textContent = 'Проверяем приглашение…'; $('go').disabled = true;
+    fetch('api/join/' + encodeURIComponent(join), { credentials:'same-origin' }).then(function(r){ return r.json().then(function(d){ return { ok:r.ok, d:d }; }); }).then(function(r){
+      if(!r.ok){ $('sub').textContent = r.d.detail || 'Приглашение недействительно'; $('f').hidden = true; return; }
+      jn = r.d; $('go').disabled = false;
+      document.querySelectorAll('.reg-only').forEach(function(x){ x.hidden = false; });
+      if(jn.email){ $('email').value = jn.email; $('email').readOnly = true; }
+      $('pw').autocomplete = 'new-password';
+      if(jn.kind === 'org'){
+        reg = true;
+        $('title').textContent = 'Новая организация';
+        $('sub').textContent = 'Вас пригласили на сервер. Создайте организацию — вы станете её владельцем и сможете пригласить коллег.';
+        $('go').textContent = 'Создать и войти';
+      } else {
+        var roles = { owner:'владелец', editor:'редактор', approver:'согласующий', viewer:'наблюдатель' };
+        $('org').closest('div').querySelectorAll('[for=org], #org').forEach(function(x){ x.style.display = 'none'; });
+        $('title').textContent = 'Присоединиться к «' + jn.org + '»';
+        $('sub').textContent = 'Вас пригласили в роли «' + (roles[jn.role] || jn.role) + '». Новый аккаунт — задайте имя и пароль; уже есть аккаунт — введите его почту и пароль.';
+        $('go').textContent = 'Присоединиться';
+      }
+    }, function(){ $('sub').textContent = 'Нет связи с сервером'; });
+  }
   function post(url, body){
     return fetch(url, { method:'POST', credentials:'same-origin', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify(body) })
       .then(function(r){ return r.json().catch(function(){ return {}; }).then(function(d){ if(!r.ok) throw new Error(d.detail || 'Не получилось'); return d; }); },
@@ -126,6 +154,11 @@
     }
     if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return fail('Проверьте почту');
     if(pw.length < 8) return fail('Пароль — не меньше 8 символов');
+    if(jn && jn.kind === 'member'){
+      $('go').disabled = true; $('err').textContent = '';
+      return post('api/auth/join', { token:join, email:email, password:pw, name:$('name').value.trim(), pd_consent:$('pd').checked })
+        .then(function(){ location.href = './'; }, function(err){ fail(err.message); $('go').disabled = false; });
+    }
     if(inv){
       var ib = { token:invite, password:pw, name:$('name').value.trim(), pd_consent:$('pd').checked };
       if(!inv.has_account && !ib.pd_consent) return fail('Нужно согласие на обработку персональных данных');
@@ -142,6 +175,7 @@
       if(!body.org) return fail('Укажите название организации');
       if(!$('pd').checked) return fail('Нужно согласие на обработку персональных данных');
       body.pd_consent = true;
+      if(jn) body.invite = join;
     }
     $('go').disabled = true; $('err').textContent = '';
     fetch('api/auth/' + (reg ? 'register' : 'login'), { method:'POST', credentials:'same-origin', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify(body) })
@@ -157,7 +191,16 @@
   function good(t){ $('err').textContent = t; $('err').className = 'ok'; }
   // «Забыли пароль?» — показываем, только если сервер умеет отправлять письма
   var forgot = false, resetTok = location.pathname.replace(/\/+$/, '').slice(-6) === '/reset' ? new URLSearchParams(location.search).get('t') : null;
-  if(!invite && !resetTok) fetch('api/auth/options', { credentials:'same-origin' }).then(function(r){ return r.json(); }).then(function(o){ if(o.mail) $('altRow').hidden = false; }, function(){});
+  // настройки сервера: «Забыли пароль?» (если умеет слать письма), регистрация по приглашению, закрытый доступ
+  if(!invite && !resetTok) fetch('api/auth/options', { credentials:'same-origin' }).then(function(r){ return r.json(); }).then(function(o){
+    if(o.mail && !join) $('altRow').hidden = false;
+    if(o.registration !== 'open' && !join){
+      $('tReg').hidden = true; document.querySelector('.tabs').style.display = 'none'; $('regHint').hidden = false;
+      if(reg) mode(false);
+    }
+    if(o.access && o.access.open === false){ $('closedNote').textContent = o.access.message; $('closedNote').hidden = false; }
+  }, function(){});
+  if(/[?&]closed=1/.test(location.search)){ $('closedNote').textContent = 'Доступ к серверу временно закрыт администратором'; $('closedNote').hidden = false; }
   function pwRow(show){ $('pw').style.display = show ? '' : 'none'; document.querySelector('label[for=pw]').style.display = show ? '' : 'none'; }
   $('forgotBtn').onclick = function(){
     forgot = !forgot; mode(false);

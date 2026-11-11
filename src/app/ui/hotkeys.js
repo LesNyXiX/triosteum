@@ -18,7 +18,10 @@
     { sel:'#bRedo', mod:true, code:'KeyY', label:IS_MAC ? '⌘⇧Z' : 'Ctrl+Y', name:'повторить', shown:true },
     { sel:'#bAll', mod:true, code:'KeyA', label:MOD + 'A', name:'выделить всё', shown:true },
     { sel:'#bPers', mod:true, code:'Comma', label:IS_MAC ? '⌘,' : 'Ctrl+,', name:'персонализация' },
-    { sel:'#bKeys', code:'Slash', shift:true, label:'?', name:'горячие клавиши' }
+    { sel:'#bKeys', code:'Slash', shift:true, label:'?', name:'горячие клавиши' },
+    // по умолчанию без клавиши — задаётся в Настройках или в шапке самой панели; работает в любой среде, не только на доске
+    { sel:'#admBtn', code:null, label:'', name:'панель администратора', title:'Панель администратора', global:true,
+      act:function(){ if(typeof admToggle === 'function') admToggle(); } }
   ];
   /* свои клавиши: Персонализация → нажать на клавишу у кнопки. Хранятся в UI.keys: { sel:{code,shift,mod} | null } */
   TOOL_KEYS.forEach(function(k){ k.def = { code:k.code, shift:!!k.shift, mod:!!k.mod, label:k.label }; var b = document.querySelector(k.sel); if(b) k.btn = b; });
@@ -33,6 +36,7 @@
   var KEY_RESERVED = ['KeyA', 'KeyC', 'KeyV', 'KeyX', 'KeyZ', 'KeyY', 'KeyR', 'KeyK', 'KeyS', 'KeyO', 'KeyD', 'KeyP', 'KeyF', 'KeyW', 'KeyT', 'KeyN', 'KeyL', 'KeyQ', 'Tab'];
   function keyFree(c){
     if(!c || !c.code) return 'Нажмите букву, цифру или знак';
+    if(/^F(1|5|11|12)$/.test(c.code) && !c.mod) return keyLabel(c) + ' занята браузером (справка, обновление, полный экран, инструменты)';
     if(/^(Escape|Enter|Backspace|Delete|Tab|Space|Arrow|Shift|Control|Alt|Meta|CapsLock|Context)/.test(c.code)) return 'Эта клавиша уже работает на доске — выберите другую';
     if(c.mod && KEY_RESERVED.indexOf(c.code) >= 0) return keyLabel(c) + ' уже занято (копирование, отмена, поиск и т. п.)';
     return '';
@@ -44,7 +48,11 @@
       var o = Object.prototype.hasOwnProperty.call(over, k.sel) ? over[k.sel] : undefined, c = o === undefined ? k.def : o;
       if(c){ k.code = c.code; k.shift = !!c.shift; k.mod = !!c.mod; k.label = keyLabel(c) || k.def.label; } else { k.code = null; k.label = ''; }
     });
-    TOOL_KEYS.forEach(function(k){ if(k.btn){ if(k.label) k.btn.dataset.key = k.label; else delete k.btn.dataset.key; } });
+    TOOL_KEYS.forEach(function(k){
+      if(!k.btn) return;
+      if(k.label) k.btn.dataset.key = k.label; else delete k.btn.dataset.key;
+      if(k.title){ k.btn.title = k.title + (k.label ? ' · ' + k.label : ''); if(k.label) k.btn.setAttribute('aria-keyshortcuts', k.label.replace(/\+/g, '+')); else k.btn.removeAttribute('aria-keyshortcuts'); }
+    });
     var kb = $('bKeys'); if(kb && typeof KEYS_TEXT !== 'undefined'){ KEYS_TEXT = keysText(); kb.setAttribute('data-tip', 'Горячие клавиши|' + KEYS_TEXT); }
   }
   // задать клавишу кнопке sel; c = {code,shift,mod} или null (без клавиши). Тот, у кого она была, остаётся без неё.
@@ -58,6 +66,8 @@
     return taken;
   }
   function toolKeysReset(){ delete UI.keys; save('triosteum.ui', UI); toolKeysApply(); }
+  // совпадает ли нажатие с клавишей кнопки sel (для окон, которые сами перехватывают клавиши)
+  function toolKeyMatch(sel, e){ var k = toolKeyFor(sel); return !!(k && k.code && k.code === e.code && !!k.mod === !!(e.ctrlKey || e.metaKey) && !!k.shift === e.shiftKey && !e.altKey); }
   function toolKeyFor(sel){ var k = TOOL_KEYS.filter(function(x){ return x.sel === sel; })[0]; return k || null; }
   function toolKeyOf(btn){ return btn && btn.dataset ? btn.dataset.key || '' : ''; }
   document.addEventListener('keydown', function(e){
@@ -68,14 +78,18 @@
     if(!k || !k.btn) return;
     var t = e.target;
     if(!k.mod && t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
-    // однобуквенные — только на доске разработки, когда не открыто окно поверх
-    if(!k.mod){
+    // однобуквенные — только когда не открыто окно поверх и не идёт набор (в офисе буквы печатают в таблице);
+    // клавиши с Ctrl/⌘ и F-клавиши у «везде работающих» кнопок (панель администратора) — в любой среде
+    var single = !k.mod && !(k.global && /^F\d+$/.test(code));
+    if(single){
       if(typeof officeOn === 'function' && officeOn()) return;
       if(typeof cmdOpen === 'function' && cmdOpen()) return;
-      if(S.view !== 'canvas' || (el.modal && !el.modal.hidden)) return;
+      if(!k.global && S.view !== 'canvas') return;
+      if(el.modal && !el.modal.hidden) return;
       if(document.querySelector('.eco-back:not([hidden]),.modal-back:not([hidden]),#askModal:not([hidden])')) return;
     }
     e.preventDefault();
+    if(k.global){ k.act(); return; }
     if(k.btn.id === 'bKeys'){ showTip(k.btn, 8000); return; }
     k.btn.click();
   });

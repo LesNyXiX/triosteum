@@ -127,3 +127,37 @@ RETURNING rev, updated_at;
 - Записывать в `audit_log` вход, удаление, импорт и выгрузку.
 
 `GET /api/health` возвращает `{ok: true}`, если сервер и база работают.
+
+
+## Панель администратора
+
+Администратор сервера — пользователь с флагом `users.is_admin` (первый зарегистрированный на сервере; на уже работающем сервере миграция `006_admin.sql` назначает самого раннего пользователя). В `TRIOSTEUM_BOOT.user` есть `is_admin`, у администратора ещё `instance: {registration, access}`. Все запросы `/api/admin/*` — только для администратора (иначе 403).
+
+| Запрос | Что делает |
+|---|---|
+| `GET /api/admin/overview` | Пользователи, организации, пространства, кто в сети, размер базы и диска, активность за 14 дней |
+| `POST /api/admin/registration` `{mode: "open"\|"invite"}` | Регистрация для всех или только по приглашению |
+| `POST /api/admin/access` `{open, message}` | Закрыть вход всем, кроме администраторов: остальные получают **423** с причиной, `/` ведёт на `/login?closed=1` |
+| `GET /api/admin/users`, `GET /api/admin/orgs` | Все пользователи (организации, роли, в сети) и организации |
+| `POST /api/admin/users/{id}/disable` · `/enable` · `DELETE /api/admin/users/{id}` · `POST …/restore` · `POST`/`DELETE …/admin` | Отключить вход, удалить (мягко, можно вернуть), права администратора |
+| `DELETE /api/admin/users/{id}/purge` | Удалить навсегда (только удалённого); пустые организации уходят вместе с ним |
+| `GET`/`POST /api/admin/invites`, `DELETE /api/admin/invites/{id}` | Ссылки `/join?t=…`: `kind: "org"` — создать организацию, `"member"` — войти в `org_id` с `role`; `email`, `max_uses`, `days` |
+| `GET /api/admin/actions`, `POST /api/admin/actions/{id}/undo` | Журнал; отмена выполняет обратное действие и пишет его в журнал (отмену можно вернуть) |
+| `GET`/`POST /api/admin/points`, `POST /api/admin/points/{id}/restore`, `DELETE /api/admin/points/{id}` | Точки восстановления: снимок пользователей, участников, пространств и настроек; перед возвратом сохраняется точка «Перед восстановлением» |
+
+Приглашения на сервер принимают `GET /api/join/{token}`, `POST /api/auth/register` с полем `invite` (kind `org`) и `POST /api/auth/join` (kind `member`). `GET /api/auth/options` сообщает `registration` и `access`.
+
+## Задачи для ИИ (только администратор)
+
+Окно «Задачи для ИИ» в панели администратора. Задачи хранятся как задачи (Issues) GitHub с меткой «ии-задача»:
+Claude получает их через `.github/workflows/claude.yml` (упоминание `@claude`, по подписке владельца),
+Codex — через своё приложение GitHub (комментарий `@codex …`). Нужен `AGENTS_GITHUB_TOKEN` в `.env`
+(fine-grained токен владельца: только этот репозиторий, Issues — Read and write). Токен в браузер не уходит.
+
+| Метод | Путь | Что делает |
+|---|---|---|
+| GET | `/api/admin/agents` | `{configured, repo, tasks:[{number,title,state,url,comments,created_at,updated_at}]}` |
+| POST | `/api/admin/agents` | `{text, title?, claude, codex}` → новая задача, 201 |
+| GET | `/api/admin/agents/{n}` | задача + `messages:[{who: owner/claude/codex/system, to, text, at, edited, url}]` + `prs` |
+| POST | `/api/admin/agents/{n}/messages` | `{text, claude, codex}` — уточнение адресатам, 201 |
+| POST | `/api/admin/agents/{n}/state` | `{open}` — закрыть или открыть снова |
