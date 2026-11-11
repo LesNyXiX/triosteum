@@ -616,6 +616,18 @@
   .ea-ok{font-size:12px;font-weight:600;color:var(--okc,#34D399)}
   .ea-code{margin:8px 0 0 26px;max-height:260px;overflow:auto;padding:8px 10px;border-radius:8px;background:var(--bg);border:1px solid var(--line);font:12px/1.5 var(--mono);white-space:pre;color:var(--ink)}
 
+  /* группы блоков — рамки с названием */
+  .grp-layer{position:absolute;left:0;top:0;width:0;height:0}
+  .grp{position:absolute;box-sizing:border-box;border-radius:18px;pointer-events:none;
+    border:1.5px dashed color-mix(in srgb,var(--gc) 70%,transparent);background:color-mix(in srgb,var(--gc) 7%,transparent)}
+  .grp-h{position:absolute;left:10px;top:6px;right:10px;display:flex;align-items:center;gap:6px;height:24px;pointer-events:auto;cursor:grab;user-select:none;touch-action:none}
+  .grp-h:active{cursor:grabbing}
+  .grp-name{font-size:13px;font-weight:700;color:var(--ink-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60%;
+    padding:2px 9px;border-radius:8px;background:color-mix(in srgb,var(--gc) 26%,var(--panel))}
+  .grp-cnt{font-size:11px;font-weight:700;color:var(--muted);padding:1px 6px;border-radius:999px;border:1px solid color-mix(in srgb,var(--gc) 45%,transparent)}
+  .grp-b{width:24px;height:24px;border-radius:7px;border:1px solid transparent;background:none;color:var(--muted);font-size:12px;line-height:1;cursor:pointer;opacity:.75}
+  .grp-b:hover,.grp-b:focus-visible{opacity:1;color:var(--ink-strong);border-color:color-mix(in srgb,var(--gc) 50%,transparent);background:color-mix(in srgb,var(--gc) 18%,transparent)}
+  .grp-in{font:700 13px/1 inherit;font-family:inherit;color:var(--ink-strong);background:var(--panel);border:1px solid var(--gc);border-radius:8px;padding:3px 8px;width:220px;outline:none}
   /* история запусков — вкладка «История» в окне компилятора */
   .rh{padding:10px 12px 14px;overflow:auto}
   .rh-empty{padding:18px 6px;font-size:13px;line-height:1.5;color:var(--muted)}

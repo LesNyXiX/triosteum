@@ -26,6 +26,7 @@
     "app/board/code-plugins.js",
     "app/board/library.js",
     "app/board/camera.js",
+    "app/board/groups.js",
     "app/board/render.js",
     "app/board/notes-edit.js",
     "app/board/popup.js",

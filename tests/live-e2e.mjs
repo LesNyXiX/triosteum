@@ -72,6 +72,16 @@ const afterUndo = await a.$$eval('.node', (x) => x.length);
 const a1y = (await pos(a, 'n1'))[1];
 ok(afterUndo === 4 && a1y < 300, 'Ctrl+Z у Анны отменил её перемещение, а блок Бориса остался');
 
+console.log('Группы');
+await bb.click('[data-tool="select"]'); await bb.keyboard.press('Escape');
+const bn2 = await (await bb.$('.node[data-id="n2"]')).boundingBox(); await bb.mouse.click(bn2.x + 60, bn2.y + 18);
+await bb.keyboard.press('Control+g'); await bb.waitForTimeout(300);
+await bb.keyboard.press('Control+a'); await bb.keyboard.type('Расчёт'); await bb.keyboard.press('Enter');
+ok(await until(async () => (await a.$$eval('.grp .grp-name', (x) => x.map((e) => e.textContent))).includes('Расчёт'), 6000), 'группа, созданная Борисом, появилась у Анны без перезагрузки');
+await a.mouse.click(640, 760); await a.keyboard.press('Control+z'); await a.waitForTimeout(800);
+ok((await a.$$eval('.grp', (x) => x.length)) === 1, 'Ctrl+Z у Анны не убирает группу Бориса');
+ok(await until(async () => (await bb.$$eval('.grp', (x) => x.length)) === 1, 3000), 'у Бориса группа тоже на месте');
+
 if (process.env.SHOT) await a.screenshot({ path: process.env.SHOT });
 ok(errs.length === 0, 'нет ошибок JavaScript' + (errs.length ? ': ' + errs.join(' | ') : ''));
 await b.close();
