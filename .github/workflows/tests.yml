@@ -57,6 +57,7 @@ jobs:
           npm run test:arc
           npm run test:runopts
           npm run test:runhist
+          npm run test:whatsnew
 
       - name: Хранение и резервные копии
         run: npm run test:storage
