@@ -12,6 +12,8 @@
   }
   function openEco(){
     closeCtx(); hidePop(); renderEco(); $('eco').hidden = false;
+    // свои среды компании могли появиться у коллег — подтягиваем и перерисовываем
+    if(SERVER) cenvRefresh().then(function(){ if(!$('eco').hidden) renderEco(); });
     var f = $('eco').querySelector('.eco-card.go .eco-open'); if(f) f.focus();
   }
   function closeEco(){ $('eco').hidden = true; }
@@ -22,19 +24,28 @@
       var ic = e.ic || (k === 'code' ? '<path d="M8 7l-5 5 5 5M16 7l5 5-5 5M14 4l-4 16"/>' : '<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h6"/>');
       var card = h('article', { 'class':'eco-card go' + (here ? ' here' : ''), style:'--ec:' + e.color }, [
         h('div', { 'class':'eco-top' }, [ h('span', { 'class':'eco-ic art', html:envIconSvg(k) }),
-          here ? h('span', { 'class':'eco-tag', text:'вы здесь' }) : null ].filter(Boolean)),
+          here ? h('span', { 'class':'eco-tag', text:'вы здесь' }) : e.custom ? h('span', { 'class':'eco-tag org', text:'компании', title:'Своя среда вашей организации' + (e.byName ? ' · создал ' + e.byName : '') }) : null ].filter(Boolean)),
         h('h3', null, [ h('button', { type:'button', 'class':'eco-open', text:e.name, title:'Открыть среду «' + e.name + '»' }) ]), h('p', { text:e.desc }),
         h('div', { 'class':'eco-meta', text:'Пространств: ' + n + ' · типов блоков: ' + e.langs.length + ' · в библиотеке: ' + e.plugins.length }),
         h('div', { 'class':'eco-acts' }, [
           h('button', { type:'button', 'class':'btn', text:'Новое пространство', on:{ click:function(ev){ ev.stopPropagation(); closeEco(); newProj(envNewName(k), null, k); } } }),
           k === 'docs' || e.demo || e.seed ? h('button', { type:'button', 'class':'btn', text:k === 'docs' ? 'Пример офиса' : (e.demos && e.demos.length > 1 ? 'Примеры ▾' : 'Пример'), on:{ click:function(ev){ ev.stopPropagation();
             if(e.demos && e.demos.length > 1){ var r = ev.currentTarget.getBoundingClientRect(); openMenuAt([{ head:'Примеры: ' + e.short.toLowerCase() }].concat(e.demos.map(function(d, i){ return { label:d.menu ? d.menu.charAt(0).toUpperCase() + d.menu.slice(1) : d.name, icon:'layout', act:function(){ goEnv(k, i + 1); } }; })), r.left, r.bottom + 4); return; }
-            goEnv(k, true); } } }) : null
+            goEnv(k, true); } } }) : null,
+          e.custom && cenvCanEdit(e) ? h('button', { type:'button', 'class':'btn ghost', text:'Настроить', on:{ click:function(ev){ ev.stopPropagation(); openEnvBuilder(e); } } }) : null
         ].filter(Boolean))
       ]);
       card.addEventListener('click', function(){ goEnv(k); });
       g.appendChild(card);
     });
+    if(cenvCanEdit(null)){
+      var add = h('article', { 'class':'eco-card add' }, [
+        h('div', { 'class':'eco-top' }, [ h('span', { 'class':'eco-ic', html:'<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>' }) ]),
+        h('h3', null, [ h('button', { type:'button', 'class':'eco-open', text:'Своя среда' }) ]),
+        h('p', { text:'Соберите среду под работу вашей компании из блоков склада, производства, финансов и других сред. Её увидят только сотрудники вашей организации.' }) ]);
+      add.addEventListener('click', function(){ openEnvBuilder(null); });
+      g.appendChild(add);
+    }
     FUTURE_ENVS.forEach(function(f){
       g.appendChild(h('article', { 'class':'eco-card soon' }, [
         h('div', { 'class':'eco-top' }, [ h('span', { 'class':'eco-ic', html:'<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + f.ic + '</svg>' }), h('span', { 'class':'eco-tag', text:'скоро' }) ]),
