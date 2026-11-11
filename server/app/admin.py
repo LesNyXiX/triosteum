@@ -15,7 +15,7 @@ from sqlalchemy import text
 
 from .db import tx
 from .live import hub
-from .main import EMAIL, INST_DEFAULTS, ROLES, Who, _inst, inst, inst_set, need
+from .main import EMAIL, INST_DEFAULTS, ROLES, Who, _inst, access_open, inst, inst_set, need
 from .security import new_token, token_hash
 
 router = APIRouter(prefix="/api/admin")
@@ -132,6 +132,8 @@ def op_user_admin(w: Who, uid: str, flag: bool) -> tuple[str, dict]:
         if not flag and str(u["id"]) == w.user_id:
             raise HTTPException(409, "Нельзя снять права администратора с самого себя")
         c.execute(text("UPDATE users SET is_admin = :f WHERE id = :u"), {"f": flag, "u": u["id"]})
+    if not flag and not access_open():
+        _kick_user(uid)                  # сервер закрыт: бывший администратор теряет открытые вкладки сразу
     return ("Назначен администратором: " if flag else "Сняты права администратора: ") + _who(u), \
         {"op": "user.admin", "user": uid, "flag": not flag}
 
