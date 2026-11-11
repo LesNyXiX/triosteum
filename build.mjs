@@ -5,7 +5,9 @@
 import { readFileSync, writeFileSync, mkdirSync, watch } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { transformSync } from 'esbuild';
+// esbuild сжимает код; если его нет (например, npm недоступен при сборке образа) — собираем без сжатия, сайт работает так же
+let transformSync = null;
+try { ({ transformSync } = await import('esbuild')); } catch { console.warn('esbuild не найден — собираю без сжатия'); }
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const SRC = join(ROOT, 'src');
@@ -26,7 +28,7 @@ export function build() {
   if (bad) throw new Error('В коде есть «</script» (около: ' + JSON.stringify((js + pre).slice(Math.max(0, bad.index - 60), bad.index + 10)) + ') — напишите <\\/script>');
   // сжатие: без комментариев и отступов, короткие внутренние имена — файл меньше, браузер разбирает быстрее.
   // TRIOSTEUM_DEV=1 node build.mjs — собрать без сжатия (удобно читать в отладчике)
-  const DEV = process.env.TRIOSTEUM_DEV === '1';
+  const DEV = process.env.TRIOSTEUM_DEV === '1' || !transformSync;
   const WRAP = 'window.__tsBoot(function(){\n<!--@@JS@@-->\n});';
   if (!tpl.includes(WRAP)) throw new Error('В шаблоне нет обёртки window.__tsBoot(function(){ <!--@@JS@@--> });');
   const appJs = DEV ? WRAP.replace('<!--@@JS@@-->', () => js) : transformSync('window.__tsBoot(function(){\n' + js + '\n});', { minify: true, target: 'es2018', charset: 'utf8', legalComments: 'none' }).code.trim();

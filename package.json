@@ -7,6 +7,7 @@
   "scripts": {
     "build": "node build.mjs",
     "dev": "node build.mjs --watch",
+    "pretest": "node build.mjs",
     "test": "node tests/merge.test.cjs && node tests/formulas.test.cjs && node tests/foreign.test.cjs && node tests/lang-corpus.test.cjs && node tests/highlight.test.cjs && node tests/plugins.test.cjs && node tests/vars-server.test.cjs && node tests/smoke.mjs",
     "serve:mock": "node tests/mock-server.mjs",
     "test:admin": "node tests/admin-e2e.mjs",

@@ -1,0 +1,44 @@
+# Публикация сайта на GitHub Pages: собирает docs/index.html из src/ и выкладывает папку docs/.
+# Собранный файл в репозитории не хранится — поэтому PR больше не конфликтуют из-за него.
+# Запускается при каждом изменении main (и из «Автослияния» после слияния PR).
+# В настройках репозитория: Settings → Pages → Source: «GitHub Actions».
+name: Сайт на GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Сборка и публикация
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Сборка
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+        run: |
+          npm install --no-audit --no-fund --ignore-scripts
+          node build.mjs
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+      - id: deployment
+        uses: actions/deploy-pages@v4

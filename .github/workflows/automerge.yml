@@ -20,7 +20,7 @@ permissions:
   contents: write
   pull-requests: write
   checks: read
-  pages: write
+  actions: write
 
 concurrency:
   group: automerge
@@ -109,8 +109,8 @@ jobs:
               merged++;
             }
 
-            // слияние от имени GITHUB_TOKEN может не запустить пересборку сайта — просим GitHub Pages сами
+            // слияние от имени GITHUB_TOKEN не запускает workflow по push — запускаем сборку и публикацию сайта сами
             if (merged) {
-              try { await github.request('POST /repos/{owner}/{repo}/pages/builds', { owner, repo }); core.info('Сайт пересобирается'); }
-              catch (e) { core.warning('Не удалось запросить сборку сайта: ' + e.message); }
+              try { await github.rest.actions.createWorkflowDispatch({ owner, repo, workflow_id: 'pages.yml', ref: 'main' }); core.info('Сайт собирается и публикуется'); }
+              catch (e) { core.warning('Не удалось запустить публикацию сайта: ' + e.message); }
             }

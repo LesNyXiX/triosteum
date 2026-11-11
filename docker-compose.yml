@@ -23,6 +23,7 @@ services:
       dockerfile: server/Dockerfile
       args:
         PYTHON_IMAGE: ${PYTHON_IMAGE:-python:3.12-slim}
+        NODE_IMAGE: ${NODE_IMAGE:-node:22-slim}
     restart: unless-stopped
     depends_on:
       db:

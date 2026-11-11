@@ -38,10 +38,8 @@ jobs:
             npx playwright install chromium
           fi
 
-      - name: Сборка совпадает с исходниками
-        run: |
-          node build.mjs
-          git diff --exit-code -- docs/index.html || (echo "::error::docs/index.html не пересобран — запустите node build.mjs и закоммитьте"; exit 1)
+      - name: Сборка
+        run: node build.mjs
 
       - name: Модульные тесты
         run: npm test

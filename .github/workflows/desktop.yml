@@ -65,6 +65,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          node ../build.mjs
           node prepare.mjs
           npx electron-builder --win --publish ${{ inputs.publish && 'always' || 'never' }}
       - uses: actions/upload-artifact@v4
