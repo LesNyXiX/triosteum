@@ -11,6 +11,13 @@
   .adm-pill i{width:8px;height:8px;border-radius:50%;background:var(--dim)}
   .adm-pill.ok i{background:#22C55E}.adm-pill.warn i{background:#F59E0B}.adm-pill.bad i{background:#EF4444}
   .adm-pill.bad{border-color:#7F1D1D;background:rgba(127,29,29,.25)}
+  .adm-key{display:flex;align-items:center;gap:0;font-size:12px;color:var(--muted)}
+  .adm-key .tgl-key{height:26px;line-height:24px;padding:0 9px;min-width:30px;font-size:12px}
+  .adm-key-l{white-space:nowrap}
+  /* кнопка панели в шапке: щит не крутится, как шестерёнка; пока панель открыта — подсвечена */
+  .adm-btn:hover svg{transform:none}
+  .adm-btn[aria-pressed="true"]{border-color:var(--red);color:var(--ink-strong)}
+  @media (max-width:720px){ .adm-key{display:none} }
   .adm-x{width:36px;height:36px;border-radius:9px;border:1px solid transparent;background:transparent;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center}
   .adm-x:hover{background:var(--wine2);color:var(--ink-strong)}
   .adm-body{flex:1;min-height:0;display:flex}
