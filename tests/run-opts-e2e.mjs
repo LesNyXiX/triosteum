@@ -129,6 +129,22 @@ console.log('Повторное ревью Codex: пространство, ос
   check(errors.length === 0, 'ошибок JavaScript нет' + (errors.length ? ': ' + errors.join(' | ') : ''));
   await ctx.close();
 }
+console.log('Третий раунд Codex: вложенные поля «__…» и блоки с документами');
+{
+  // вложенные пользовательские поля с «__» сохраняются в закреплённом снимке
+  let { page, ctx, errors } = await open([node('a', 'Источник', 160, 'public class R { public object Run(object d){ return new { payload = new { __id = 7, value = 10 } }; } }', { lang: 'csharp', codes: { csharp: 'public class R { public object Run(object d){ return new { payload = new { __id = 7, value = 10 } }; } }' } }), node('b', 'Приёмник', 520, OK)]);
+  await run(page);
+  await pop(page, 'a'); await page.locator('#pop .ropts button', { hasText: 'Закрепить результат последнего запуска' }).click(); await page.waitForTimeout(300);
+  const pv = JSON.stringify(((await graph(page)).nodes.find((n) => n.id === 'a').pin || {}).v);
+  check(/"__id":7/.test(pv) && /"value":10/.test(pv), 'вложенное поле «__id» осталось в снимке: ' + pv);
+  await ctx.close();
+  // блок, создающий документы, закрепить нельзя (снимок ссылался бы на документы прошлого запуска)
+  ({ page, ctx, errors } = await open([{ id: 'a', name: 'Договор', lang: 'doc', x: 160, y: 220, codes: { doc: '<p>Договор</p>' }, pluginId: null, family: null, desc: '', colors: null }, node('b', 'Приёмник', 520, OK)]));
+  await pop(page, 'a');
+  check(await page.locator('#pop .ropts', { hasText: 'Закрепить результат нельзя' }).count() === 1 && await page.locator('#pop .ropts button', { hasText: 'Закрепить' }).count() === 0, 'у блока «Документ» нет кнопки закрепления, есть пояснение');
+  check(errors.length === 0, 'ошибок JavaScript нет' + (errors.length ? ': ' + errors.join(' | ') : ''));
+  await ctx.close();
+}
 await browser.close(); srv.close();
 console.log(failed ? '\nПровалено: ' + failed : '\nВсё прошло');
 process.exit(failed ? 1 : 0);

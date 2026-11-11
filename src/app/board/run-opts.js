@@ -10,13 +10,18 @@
   var PIN_MAX = 200000;   // символов JSON: больше — не закрепляем, чтобы не раздувать сохранение
 
   function nodeLast(n){ return CMP && CMP.last && Object.prototype.hasOwnProperty.call(CMP.last, n.id) ? CMP.last[n.id] : undefined; }
-  // служебные поля записей (__doc — ссылка на документ текущего запуска) в закреплённый снимок не попадают
+  // служебная ссылка записи маршрута на документ текущего запуска (__doc) в снимок не попадает;
+  // убираем только её и только у самих записей — вложенные пользовательские поля «__…» сохраняем
   function pinClean(v){
-    if(Array.isArray(v)) return v.map(pinClean);
-    if(v && typeof v === 'object'){ var o = {}; for(var k in v){ if(k.indexOf('__') !== 0) o[k] = pinClean(v[k]); } return o; }
-    return v;
+    function rec(r){ if(!r || typeof r !== 'object' || Array.isArray(r) || !('__doc' in r)) return r; var o = {}; for(var k in r){ if(k !== '__doc') o[k] = r[k]; } return o; }
+    return Array.isArray(v) ? v.map(rec) : rec(v);
   }
+  // блоки маршрута, которые создают документы, меняют их статус или выгружают их, работают с документами
+  // текущего запуска — снимок их результата был бы ссылкой на старые документы, поэтому их не закрепляем
+  var PIN_NO = { doc:'создаёт документы', step:'меняет статус документов', send:'выгружает документы', cond:'направляет документы по условию' };
+  function pinAllowed(n){ return !!n && n.kind !== 'hub' && !PIN_NO[n.lang]; }
   function pinNode(n, v){
+    if(!pinAllowed(n)){ toast('Результат «' + n.name + '» нельзя закрепить: блок ' + (PIN_NO[n.lang] || 'служебный') + ' — он выполняется при каждом запуске'); return false; }
     var j; try { j = JSON.stringify(pinClean(v)); } catch(e){ j = null; }
     if(j === undefined || j === null && v !== null){ toast('Этот результат нельзя закрепить'); return false; }
     if(j && j.length > PIN_MAX){ toast('Результат слишком большой для закрепления (' + Math.round(j.length / 1000) + ' тыс. символов, можно до ' + PIN_MAX / 1000 + ' тыс.)'); return false; }
@@ -68,7 +73,9 @@
     var last = nodeLast(n), box = h('div', { 'class':'ropts' });
     box.appendChild(toggleRow('Блок включён', !n.off, function(v){ setNodeOff(n, !v); renderPop(); }));
     var pinRow = h('div', { 'class':'ropts-pin' });
-    if(n.pin){
+    if(!pinAllowed(n) && !n.pin){
+      pinRow.appendChild(h('div', { 'class':'ropts-note', text:'Закрепить результат нельзя: блок ' + (PIN_NO[n.lang] || 'служебный') + ' и выполняется при каждом запуске.' }));
+    } else if(n.pin){
       var pj = JSON.stringify(n.pin.v);
       pinRow.appendChild(h('div', { 'class':'ropts-note', text:'📌 Закреплён результат' + (n.pin.t ? ' от ' + new Date(n.pin.t).toLocaleString('ru-RU') : '') + ': ' + (pj && pj.length > 120 ? pj.slice(0, 120) + '…' : pj) }));
       pinRow.appendChild(h('div', { 'class':'acts' }, [

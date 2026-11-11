@@ -42,7 +42,7 @@
           setRun(n, 'skip', 'Блок выключен — входные данные переданы дальше без изменений');
           if(d) d.classList.remove('running'); next(); return;
         }
-        if(n.pin && n.kind !== 'hub'){
+        if(n.pin && pinAllowed(n)){   // закрепление, сохранённое до запрета для блоков с документами, не применяем
           // копия снимка (согласование не должно менять закреплённое), документы — из текущего запуска
           var pinRows = toRows(JSON.parse(JSON.stringify(n.pin.v)));
           pinRows.forEach(function(x, k){ delete x.__doc; if(rows[k] && rows[k].__doc){ x.__doc = rows[k].__doc; if(!x['Документ'] && rows[k]['Документ']) x['Документ'] = rows[k]['Документ']; } });
