@@ -1,17 +1,23 @@
 // История запусков: каждый запуск сохраняется по пространству, статистика по блокам, CSV, очистка.
 // Запуск: npm run build && node tests/run-history-e2e.mjs
 import { chromium } from 'playwright';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { createServer } from 'node:http';
+import { readFileSync } from 'node:fs';
 
-const URL = pathToFileURL(join(dirname(fileURLToPath(import.meta.url)), '..', 'docs', 'index.html')).href;
+// по http: на file:// Chromium иногда теряет localStorage и sessionStorage при перезагрузке
+const HTML = join(dirname(fileURLToPath(import.meta.url)), '..', 'docs', 'index.html');
+const srv = createServer((q, r) => { if (q.url === '/' || q.url.startsWith('/?')) { r.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); r.end(readFileSync(HTML)); } else { r.writeHead(404); r.end(); } });
+await new Promise((ok) => srv.listen(0, '127.0.0.1', ok));
+const URL = 'http://127.0.0.1:' + srv.address().port + '/';
 let failed = 0;
 const check = (ok, name) => { console.log((ok ? '  ✓ ' : '  ✗ ') + name); if (!ok) failed++; };
 const node = (id, name, x, code) => ({ id, name, lang: 'cpp', x, y: 220, codes: { cpp: code }, pluginId: null, family: null, desc: '', colors: null });
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, acceptDownloads: true });
 await ctx.addInitScript((g) => {
-  if (sessionStorage.getItem('seeded')) return; sessionStorage.setItem('seeded', '1');
+  if (window.top !== window || sessionStorage.getItem('seeded')) return; /* только главная страница, один раз */ sessionStorage.setItem('seeded', '1');
   localStorage.setItem('triosteum.projects', JSON.stringify({ cur: 'p1', list: [{ id: 'p1', name: 'История', t: Date.now() }, { id: 'p2', name: 'Другое', t: 1 }, { id: 'p3', name: 'Питон', t: 2 }] }));
   localStorage.setItem('triosteum.proj.p3', JSON.stringify({ nodes: [{ id: 'py', name: 'Блок Питона', lang: 'python', x: 200, y: 200, codes: { python: 'def run(d):\n    return 1' } }], edges: [], notes: [], cam: { x: 0, y: 0, k: 1 }, seq: 3 }));
   localStorage.setItem('triosteum.proj.p1', JSON.stringify(g));
@@ -68,6 +74,6 @@ console.log('Сбой исполнителя и переключение про�
   check(await page.locator('#runHist .rh-run.err').count() === 1 && /не запустился/.test(await page.textContent('#runHist .rh-run')) && (await page.locator('#runHist .rh-kpi b').allTextContents())[1] === '0%', 'сбой загрузки Python — «не запустился», а не успешный запуск');
 }
 check(errors.length === 0, 'ошибок JavaScript нет' + (errors.length ? ': ' + errors.join(' | ') : ''));
-await browser.close();
+await browser.close(); srv.close();
 console.log(failed ? '\nПровалено: ' + failed : '\nВсё прошло');
 process.exit(failed ? 1 : 0);
