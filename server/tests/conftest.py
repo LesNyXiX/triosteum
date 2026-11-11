@@ -31,6 +31,7 @@ os.environ["COOKIE_SECURE"] = "0"
 os.environ["VERSION_EVERY_SEC"] = "0"
 os.environ["AI_PROVIDER"] = "echo"
 os.environ["RUNNER_LOCAL"] = "1"
+os.environ["REGISTRATION"] = "open"          # тестам нужна свободная регистрация; режим «по приглашению» проверяет test_admin
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app import migrate  # noqa: E402

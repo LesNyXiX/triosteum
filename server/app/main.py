@@ -9,6 +9,7 @@ import json
 import os
 import re
 import threading
+import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -87,6 +88,42 @@ class Who(BaseModel):
     email: str
     name: str
     org_name: str
+    is_admin: bool = False
+
+
+# ---------- настройки сервера (панель администратора) ----------
+# registration: 'open' — любой создаёт организацию, 'invite' — только по приглашению администратора
+# access: {"open": bool, "message": str} — закрыть вход всем, кроме администраторов
+INST_DEFAULTS: dict[str, Any] = {"registration": os.environ.get("REGISTRATION", "invite"), "access": {"open": True, "message": ""}}
+_inst: dict[str, Any] = {"t": 0.0, "v": {}}
+
+
+def inst(key: str):
+    """Настройка сервера; читается из базы не чаще раза в 3 секунды."""
+    if time.monotonic() - _inst["t"] > 3:
+        with tx() as c:
+            _inst["v"] = {k: v for k, v in c.execute(text("SELECT key, value FROM instance_settings")).all()}
+        _inst["t"] = time.monotonic()
+    v = _inst["v"].get(key)
+    return INST_DEFAULTS.get(key) if v is None else v
+
+
+def inst_set(c, key: str, value, user_id: str | None) -> None:
+    c.execute(text("""INSERT INTO instance_settings (key, value, updated_by) VALUES (:k, CAST(:v AS jsonb), :u)
+                      ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now(), updated_by = EXCLUDED.updated_by"""),
+              {"k": key, "v": json.dumps(value, ensure_ascii=False), "u": user_id})
+    _inst["t"] = 0.0
+
+
+def access_open() -> bool:
+    a = inst("access")
+    return not isinstance(a, dict) or bool(a.get("open", True))
+
+
+def closed_detail() -> str:
+    a = inst("access")
+    msg = (a.get("message") or "").strip() if isinstance(a, dict) else ""
+    return "Доступ к серверу временно закрыт администратором" + (": " + msg if msg else "")
 
 
 def current(request: Request) -> Who | None:
@@ -98,9 +135,9 @@ def who_by_token(token: str | None) -> Who | None:
         return None
     with tx() as c:
         row = c.execute(text("""
-            SELECT u.id, u.email, u.name, s.org_id, o.name AS org_name, m.role
+            SELECT u.id, u.email, u.name, u.is_admin, s.org_id, o.name AS org_name, m.role
             FROM sessions s
-            JOIN users u ON u.id = s.user_id AND NOT u.disabled
+            JOIN users u ON u.id = s.user_id AND NOT u.disabled AND u.deleted_at IS NULL
             JOIN organizations o ON o.id = s.org_id
             JOIN memberships m ON m.org_id = s.org_id AND m.user_id = s.user_id
             WHERE s.token_hash = :h AND s.expires_at > now()
@@ -108,13 +145,15 @@ def who_by_token(token: str | None) -> Who | None:
     if not row:
         return None
     return Who(user_id=str(row["id"]), org_id=str(row["org_id"]), role=row["role"], email=row["email"],
-               name=row["name"], org_name=row["org_name"])
+               name=row["name"], org_name=row["org_name"], is_admin=bool(row["is_admin"]))
 
 
 def need(request: Request) -> Who:
     w = current(request)
     if not w:
         raise HTTPException(401, "Нужно войти")
+    if not w.is_admin and not access_open():
+        raise HTTPException(423, closed_detail())        # 423 Locked: браузер покажет страницу входа с причиной
     return w
 
 
@@ -186,14 +225,19 @@ def index(request: Request):
     w = current(request)
     if not w:
         return RedirectResponse("/login", status_code=302)
+    if not w.is_admin and not access_open():
+        return RedirectResponse("/login?closed=1", status_code=302)
     with tx(w.org_id) as c:
         spaces = [space_out(r) for r in c.execute(text(SPACE_SELECT + " ORDER BY s.updated_at DESC")).mappings()]
         prefs = {r["name"]: r["value"] for r in c.execute(
             text("SELECT name, value FROM prefs WHERE user_id = :u"), {"u": w.user_id}).mappings()}
-    boot = {"user": {"id": w.user_id, "email": w.email, "name": w.name}, "org": {"id": w.org_id, "name": w.org_name},
+    boot = {"user": {"id": w.user_id, "email": w.email, "name": w.name, "is_admin": w.is_admin},
+            "org": {"id": w.org_id, "name": w.org_name},
             "role": w.role, "cur": prefs.get("cur"), "prefs": prefs, "spaces": spaces,
             "ai": {"enabled": AI is not None, "provider": AI.name if AI else None, "model": AI.model if AI else None},
             "runner": {"enabled": RUNNER_ON}, "mail": {"enabled": mail.configured()}}
+    if w.is_admin:
+        boot["instance"] = {"registration": inst("registration"), "access": inst("access")}
     # «<» в данных экранируем, чтобы строка внутри JSON не смогла закрыть тег <script>
     tag = "<script>window.TRIOSTEUM_BOOT = " + json.dumps(boot, ensure_ascii=False).replace("<", "\\u003c") + ";</script>"
     html = read_html(settings.client_html).replace("<!--@@BOOT@@-->", tag, 1)
@@ -226,7 +270,8 @@ def brand_file(name: str):
 
 @app.get("/login", response_class=HTMLResponse)
 def login_page(request: Request):
-    if current(request):
+    w = current(request)
+    if w and (w.is_admin or access_open()):
         return RedirectResponse("/", status_code=302)
     return HTMLResponse(read_html(settings.login_html))
 
@@ -239,6 +284,7 @@ class RegisterIn(BaseModel):
     email: str = Field(max_length=254)
     password: str = Field(max_length=200)
     pd_consent: bool = False
+    invite: str | None = Field(default=None, max_length=200)   # приглашение на сервер (kind = 'org'), если регистрация закрыта
 
 
 class LoginIn(BaseModel):
@@ -262,14 +308,29 @@ def register(body: RegisterIn, request: Request, response: Response):
     if not login_limiter.hit("ip:" + (client_ip(request) or "?")):
         raise HTTPException(429, "Слишком много попыток — подождите минуту")
     with tx() as c:
+        first = c.execute(text("SELECT NOT EXISTS (SELECT 1 FROM users)")).scalar_one()
+        inv = None
+        if body.invite:
+            inv = _server_invite(c, body.invite, lock=True)
+            if inv["kind"] != "org":
+                raise HTTPException(422, "Это приглашение — в существующую организацию")
+            _invite_email_ok(inv, email)
+        elif not first and inst("registration") != "open":
+            raise HTTPException(403, "Регистрация на этом сервере — только по приглашению администратора")
+        if not access_open() and not first:
+            raise HTTPException(423, closed_detail())
         if c.execute(text("SELECT 1 FROM users WHERE lower(email) = lower(:e)"), {"e": email}).first():
             raise HTTPException(409, "Эта почта уже зарегистрирована — войдите")
         org_id = c.execute(text("INSERT INTO organizations (name) VALUES (:n) RETURNING id"),
                            {"n": body.org.strip()}).scalar_one()
-        user_id = c.execute(text("INSERT INTO users (email, name, password_hash) VALUES (:e, :n, :p) RETURNING id"),
-                            {"e": email, "n": body.name.strip(), "p": hash_password(body.password)}).scalar_one()
+        # самый первый человек на сервере становится его администратором
+        user_id = c.execute(text("INSERT INTO users (email, name, password_hash, is_admin) VALUES (:e, :n, :p, :a) RETURNING id"),
+                            {"e": email, "n": body.name.strip(), "p": hash_password(body.password),
+                             "a": bool(first)}).scalar_one()
         c.execute(text("INSERT INTO memberships (org_id, user_id, role) VALUES (:o, :u, 'owner')"),
                   {"o": org_id, "u": user_id})
+        if inv:
+            c.execute(text("UPDATE instance_invites SET uses = uses + 1 WHERE id = :i"), {"i": inv["id"]})
     with tx(str(org_id)) as c:
         audit(c, str(org_id), str(user_id), "register", request, details={"pd_consent": True})
     start_session(response, request, str(user_id), str(org_id))
@@ -282,12 +343,14 @@ def login(body: LoginIn, request: Request, response: Response):
     if not login_limiter.hit("ip:" + (client_ip(request) or "?"), "email:" + email):
         raise HTTPException(429, "Слишком много попыток — подождите минуту")
     with tx() as c:
-        u = c.execute(text("""SELECT u.id, u.email, u.name, u.password_hash, m.org_id
+        u = c.execute(text("""SELECT u.id, u.email, u.name, u.password_hash, u.is_admin, m.org_id
                               FROM users u JOIN memberships m ON m.user_id = u.id
-                              WHERE lower(u.email) = :e AND NOT u.disabled
+                              WHERE lower(u.email) = :e AND NOT u.disabled AND u.deleted_at IS NULL
                               ORDER BY m.created_at LIMIT 1"""), {"e": email}).mappings().first()
     if not verify_password(u["password_hash"] if u else None, body.password):
         raise HTTPException(401, "Неверная почта или пароль")
+    if not u["is_admin"] and not access_open():
+        raise HTTPException(423, closed_detail())
     with tx(str(u["org_id"])) as c:
         audit(c, str(u["org_id"]), str(u["id"]), "login", request)
     start_session(response, request, str(u["id"]), str(u["org_id"]))
@@ -320,7 +383,7 @@ def forgot(body: ForgotIn, request: Request):
     if not mail.configured():
         raise HTTPException(503, "Отправка писем не настроена — обратитесь к владельцу организации")
     with tx() as c:
-        u = c.execute(text("SELECT id, email FROM users WHERE lower(email) = :e AND NOT disabled"), {"e": email}).mappings().first()
+        u = c.execute(text("SELECT id, email FROM users WHERE lower(email) = :e AND NOT disabled AND deleted_at IS NULL"), {"e": email}).mappings().first()
         if u:
             token = new_token()
             c.execute(text("DELETE FROM password_resets WHERE user_id = :u AND used_at IS NULL"), {"u": u["id"]})
@@ -377,13 +440,17 @@ def reset_page():
 
 @app.get("/api/auth/options")
 def auth_options():
-    return {"mail": mail.configured()}
+    a = inst("access")
+    with tx() as c:
+        first = c.execute(text("SELECT NOT EXISTS (SELECT 1 FROM users)")).scalar_one()
+    return {"mail": mail.configured(), "registration": "open" if first else inst("registration"),
+            "access": {"open": access_open(), "message": closed_detail() if not access_open() else ""}}
 
 
 @app.get("/api/me")
 def me(w: Who = Depends(need)):
-    return {"user": {"id": w.user_id, "email": w.email, "name": w.name}, "org": {"id": w.org_id, "name": w.org_name},
-            "role": w.role}
+    return {"user": {"id": w.user_id, "email": w.email, "name": w.name, "is_admin": w.is_admin},
+            "org": {"id": w.org_id, "name": w.org_name}, "role": w.role}
 
 
 # ---------- пространства ----------
@@ -616,6 +683,8 @@ async def live_space(ws: WebSocket, space_id: str):
         await ws.close(code=4403)
         return
     w = await asyncio.to_thread(who_by_token, ws.cookies.get(COOKIE))
+    if w and not w.is_admin and not await asyncio.to_thread(access_open):
+        w = None
     if not w or not SPACE_ID.match(space_id):
         await ws.close(code=4401)
         return
@@ -811,7 +880,9 @@ def accept_invite(body: AcceptIn, request: Request, response: Response):
     inv = _invite(body.token)
     org_id, email = str(inv["org_id"]), inv["email"]
     with tx() as c:
-        u = c.execute(text("SELECT id, name, password_hash FROM users WHERE lower(email) = lower(:e)"), {"e": email}).mappings().first()
+        u = c.execute(text("SELECT id, name, password_hash, deleted_at, disabled FROM users WHERE lower(email) = lower(:e)"), {"e": email}).mappings().first()
+        if u and (u["deleted_at"] or u["disabled"]):
+            raise HTTPException(403, "Аккаунт " + email + " отключён администратором сервера")
         if u:                                   # аккаунт уже есть — подтверждаем его паролем
             if not verify_password(u["password_hash"], body.password):
                 raise HTTPException(401, "Неверный пароль от аккаунта " + email)
@@ -835,6 +906,85 @@ def accept_invite(body: AcceptIn, request: Request, response: Response):
 
 @app.get("/invite", response_class=HTMLResponse)
 def invite_page():
+    return HTMLResponse(read_html(settings.login_html))
+
+
+# ---------- приглашения на сервер (выдаёт администратор) ----------
+
+def _server_invite(c, token: str, lock: bool = False):
+    r = c.execute(text("""SELECT i.*, o.name AS org_name FROM instance_invites i LEFT JOIN organizations o ON o.id = i.org_id
+                           WHERE i.token_hash = :h""" + (" FOR UPDATE OF i" if lock else "")),
+                  {"h": token_hash(token)}).mappings().first()
+    if (not r or r["revoked_at"] is not None or r["uses"] >= r["max_uses"]
+            or r["expires_at"] < datetime.now(timezone.utc)):
+        raise HTTPException(404, "Приглашение не найдено или уже недействительно")
+    return r
+
+
+def _invite_email_ok(inv, email: str) -> None:
+    if inv["email"] and inv["email"].strip().lower() != email.strip().lower():
+        raise HTTPException(403, "Это приглашение выдано для другой почты")
+
+
+@app.get("/api/join/{token}")
+def join_info(token: str):
+    with tx() as c:
+        r = _server_invite(c, token)
+    return {"kind": r["kind"], "org": r["org_name"], "role": r["role"], "email": r["email"],
+            "expires_at": r["expires_at"].isoformat()}
+
+
+class JoinIn(BaseModel):
+    token: str = Field(max_length=200)
+    email: str = Field(max_length=254)
+    password: str = Field(max_length=200)
+    name: str = Field(default="", max_length=120)
+    pd_consent: bool = False
+
+
+@app.post("/api/auth/join")
+def join(body: JoinIn, request: Request, response: Response):
+    """Войти по приглашению сервера в существующую организацию (kind = 'member')."""
+    if not login_limiter.hit("ip:" + (client_ip(request) or "?"), "join:" + body.token[:16]):
+        raise HTTPException(429, "Слишком много попыток — подождите минуту")
+    email = body.email.strip()
+    if not EMAIL.match(email):
+        raise HTTPException(422, "Проверьте почту")
+    with tx() as c:
+        inv = _server_invite(c, body.token, lock=True)
+        if inv["kind"] != "member":
+            raise HTTPException(422, "По этой ссылке создают новую организацию")
+        _invite_email_ok(inv, email)
+        u = c.execute(text("SELECT id, name, password_hash, is_admin, disabled, deleted_at FROM users WHERE lower(email) = lower(:e)"),
+                      {"e": email}).mappings().first()
+        if u and (u["deleted_at"] or u["disabled"]):
+            raise HTTPException(403, "Аккаунт " + email + " отключён администратором сервера")
+        if u:
+            if not verify_password(u["password_hash"], body.password):
+                raise HTTPException(401, "Неверный пароль от аккаунта " + email)
+            user_id, name, is_admin = str(u["id"]), u["name"], u["is_admin"]
+        else:
+            if len(body.password) < 8:
+                raise HTTPException(422, "Пароль — не меньше 8 символов")
+            if not body.pd_consent:
+                raise HTTPException(422, "Нужно согласие на обработку персональных данных")
+            name, is_admin = body.name.strip(), False
+            user_id = str(c.execute(text("INSERT INTO users (email, name, password_hash) VALUES (:e, :n, :p) RETURNING id"),
+                                    {"e": email, "n": name, "p": hash_password(body.password)}).scalar_one())
+        if not is_admin and not access_open():
+            raise HTTPException(423, closed_detail())
+        org_id = str(inv["org_id"])
+        c.execute(text("""INSERT INTO memberships (org_id, user_id, role) VALUES (:o, :u, :r)
+                          ON CONFLICT (org_id, user_id) DO NOTHING"""), {"o": org_id, "u": user_id, "r": inv["role"]})
+        c.execute(text("UPDATE instance_invites SET uses = uses + 1 WHERE id = :i"), {"i": inv["id"]})
+    with tx(org_id) as c:
+        audit(c, org_id, user_id, "invite.accept", request, "server_invite", str(inv["id"]))
+    start_session(response, request, user_id, org_id)
+    return me_out(user_id, email, name)
+
+
+@app.get("/join", response_class=HTMLResponse)
+def join_page():
     return HTMLResponse(read_html(settings.login_html))
 
 
@@ -1025,3 +1175,7 @@ def health():
     with tx() as c:
         c.execute(text("SELECT 1"))
     return {"ok": True}
+
+
+from . import admin as _admin   # noqa: E402  (панель администратора; модуль использует функции выше)
+app.include_router(_admin.router)

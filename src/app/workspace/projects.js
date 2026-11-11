@@ -241,6 +241,7 @@
     if(SERVER.localCount()) items.push({ label:'Перенести пространства из этого браузера…', icon:'cloud', act:importLocal });
     items.push({ label:'Команда…', icon:'user', act:openTeam });
     items.push({ label:'История версий…', icon:'layout', act:openHistory });
+    if(SERVER.admin) items.push({ label:'Панель администратора…', icon:'keys', act:function(){ openAdmin(); } });
     items.push({ label:'Выйти', icon:'logout', act:function(){ SERVER.logout(); } });
     return items;
   }
