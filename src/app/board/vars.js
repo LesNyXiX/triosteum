@@ -35,6 +35,18 @@
       return String(v);
     });
   }
+  // Python на сервере: triosteum.var() и triosteum.secret() — модуль создаёт сервер, мы дописываем функции.
+  // Передаём все переменные и только те секреты, что названы в коде. Строку дописываем в конец кода, чтобы
+  // не сдвигать номера строк в ошибках; если функции импортируются напрямую (from triosteum import var) — в начало.
+  function varServerApi(code){
+    if(typeof code !== 'string' || !/\b(var|secret)\s*\(/.test(code)) return code;
+    var vals = {}; varsList().forEach(function(x){ var v = varGet(x.k); if(v !== undefined) vals[x.k] = v; });
+    var secs = {};
+    code.replace(/\bsecret\(\s*["']([^"']+)["']/g, function(m, name){ var v = varSecret(name); if(v !== undefined){ secs[name] = String(v); VARS_RUN.used[String(v)] = 1; } else varWarn('Нет секрета «' + name + '» — добавьте его в Персонализации → «Секреты для блоков»'); return m; });
+    var line = 'import sys as _tsys, json as _tjs; _tv = _tjs.loads(' + JSON.stringify(JSON.stringify(vals)) + '); _tsc = _tjs.loads(' + JSON.stringify(JSON.stringify(secs)) + '); ' +
+      '[(setattr(_tsys.modules[_m], "var", lambda n, d=None: d if _tv.get(n) is None else _tv.get(n)), setattr(_tsys.modules[_m], "secret", lambda n, d=None: _tsc.get(n, d))) for _m in ("triosteum", "yadro") if _m in _tsys.modules]';
+    return /^\s*from\s+(triosteum|yadro)\s+import\s+[^\n]*\b(var|secret)\b/m.test(code) ? line + '\n' + code : code.replace(/\s*$/, '') + '\n' + line + '\n';
+  }
   function varWarn(t){ if(typeof CMP !== 'undefined' && CMP.busy) rlog('  ⚠ ' + t, 'warn'); else toast(t); }
   // значения секретов не должны попасть в журнал, вывод и историю запусков
   function varMask(t){
@@ -47,7 +59,7 @@
     var _norm = normGraph;   // переменные и профиль сохраняются вместе с пространством
     normGraph = function(o){ var g = _norm(o); if(o && Array.isArray(o.vars)) g.vars = JSON.parse(JSON.stringify(o.vars)); if(o && o.varProfile) g.varProfile = o.varProfile; return g; };
     var _sr = serverRun;
-    serverRun = function(code, input, mode){ return _sr(varSubst(code), input, mode); };
+    serverRun = function(code, input, mode){ return _sr(varServerApi(varSubst(code)), input, mode); };
     var _rf = runForeign;
     runForeign = function(lang, code, input, opts){ return _rf(lang, varSubst(code), input, opts); };
     var _lp = loadPy;
@@ -72,6 +84,11 @@
       });
     };
     window.__tSecret = function(name){ var v = varSecret(name); if(v === undefined) { varWarn('Нет секрета «' + name + '» — добавьте его в Персонализации → «Секреты для блоков»'); return null; } VARS_RUN.used[String(v)] = 1; return String(v); };
+    // секреты скрываем и в статусах блоков, вкладке «Ошибки», отчёте и запросе к ИИ (они идут через setRun → cmpMark)
+    var _setRun = setRun;
+    setRun = function(n, st, info){ return _setRun(n, st, varMask(info)); };
+    var _mark = cmpMark;
+    cmpMark = function(n, st, info){ return _mark(n, st, varMask(info)); };
     var _rlog = rlog;
     rlog = function(text, cls){ return _rlog(varMask(text), cls); };
     var _std = cmpStd;

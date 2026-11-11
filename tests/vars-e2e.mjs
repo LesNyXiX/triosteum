@@ -17,6 +17,7 @@ await ctx.addInitScript((g) => {
   localStorage.setItem('triosteum.proj.p1', JSON.stringify(g));
   localStorage.setItem('triosteum.profile', JSON.stringify({ name: 'Т', org: 'З' })); localStorage.setItem('triosteum.tour', '{"done":true}');
 }, { nodes: [node('a', 'Ставка', 160, 'cpp', 'int run(){ return {{var:СТАВКА}}; }'),
+             node('c', 'Падает', 160, 'csharp', 'public class C { public object Run(object d){ throw new Exception("доступ запрещён для {{secret:ТОКЕН}}"); } }'),
              node('b', 'Токен', 520, 'csharp', 'public class B { public object Run(object d){ Console.WriteLine("токен: {{secret:ТОКЕН}}"); return "{{var:НЕТ_ТАКОЙ}}"; } }')],
      edges: [], notes: [], cam: { x: 0, y: 0, k: 1 }, seq: 9 });
 const page = await ctx.newPage(); const errors = [];
@@ -45,6 +46,8 @@ check(/Профиль переменных: «Тест»/.test(log), 'в жур�
 check(/✓ результат: 5\b/.test(log), '{{var:СТАВКА}} в «Тесте» → 5');
 check(/токен: ••••••/.test(log) && !/tok-secret-12345/.test(log), 'секрет подставлен, но в журнале скрыт');
 check(/Не задана переменная «НЕТ_ТАКОЙ»/.test(log), 'про незаданную переменную — предупреждение');
+const errsTxt = await page.$eval('#runErrs', (e) => e.textContent);
+check(/доступ запрещён для ••••••/.test(errsTxt) && !/tok-secret-12345/.test(errsTxt) && !/tok-secret-12345/.test(await page.evaluate(() => document.body.innerText)), 'секрет в тексте ошибки скрыт и во вкладке «Ошибки», и на странице');
 await cmd('переключить на «Боевой»');
 check(await page.$eval('#topRun', (b) => b.classList.contains('prof-prod')), 'у кнопки запуска — метка «боевой»');
 log = await run();
