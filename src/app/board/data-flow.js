@@ -70,6 +70,8 @@
   (function(){
     var _re = renderEdges;
     renderEdges = function(){ var r = _re.apply(this, arguments); dfSchedule(); return r; };
+    var _em = edgesMoved;   // быстрый путь перетаскивания (edgeFast) обходит renderEdges — плашки догоняют после остановки
+    edgesMoved = function(){ var r = _em.apply(this, arguments); if(DF.layer.firstChild) dfSchedule(); return r; };
     var _end = cmpEnd;
     cmpEnd = function(){ var r = _end.apply(this, arguments); dfSchedule(); return r; };
     var _ep = renderEdgePop;
