@@ -50,11 +50,14 @@
   function varMask(t){
     if(typeof t !== 'string') return t;
     Object.keys(VARS_RUN.used).forEach(function(s){
-      if(s.length < 4) return;
+      if(!s) return;
       // сам секрет и его вид внутри JSON (кавычки, \\, переводы строк экранированы) — результаты блоков сериализуются
-      var js = JSON.stringify(s).slice(1, -1);
-      t = t.split(s).join('••••••');
-      if(js !== s) t = t.split(js).join('••••••');
+      [s, JSON.stringify(s).slice(1, -1)].forEach(function(x, i){
+        if(i && x === s) return;
+        if(x.length >= 4){ t = t.split(x).join('••••••'); return; }
+        // короткий секрет (PIN, код) — только отдельным значением, не внутри других чисел и слов
+        t = t.replace(new RegExp('(^|[^\\p{L}\\p{N}])' + x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![\\p{L}\\p{N}])', 'gu'), '$1••••••');
+      });
     });
     return t;
   }
@@ -64,6 +67,16 @@
     if(typeof v === 'string') return varMask(v);
     if(typeof v !== 'object') return v;
     try { return JSON.parse(varMask(JSON.stringify(v))); } catch(e){ return v; }
+  }
+
+  // var() и secret() для Python в браузере: значения переменных — активного профиля, секреты — по запросу через js.__tSecret
+  var SCHEME_MOD = 'sys.modules["triosteum"] = _mod';   // строка из assembleBackend (ai/backend-code.js)
+  function varPyApi(){
+    var vals = {}; varsList().forEach(function(x){ vals[x.k] = varGet(x.k); });
+    return 'import json as _tj\n_t_vars = _tj.loads(' + JSON.stringify(JSON.stringify(vals)) + ')\n' +
+      'def _t_var(name, default=None):\n    v = _t_vars.get(name)\n    return default if v is None else v\n' +
+      'def _t_secret(name, default=None):\n    import js\n    v = js.__tSecret(name)\n    return default if v is None else v\n' +
+      'for _m in ("triosteum", "yadro"):\n    if _m in sys.modules:\n        sys.modules[_m].var = _t_var\n        sys.modules[_m].secret = _t_secret\n';
   }
 
   (function(){
@@ -81,13 +94,8 @@
           var _run = py.runPython.bind(py);
           py.runPython = function(code, o){
             code = varSubst(code);
-            if(typeof code === 'string' && code.indexOf('sys.modules[_m] = _mod') >= 0){   // заглушка модуля triosteum — добавляем var() и secret()
-              var vals = {}; varsList().forEach(function(x){ vals[x.k] = varGet(x.k); });
-              code += '\nimport json as _tj\n_t_vars = _tj.loads(' + JSON.stringify(JSON.stringify(vals)) + ')\n' +
-                'def _t_var(name, default=None):\n    v = _t_vars.get(name)\n    return default if v is None else v\n' +
-                'def _t_secret(name, default=None):\n    import js\n    v = js.__tSecret(name)\n    return default if v is None else v\n' +
-                'for _m in ("triosteum", "yadro"):\n    sys.modules[_m].var = _t_var\n    sys.modules[_m].secret = _t_secret\n';
-            }
+            if(typeof code === 'string' && code.indexOf('sys.modules[_m] = _mod') >= 0) code += '\n' + varPyApi();   // заглушка модуля triosteum — добавляем var() и secret()
+            else if(typeof code === 'string' && code.indexOf(SCHEME_MOD) >= 0) code = code.replace(SCHEME_MOD, SCHEME_MOD + '\n' + varPyApi());   // целостный код схемы: свой модуль — API сразу после него
             return _run(code, o);
           };
         }

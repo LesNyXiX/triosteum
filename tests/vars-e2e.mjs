@@ -25,6 +25,7 @@ await ctx.addInitScript((g) => {
 }, { nodes: [node('a', 'Ставка', 160, 'cpp', 'int run(){ return {{var:СТАВКА}}; }'),
              node('c', 'Падает', 160, 'csharp', 'public class C { public object Run(object d){ throw new Exception("доступ запрещён для {{secret:ТОКЕН}}"); } }'),
              node('r', 'Отдаёт секрет', 520, 'csharp', 'public class R { public object Run(object d){ return "{{secret:ТОКЕН}}"; } }'),
+             node('L', 'Длинный результат', 520, 'csharp', 'public class R { public object Run(object d){ return "' + 'x'.repeat(150) + '{{secret:ТОКЕН}}"; } }'),
              node('b', 'Токен', 520, 'csharp', 'public class B { public object Run(object d){ Console.WriteLine("токен: {{secret:ТОКЕН}}"); return "{{var:НЕТ_ТАКОЙ}}"; } }')],
      edges: [], notes: [], cam: { x: 0, y: 0, k: 1 }, seq: 9 });
 const page = await ctx.newPage(); const errors = [];
@@ -58,6 +59,7 @@ check(runs.length > 0 && !/tok-secret-12345/.test(runs) && /••••••/.
 await page.keyboard.press('Escape'); await page.waitForTimeout(400);
 const shown = await page.evaluate(() => [...document.querySelectorAll('.df-chip')].map((c) => c.textContent).join(' ') + document.body.innerText);
 check(!/tok-secret-12345/.test(shown), 'и не виден на доске (плашки данных на связях)');
+check(!/tok-secr/.test(log) && !/tok-secr/.test(runs), 'секрет на границе обрезки результата (160 символов) не виден даже частично');
 const errsTxt = await page.$eval('#runErrs', (e) => e.textContent);
 check(/доступ запрещён для ••••••/.test(errsTxt) && !/tok-secret-12345/.test(errsTxt) && !/tok-secret-12345/.test(await page.evaluate(() => document.body.innerText)), 'секрет в тексте ошибки скрыт и во вкладке «Ошибки», и на странице');
 await cmd('переключить на «Боевой»');

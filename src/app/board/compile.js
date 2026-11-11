@@ -33,6 +33,8 @@
     '    _res = _b(_inp)',
     '    _out_json = json.dumps(_res, ensure_ascii=False, default=str)'
   ].join('\n');
+  // краткий вид результата для журнала и статуса: секреты скрываются до обрезки (иначе часть секрета останется)
+  function cmpCut(t, max){ if(t === null || t === undefined) return t; t = String(t); if(typeof varMask === 'function') t = varMask(t); return t.length > max ? t.slice(0, max) + '…' : t; }
   function runBoard(){
     // единый компилятор: если на доске есть блоки других сред (таблицы, документы, расчёты), вся схема идёт одним маршрутом
     if(isDocs() || G.nodes.some(function(n){ return n.kind !== 'hub' && !CODE_LANGS.some(function(l){ return l.id === n.lang; }); })) return runRoute();
@@ -77,8 +79,8 @@
         // закреплённый результат — блок не выполняется (не дёргаем внешние системы при отладке)
         if(n.pin && n.kind !== 'hub'){
           results[n.id] = n.pin.v; var pj = JSON.stringify(n.pin.v);
-          rlog('📌 ' + n.name + ' — закреплённый результат' + (n.pin.t ? ' от ' + new Date(n.pin.t).toLocaleString('ru-RU') : '') + ': ' + (pj && pj.length > 160 ? pj.slice(0, 160) + '…' : pj), 'ok'); stat.ok++;
-          setRun(n, 'ok', 'Закреплённый результат — блок не выполнялся. ' + (pj && pj.length > 200 ? pj.slice(0, 200) + '…' : pj));
+          rlog('📌 ' + n.name + ' — закреплённый результат' + (n.pin.t ? ' от ' + new Date(n.pin.t).toLocaleString('ru-RU') : '') + ': ' + cmpCut(pj, 160), 'ok'); stat.ok++;
+          setRun(n, 'ok', 'Закреплённый результат — блок не выполнялся. ' + cmpCut(pj, 200));
           done(); return;
         }
         var tries = Math.max(0, Math.min(5, n.retry | 0)), attempt = 0;
@@ -95,8 +97,8 @@
         }
         function ok(out, note){
           results[n.id] = out === undefined ? null : out; var oj = out === undefined || out === null ? null : JSON.stringify(out);
-          rlog('  ✓ результат: ' + (oj ? (oj.length > 160 ? oj.slice(0, 160) + '…' : oj) : 'нет') + (note || '') + (attempt ? ' · с ' + (attempt + 1) + '-й попытки' : ''), 'ok'); stat.ok++;
-          setRun(n, 'ok', 'Выполнен' + (attempt ? ' с ' + (attempt + 1) + '-й попытки' : '') + '. Результат: ' + (oj ? (oj.length > 200 ? oj.slice(0, 200) + '…' : oj) : 'нет'));
+          rlog('  ✓ результат: ' + (oj ? cmpCut(oj, 160) : 'нет') + (note || '') + (attempt ? ' · с ' + (attempt + 1) + '-й попытки' : ''), 'ok'); stat.ok++;
+          setRun(n, 'ok', 'Выполнен' + (attempt ? ' с ' + (attempt + 1) + '-й попытки' : '') + '. Результат: ' + (oj ? cmpCut(oj, 200) : 'нет'));
           done();
         }
         function go(){
