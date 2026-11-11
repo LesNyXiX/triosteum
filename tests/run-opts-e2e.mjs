@@ -91,6 +91,38 @@ console.log('Ошибка проходит через выключенный б�
   check(errors.length === 0, 'ошибок JavaScript нет' + (errors.length ? ': ' + errors.join(' | ') : ''));
   await ctx.close();
 }
+console.log('Повторное ревью Codex: пространство, остановка, Python без среды');
+{
+  // результат последнего запуска не переходит в другое пространство (копия хранит те же id)
+  let { page, ctx, errors } = await open([node('a', 'Источник', 160, OK), node('b', 'Приёмник', 520, OK)]);
+  await run(page);
+  await page.keyboard.press('Escape'); await page.keyboard.press('Control+k'); await page.keyboard.type('Дублировать пространство'); await page.waitForTimeout(400); await page.keyboard.press('Enter'); await page.waitForTimeout(800);
+  await pop(page, 'a');
+  const pinBtn = page.locator('#pop .ropts button', { hasText: 'сначала запустите схему' });
+  check(await pinBtn.count() === 1 && await pinBtn.isDisabled(), 'в копии пространства нельзя закрепить результат чужого запуска');
+  check(errors.length === 0, 'ошибок JavaScript нет' + (errors.length ? ': ' + errors.join(' | ') : ''));
+  await ctx.close();
+  // выключенный Python не требует загрузки среды: без Pyodide остальные блоки выполняются
+  ({ page, ctx, errors } = await open([{ id: 'p', name: 'Питон', lang: 'python', x: 120, y: 220, codes: { python: 'import triosteum\n@triosteum.block\ndef run(x):\n    return 1' }, pluginId: null, family: null, desc: '', colors: null, off: true },
+    node('b', 'Плюсы', 420, OK)], [{ id: 'e1', from: 'p', to: 'b', taps: [] }]));
+  await page.route(/pyodide/, (r) => r.abort());
+  let log = await run(page);
+  check(/⏸ Питон — выключен/.test(log) && /▶ Плюсы/.test(log), 'выключенный Python-блок: среда не загружается, схема выполняется');
+  await ctx.close();
+  // смешанная схема: «Остановить» во время паузы перед повтором — блок больше не выполняется
+  ({ page, ctx, errors } = await open([{ id: 's', name: 'Таблица', lang: 'sheet', x: 120, y: 220, codes: { sheet: JSON.stringify({ rows: [['Имя', 'Сумма'], ['А', '1']] }) }, pluginId: null, family: null, desc: '', colors: null },
+    node('b', 'Расчёт', 420, BAD, { retry: 5 })], [{ id: 'e1', from: 's', to: 'b', taps: [] }]));
+  await page.keyboard.press('Escape'); await page.keyboard.press('Control+r');
+  await page.waitForFunction(() => /повтор 1 из 5/.test(document.querySelector('#runOut').textContent), null, { timeout: 8000 }).catch(() => {});
+  await page.click('#runStop');
+  const tries0 = ((await page.textContent('#runOut')).match(/повтор \d из 5/g) || []).length;
+  await page.waitForTimeout(3500);
+  log = await page.textContent('#runOut');
+  const tries1 = (log.match(/повтор \d из 5/g) || []).length;
+  check(tries0 >= 1 && tries1 === tries0 && /остановлен пользователем/.test(log) && !/после 5 повторов/.test(log), 'остановка во время паузы перед повтором: блок больше не выполняется (' + tries0 + ' → ' + tries1 + ')');
+  check(errors.length === 0, 'ошибок JavaScript нет' + (errors.length ? ': ' + errors.join(' | ') : ''));
+  await ctx.close();
+}
 await browser.close();
 console.log(failed ? '\nПровалено: ' + failed : '\nВсё прошло');
 process.exit(failed ? 1 : 0);

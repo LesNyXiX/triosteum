@@ -10,8 +10,14 @@
   var PIN_MAX = 200000;   // символов JSON: больше — не закрепляем, чтобы не раздувать сохранение
 
   function nodeLast(n){ return CMP && CMP.last && Object.prototype.hasOwnProperty.call(CMP.last, n.id) ? CMP.last[n.id] : undefined; }
+  // служебные поля записей (__doc — ссылка на документ текущего запуска) в закреплённый снимок не попадают
+  function pinClean(v){
+    if(Array.isArray(v)) return v.map(pinClean);
+    if(v && typeof v === 'object'){ var o = {}; for(var k in v){ if(k.indexOf('__') !== 0) o[k] = pinClean(v[k]); } return o; }
+    return v;
+  }
   function pinNode(n, v){
-    var j; try { j = JSON.stringify(v); } catch(e){ j = null; }
+    var j; try { j = JSON.stringify(pinClean(v)); } catch(e){ j = null; }
     if(j === undefined || j === null && v !== null){ toast('Этот результат нельзя закрепить'); return false; }
     if(j && j.length > PIN_MAX){ toast('Результат слишком большой для закрепления (' + Math.round(j.length / 1000) + ' тыс. символов, можно до ' + PIN_MAX / 1000 + ' тыс.)'); return false; }
     n.pin = { v:v === undefined ? null : JSON.parse(j || 'null'), t:Date.now() };
@@ -27,6 +33,13 @@
     if(n.cont) a.push('продолжать при ошибке');
     return a.join(' · ');
   }
+
+  // последние результаты принадлежат пространству: при смене графа (другое пространство, загрузка с сервера)
+  // сбрасываем их, иначе блок с тем же id мог бы закрепить чужой результат
+  (function(){
+    var _sg = setGraph;
+    setGraph = function(o){ if(CMP) CMP.last = {}; return _sg(o); };
+  })();
 
   // метки на блоке: выключен, закреплён, повторы
   (function(){

@@ -15,7 +15,7 @@
     cmpBegin(plan, 'Маршрут');
     rlog('Маршрут: ' + plan.order.map(function(n){ return n.name; }).join(' → '), 'dim');
     if(plan.cyclic.length) rlog('Пропущены из-за замкнутого круга: ' + plan.cyclic.map(function(n){ return n.name; }).join(', '), 'warn');
-    var needPy = plan.order.some(function(n){ return n.lang === 'python'; });
+    var needPy = plan.order.some(function(n){ return n.lang === 'python' && !n.off && !n.pin; });   // выключенный и закреплённый Python среду не требуют
     var results = cmpSeed(), stat = { ok:0, err:0, skip:0 }, failed = {}, days = {}, regN = 0, docN = 0;
     running = true;
     if(needPy && RUN_SERVER) rlog('Python выполняется на сервере', 'dim');
@@ -43,7 +43,10 @@
           if(d) d.classList.remove('running'); next(); return;
         }
         if(n.pin && n.kind !== 'hub'){
-          results[n.id] = toRows(n.pin.v); stat.ok++;
+          // копия снимка (согласование не должно менять закреплённое), документы — из текущего запуска
+          var pinRows = toRows(JSON.parse(JSON.stringify(n.pin.v)));
+          pinRows.forEach(function(x, k){ delete x.__doc; if(rows[k] && rows[k].__doc){ x.__doc = rows[k].__doc; if(!x['Документ'] && rows[k]['Документ']) x['Документ'] = rows[k]['Документ']; } });
+          results[n.id] = pinRows; stat.ok++;
           rlog('📌 ' + n.name + ' — закреплённый результат, записей: ' + results[n.id].length, 'ok'); setRun(n, 'ok', 'Закреплённый результат — блок не выполнялся. Записей: ' + results[n.id].length);
           if(d) d.classList.remove('running'); next(); return;
         }
@@ -56,6 +59,8 @@
         }
         setTimeout(go, 90);
         function go(){
+          // «Остановить» во время паузы перед повтором — блок больше не выполняем
+          if(cmpStopped()){ if(d) d.classList.remove('running'); finish(true); return; }
           // код из «Разработки» на сервере: результат идёт дальше по маршруту вместе с остальными блоками
           if(n.lang === 'python' && RUN_SERVER && !py){
             rlog('▶ ' + n.name + ' — Python на сервере');

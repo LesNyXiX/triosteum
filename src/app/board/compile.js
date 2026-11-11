@@ -44,7 +44,7 @@
     cmpBegin(plan, 'Разработка');
     rlog('Порядок выполнения: ' + plan.order.map(function(n){ return n.name; }).join(' → '), 'dim');
     if(plan.cyclic.length) rlog('Пропущены из-за замкнутого круга связей: ' + plan.cyclic.map(function(n){ return n.name; }).join(', '), 'warn');
-    var needPy = plan.order.some(function(n){ return n.lang === 'python'; });
+    var needPy = plan.order.some(function(n){ return n.lang === 'python' && !n.off && !n.pin; });   // выключенный и закреплённый Python среду не требуют
     var results = cmpSeed(), stat = { ok:0, err:0, skip:0 }, failed = {};
     running = true;
     if(needPy && RUN_SERVER) rlog('Python выполняется на сервере', 'dim');
