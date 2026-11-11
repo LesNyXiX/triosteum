@@ -173,6 +173,15 @@ def test_schedule_claim(client, admin):
     assert claim(client, 900).json() == {"ok": False}, "старый срок не захватывается"
     assert claim(client, 2000).json() == {"ok": True}
     assert claim(client, -1).status_code == 422
+    tclaim = lambda c, slot, t: c.post("/api/spaces/sc/schedule-claim", json={"slot": slot, "token": t})
+    admin.execute("UPDATE schedule_claims SET claimed_at = now() - interval '1 minute'")
+    assert tclaim(client, 3000, "tabA").json() == {"ok": True}
+    assert tclaim(client, 3000, "tabA").json() == {"ok": True}, "ответ потерялся — повтор той же вкладкой подтверждается"
+    assert tclaim(client, 3000, "tabB").json() == {"ok": False}, "другая вкладка тот же срок не получает"
+    assert claim(client, 3000).json() == {"ok": False}, "без метки повтор не подтверждается"
+    admin.execute("UPDATE schedule_claims SET claimed_at = now() - interval '11 minutes'")
+    assert tclaim(client, 3000, "tabB").json() == {"ok": True}, "незавершённый захват старше 10 минут можно взять заново"
+    assert tclaim(client, 4000, "bad token!").status_code == 422
     other = TestClient(client.app, base_url="http://testserver")
     register(other, org="Другой завод")
     assert claim(other, 5000).json() == {"ok": True}, "у другой организации свои захваты"

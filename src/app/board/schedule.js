@@ -7,7 +7,7 @@
      и дальше по расписанию. Ошибка запуска — уведомление браузера (если разрешено) и сообщение.
      Хранится в пространстве: G.schedule = { on, kind:'every'|'daily'|'weekdays', every, at, notify, last }.
      ===================================================================== */
-  var SCH = { tab:'t' + Math.random().toString(36).slice(2, 9), timer:0, pending:false, chip:null, claiming:false, claimed:false };
+  var SCH = { tab:'t' + Math.random().toString(36).slice(2, 9), timer:0, pending:false, chip:null, claiming:'', claim:null };
   var SCH_KINDS = { every:'Каждые N минут', daily:'Каждый день', weekdays:'По будням' };
 
   function schOf(){ return G.schedule && typeof G.schedule === 'object' ? G.schedule : null; }
@@ -46,21 +46,23 @@
     var s = schOf(); if(!s || !s.on || PANE) return;
     if(!schLead()) return;
     var due = schNext(s, Date.now());
-    if(due === null || due > Date.now()){ SCH.claimed = false; return; }
+    if(due === null || due > Date.now()){ SCH.claim = null; return; }
     if(CMP.busy || (typeof running !== 'undefined' && running)){ SCH.pending = true; return; }   // идёт ручной запуск — подождём
     SCH.pending = false;
-    if(SERVER && !SCH.claimed){   // пространство на сервере может быть открыто и на других компьютерах — срок захватывает один
-      if(SCH.claiming) return;
-      SCH.claiming = true;
-      var slot = schSlot(s, Date.now());
-      SERVER.api('POST', '/spaces/' + encodeURIComponent(curId()) + '/schedule-claim', { slot:slot }).then(function(r){
-        SCH.claiming = false;
-        if(r.status === 200 && r.data && r.data.ok){ SCH.claimed = true; schTick(); }   // наш срок — запускаем
+    var sp = curId(), slot = schSlot(s, Date.now()), key = sp + ':' + slot;
+    // захват засчитывается только для того пространства и срока, для которых он запрошен
+    if(SERVER && !(SCH.claim && SCH.claim.space === sp && SCH.claim.slot === slot)){   // пространство на сервере может быть открыто и на других компьютерах — срок захватывает один
+      if(SCH.claiming === key) return;
+      SCH.claiming = key;
+      // token — метка вкладки: если ответ потерялся, повторный запрос того же срока с той же меткой сервер подтвердит
+      SERVER.api('POST', '/spaces/' + encodeURIComponent(sp) + '/schedule-claim', { slot:slot, token:SCH.tab }).then(function(r){
+        if(SCH.claiming === key) SCH.claiming = '';
+        if(r.status === 200 && r.data && r.data.ok){ SCH.claim = { space:sp, slot:slot }; schTick(); }   // наш срок — запускаем (если пространство и срок всё ещё те же)
         // иначе срок уже взял другой клиент: его отметка о запуске придёт вместе с пространством
-      }, function(){ SCH.claiming = false; });
+      }, function(){ if(SCH.claiming === key) SCH.claiming = ''; });
       return;
     }
-    SCH.claimed = false;
+    SCH.claim = null;
     s.last = Date.now(); saveGraph();
     if(typeof RH !== 'undefined') RH.nextTrig = 'schedule';
     CMP.only = null;

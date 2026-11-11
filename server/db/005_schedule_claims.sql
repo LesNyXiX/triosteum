@@ -6,6 +6,7 @@ CREATE TABLE schedule_claims (
   slot        bigint NOT NULL,
   claimed_by  uuid REFERENCES users(id) ON DELETE SET NULL,
   claimed_at  timestamptz NOT NULL DEFAULT now(),
+  token       text NOT NULL DEFAULT '',   -- метка вкладки: повтор запроса после потерянного ответа
   PRIMARY KEY (org_id, space_id)
 );
 ALTER TABLE schedule_claims ENABLE ROW LEVEL SECURITY;

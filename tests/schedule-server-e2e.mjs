@@ -28,6 +28,26 @@ const r1 = saves.get(a) > 0, r2 = saves.get(c2) > 0;
 ok(r1 !== r2, 'наступивший срок выполнил ровно один из двух клиентов (' + [r1, r2].join(', ') + ')');
 const sp = await a.evaluate(async () => (await (await fetch('/api/spaces/' + (window.TRIOSTEUM_BOOT.cur || 'p1'))).json()).content.schedule);
 ok(sp && sp.last > Date.now() - 60e3, 'отметка о запуске сохранена в пространстве на сервере');
+// ответ о захвате потерялся (сервер срок сохранил, клиент ответа не получил) — повтор той же вкладкой подтверждается, расписание не встаёт
+{
+  const d = await page(), em = 'sched2' + Date.now() + '@z.ru';
+  await d.goto(B + '/login#register');
+  await d.fill('#org', 'Завод Обрыв'); await d.fill('#name', 'Борис'); await d.fill('#email', em); await d.fill('#pw', 'password123'); await d.check('#pd');
+  await d.click('#go'); await d.waitForURL(B + '/'); await d.waitForTimeout(600);
+  await d.evaluate(async () => {
+    const id = window.TRIOSTEUM_BOOT.cur || 'p1';
+    const g = { nodes: [{ id: 'n1', name: 'Блок', lang: 'cpp', x: 200, y: 200, codes: { cpp: 'int run(){ return 1; }' } }], edges: [], notes: [], cam: { x: 0, y: 0, k: 1 }, seq: 5,
+      schedule: { on: true, kind: 'every', every: 60, notify: false, last: Date.now() - 3 * 3600e3 } };
+    const cur = await (await fetch('/api/spaces/' + id)).json().catch(() => null);
+    await fetch('/api/spaces/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'Цех', env: 'code', content: g, base_rev: cur && cur.rev ? cur.rev : 0 }) });
+  });
+  let lost = 0, runs = 0;
+  d.on('request', (q) => { if (q.method() === 'PUT' && /\/api\/prefs\/runs\./.test(q.url())) runs++; });
+  await d.route('**/schedule-claim', async (route) => { if (lost) return route.continue(); lost++; await route.fetch(); await route.abort('connectionreset'); });
+  await d.reload(); await d.waitForTimeout(20000);
+  ok(lost === 1 && runs > 0, 'после потерянного ответа о захвате срок выполнен при повторе (' + lost + ', ' + runs + ')');
+  await d.close();
+}
 ok(errs.length === 0, 'нет ошибок JavaScript' + (errs.length ? ': ' + errs.join(' | ') : ''));
 await b.close();
 console.log(fail ? `\nПровалено: ${fail}` : '\nВсе проверки пройдены'); process.exit(fail ? 1 : 0);

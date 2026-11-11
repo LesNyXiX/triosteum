@@ -484,6 +484,7 @@ def put_space(space_id: str, body: SpaceIn, request: Request, w: Who = Depends(n
 
 class ScheduleClaim(BaseModel):
     slot: int = Field(ge=0, le=2**62)
+    token: str = Field(default="", max_length=32, pattern=r"^[A-Za-z0-9_-]*$")
 
 
 @app.post("/api/spaces/{space_id}/schedule-claim")
@@ -491,16 +492,24 @@ def schedule_claim(space_id: str, body: ScheduleClaim, w: Who = Depends(need_wri
     """Захват срока запуска по расписанию: из всех открытых клиентов запускает только первый.
 
     Срок захватывается, если он новее захваченного раньше; захваты чаще раза в 30 секунд отклоняются
-    (защита от клиентов с разными часовыми поясами, у которых один и тот же срок — разные числа)."""
+    (защита от клиентов с разными часовыми поясами, у которых один и тот же срок — разные числа).
+    Повтор того же срока с тем же token (метка вкладки) подтверждается: ответ мог потеряться в сети.
+    Тот же срок, захваченный больше 10 минут назад и так и не выполненный (вкладка закрылась, отметка
+    о запуске не пришла), можно захватить заново — иначе расписание остановилось бы навсегда."""
     check_id(space_id)
     with tx(w.org_id) as c:
-        r = c.execute(text("""INSERT INTO schedule_claims (org_id, space_id, slot, claimed_by) VALUES (:o, :id, :slot, :u)
+        r = c.execute(text("""INSERT INTO schedule_claims (org_id, space_id, slot, claimed_by, token) VALUES (:o, :id, :slot, :u, :t)
                               ON CONFLICT (org_id, space_id) DO UPDATE
-                                SET slot = EXCLUDED.slot, claimed_by = EXCLUDED.claimed_by, claimed_at = now()
-                                WHERE schedule_claims.slot < EXCLUDED.slot
-                                  AND schedule_claims.claimed_at < now() - interval '30 seconds'
+                                SET slot = EXCLUDED.slot, claimed_by = EXCLUDED.claimed_by, token = EXCLUDED.token,
+                                    claimed_at = CASE WHEN schedule_claims.slot = EXCLUDED.slot AND schedule_claims.token = EXCLUDED.token
+                                                      THEN schedule_claims.claimed_at ELSE now() END
+                                WHERE (schedule_claims.slot < EXCLUDED.slot
+                                       AND schedule_claims.claimed_at < now() - interval '30 seconds')
+                                   OR (schedule_claims.slot = EXCLUDED.slot
+                                       AND ((EXCLUDED.token <> '' AND schedule_claims.token = EXCLUDED.token)
+                                            OR schedule_claims.claimed_at < now() - interval '10 minutes'))
                               RETURNING slot"""),
-                      {"o": w.org_id, "id": space_id, "slot": body.slot, "u": w.user_id}).first()
+                      {"o": w.org_id, "id": space_id, "slot": body.slot, "u": w.user_id, "t": body.token}).first()
     return {"ok": r is not None}
 
 
