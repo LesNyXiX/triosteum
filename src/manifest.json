@@ -117,6 +117,7 @@
     "app/workspace/env-icons.js",
     "app/workspace/env-dock.js",
     "app/workspace/tour.js",
+    "app/workspace/whats-new.js",
     "app/main.js"
   ]
 }
