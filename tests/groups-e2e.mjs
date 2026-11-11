@@ -21,7 +21,7 @@ await ctx.addInitScript((g) => {
   localStorage.setItem('triosteum.projects', JSON.stringify({ cur: 'p1', list: [{ id: 'p1', name: 'Группы', t: Date.now() }] }));
   localStorage.setItem('triosteum.proj.p1', JSON.stringify(g));
   localStorage.setItem('triosteum.profile', JSON.stringify({ name: 'Т', org: 'З' })); localStorage.setItem('triosteum.tour', '{"done":true}');
-}, { nodes: [node('a', 'Сбор 1', 160, 200), node('b', 'Сбор 2', 160, 380), node('c', 'Отчёт', 620, 290)], edges: [{ id: 'e1', from: 'a', to: 'c', taps: [] }, { id: 'e2', from: 'b', to: 'c', taps: [] }], notes: [], cam: { x: 0, y: 0, k: 1 }, seq: 9 });
+}, { nodes: [node('a', 'Сбор 1', 160, 200), node('b', 'Сбор 2', 160, 380), node('c', 'Отчёт', 620, 290)], edges: [{ id: 'e1', from: 'a', to: 'c', taps: [] }, { id: 'e2', from: 'b', to: 'c', taps: [] }], notes: [{ id: 't1', text: 'Комментарий', attach: 'a', dx: -200, dy: 0, x: -40, y: 200, size: 's', tint: 'grey', hidden: false, auto: false }], cam: { x: 0, y: 0, k: 1 }, seq: 9 });
 const page = await ctx.newPage(); const errors = [];
 page.on('pageerror', (e) => { if (!/sandboxed/.test(e.message)) errors.push(e.message); });
 await page.goto(URL); await page.waitForTimeout(1000);
@@ -40,6 +40,7 @@ check(g.groups && g.groups[0].name === 'Сбор данных' && g.groups[0].id
 const fb = await page.locator('.grp').boundingBox(), ab = await page.locator('.node[data-id="a"]').boundingBox(), bb = await page.locator('.node[data-id="b"]').boundingBox();
 check(fb.x < ab.x && fb.y < ab.y && fb.x + fb.width > bb.x + bb.width && fb.y + fb.height > bb.y + bb.height, 'рамка охватывает оба блока');
 console.log('Перетаскивание за заголовок');
+const cb = await page.locator('.note[data-id="t1"]').boundingBox();
 const hb = await page.locator('.grp-name').boundingBox();
 await page.mouse.move(hb.x + 10, hb.y + 8); await page.mouse.down();
 for (let i = 1; i <= 8; i++) await page.mouse.move(hb.x + 10 + i * 10, hb.y + 8 + i * 5);
@@ -49,6 +50,8 @@ const na = g.nodes.find((n) => n.id === 'a'), nb = g.nodes.find((n) => n.id === 
 check(na.x === 240 && na.y === 240 && nb.x === 240 && nb.y === 420 && nc.x === 620, 'двигаются блоки группы, остальные на месте');
 const fb2 = await page.locator('.grp').boundingBox();
 check(Math.abs(fb2.x - fb.x - 80) < 2, 'рамка переехала вместе с блоками');
+const cb2 = await page.locator('.note[data-id="t1"]').boundingBox(), nt = g.notes.find((t) => t.id === 't1');
+check(Math.abs(cb2.x - cb.x - 80) < 2 && Math.abs(cb2.y - cb.y - 40) < 2 && nt.x === 40 && nt.y === 240, 'прикреплённый комментарий переехал вместе с группой (на экране и в данных)');
 console.log('Перетаскивание одного блока группы (быстрый путь связей)');
 {
   const before = await page.locator('.grp').boundingBox();

@@ -78,7 +78,9 @@
       var dx = (ev.clientX - sx) / k, dy = (ev.clientY - sy) / k;
       if(!moved && Math.abs(dx) + Math.abs(dy) < 3) return;
       moved = true;
-      start.forEach(function(s){ s[0].x = Math.round(s[1] + dx); s[0].y = Math.round(s[2] + dy); var dn = domOf('node', s[0].id); if(dn){ dn.style.left = s[0].x + 'px'; dn.style.top = s[0].y + 'px'; } });
+      start.forEach(function(s){ s[0].x = Math.round(s[1] + dx); s[0].y = Math.round(s[2] + dy); var dn = domOf('node', s[0].id); if(dn){ dn.style.left = s[0].x + 'px'; dn.style.top = s[0].y + 'px'; }
+        commentsOf(s[0].id).forEach(function(t){ syncNote(t); var cd = domOf('note', t.id); if(cd){ cd.style.left = t.x + 'px'; cd.style.top = t.y + 'px'; } });   // прикреплённые комментарии едут вместе с блоком
+      });
       if(!raf) raf = requestAnimationFrame(function(){ raf = 0; edgesMoved(g.ids); });
     }
     function up(){
