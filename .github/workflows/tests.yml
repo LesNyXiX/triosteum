@@ -56,7 +56,9 @@ jobs:
           npm run test:touch
           npm run test:arc
           npm run test:runopts
+          npm run test:groups
           npm run test:runhist
+          npm run test:dataflow
           npm run test:whatsnew
 
       - name: Хранение и резервные копии

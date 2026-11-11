@@ -627,6 +627,18 @@
   .ropts{display:flex;flex-direction:column;gap:8px}
   .ropts-note{font-size:12px;line-height:1.45;color:var(--muted);margin-bottom:6px;word-break:break-word}
   .ropts-retry{display:grid !important;grid-template-columns:repeat(5,1fr);gap:4px}
+  /* группы блоков — рамки с названием */
+  .grp-layer{position:absolute;left:0;top:0;width:0;height:0}
+  .grp{position:absolute;box-sizing:border-box;border-radius:18px;pointer-events:none;
+    border:1.5px dashed color-mix(in srgb,var(--gc) 70%,transparent);background:color-mix(in srgb,var(--gc) 7%,transparent)}
+  .grp-h{position:absolute;left:10px;top:6px;right:10px;display:flex;align-items:center;gap:6px;height:24px;pointer-events:auto;cursor:grab;user-select:none;touch-action:none}
+  .grp-h:active{cursor:grabbing}
+  .grp-name{font-size:13px;font-weight:700;color:var(--ink-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60%;
+    padding:2px 9px;border-radius:8px;background:color-mix(in srgb,var(--gc) 26%,var(--panel))}
+  .grp-cnt{font-size:11px;font-weight:700;color:var(--muted);padding:1px 6px;border-radius:999px;border:1px solid color-mix(in srgb,var(--gc) 45%,transparent)}
+  .grp-b{width:24px;height:24px;border-radius:7px;border:1px solid transparent;background:none;color:var(--muted);font-size:12px;line-height:1;cursor:pointer;opacity:.75}
+  .grp-b:hover,.grp-b:focus-visible{opacity:1;color:var(--ink-strong);border-color:color-mix(in srgb,var(--gc) 50%,transparent);background:color-mix(in srgb,var(--gc) 18%,transparent)}
+  .grp-in{font:700 13px/1 inherit;font-family:inherit;color:var(--ink-strong);background:var(--panel);border:1px solid var(--gc);border-radius:8px;padding:3px 8px;width:220px;outline:none}
   /* история запусков — вкладка «История» в окне компилятора */
   .rh{padding:10px 12px 14px;overflow:auto}
   .rh-empty{padding:18px 6px;font-size:13px;line-height:1.5;color:var(--muted)}
@@ -661,6 +673,23 @@
   .rh-log{margin:0 12px 12px;max-height:240px}
   @media (max-width:640px){ .rh-sum{grid-template-columns:repeat(2,minmax(0,1fr))} }
 
+  /* данные на связях: плашки и таблицы последнего запуска */
+  .df-layer{position:absolute;left:0;top:0;width:0;height:0;pointer-events:none;z-index:2}
+  .df-chip{position:absolute;pointer-events:auto;white-space:nowrap;padding:2px 8px;border-radius:999px;
+    font:600 11px/16px inherit;font-family:inherit;color:var(--ink-strong);background:var(--panel);border:1px solid color-mix(in srgb,var(--okc,#34D399) 55%,var(--line2));
+    box-shadow:0 2px 8px rgba(0,0,0,.35);cursor:pointer;transform-origin:50% 50%;transform:translate(-50%,-50%) scale(var(--ik,1))}
+  .df-chip:hover,.df-chip:focus-visible{background:color-mix(in srgb,var(--okc,#34D399) 18%,var(--panel))}
+  .df-chip.empty{border-color:color-mix(in srgb,var(--warn,#FBBF24) 60%,var(--line2));color:var(--muted)}
+  .df-view{display:flex;flex-direction:column;gap:6px}
+  .df-k{font-size:12.5px;font-weight:600;color:var(--ink-strong)}
+  .df-none{font-size:12.5px;color:var(--muted);line-height:1.45}
+  .df-scroll{max-height:240px;overflow:auto;border:1px solid var(--line);border-radius:8px}
+  .df-tbl{border-collapse:collapse;font-size:12px;width:100%}
+  .df-tbl th{position:sticky;top:0;background:var(--panel);text-align:left;font-weight:600;color:var(--muted);padding:4px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+  .df-tbl td{padding:3px 8px;border-bottom:1px solid color-mix(in srgb,var(--line) 55%,transparent);color:var(--ink);white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis}
+  .df-i{color:var(--dim) !important}
+  .df-more{font-size:11.5px;color:var(--muted)}
+  .df-json{margin:0;max-height:240px;overflow:auto;padding:8px 10px;border-radius:8px;background:var(--bg);border:1px solid var(--line);font:12px/1.45 var(--mono);white-space:pre-wrap;word-break:break-word;color:var(--ink)}
   /* что нового */
   .wn-w{width:560px;left:calc(50% - 280px);top:8%;height:auto;max-height:84vh}
   .wn-lead{margin:0;font-size:13px;line-height:1.5;color:var(--muted)}
