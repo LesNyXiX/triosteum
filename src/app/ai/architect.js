@@ -97,7 +97,7 @@
     if(!AI.api || ARC.busy) return;
     if(!q){ toast('Опишите задачу для ИИ'); return; }
     ARC.busy = true; ARC.chars = 0; ARC.res = null; ARC.err = null; renderArc();
-    var catalog = arcCatalog(PLUGINS.concat(myVis()), q).map(function(p){ return '- ' + p.id + ' | ' + langById(p.lang).name + ' | ' + p.name + ' — ' + (p.desc || ''); }).join('\n');
+    var catalog = arcCatalog(PLUGINS.concat(myVis(), orgVis()), q).map(function(p){ return '- ' + p.id + ' | ' + langById(p.lang).name + ' | ' + p.name + ' — ' + (p.desc || ''); }).join('\n');
     var fmts = LANGS.map(function(l){ return '#### ' + l.name + ' (lang="' + l.id + '")\n' + FENCE + langTag(l.id) + '\n' + l.tpl.replace(/\s+$/, '') + '\n' + FENCE; }).join('\n');
     var ctxBoard = !ARC.fresh && G.nodes.length ? 'На доске уже есть блоки (новые ставятся рядом, связывать с ними нельзя): ' + G.nodes.map(function(n){ return n.name; }).join(', ') : '';
     ARC.xhits = xFind(q);

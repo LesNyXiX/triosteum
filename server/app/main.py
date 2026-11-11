@@ -232,9 +232,11 @@ def index(request: Request):
         spaces = [space_out(r) for r in c.execute(text(SPACE_SELECT + " ORDER BY s.updated_at DESC")).mappings()]
         prefs = {r["name"]: r["value"] for r in c.execute(
             text("SELECT name, value FROM prefs WHERE user_id = :u"), {"u": w.user_id}).mappings()}
+        from .orglib import list_items   # библиотека организации: общие плагины компании
+        org_items = list_items(c)
     boot = {"user": {"id": w.user_id, "email": w.email, "name": w.name, "is_admin": w.is_admin},
             "org": {"id": w.org_id, "name": w.org_name},
-            "role": w.role, "cur": prefs.get("cur"), "prefs": prefs, "spaces": spaces,
+            "role": w.role, "cur": prefs.get("cur"), "prefs": prefs, "spaces": spaces, "org_items": org_items,
             "ai": {"enabled": AI is not None, "name": infinitum.NAME, "provider": AI.name if AI else None, "model": AI.model if AI else None,
                    "local": bool(AI.local) if AI else None, "where": AI.where if AI else None},
             "runner": {"enabled": RUNNER_ON}, "mail": {"enabled": mail.configured()}}
@@ -1185,3 +1187,5 @@ from . import admin as _admin   # noqa: E402  (панель администра
 app.include_router(_admin.router)
 from . import agents as _agents   # noqa: E402  (задачи для ИИ: Claude и Codex через задачи GitHub)
 app.include_router(_agents.router)
+from . import orglib as _orglib   # noqa: E402  (библиотека организации: плагины, общие для компании)
+app.include_router(_orglib.router)

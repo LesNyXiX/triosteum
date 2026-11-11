@@ -17,6 +17,17 @@
 
   var MY = load('triosteum.my', []);
   MY.forEach(function(p){ p.my = true; if(!p.codes) p.codes = {}; });
+  // библиотека компании (только с сервером): плагины, которыми поделились сотрудники организации.
+  // Для всех, кроме автора, они как встроенные: правки кода — личные, в общий плагин не попадают.
+  var ORG = [];
+  function orgFromItems(items){
+    ORG = (items || []).filter(function(it){ return it && it.kind === 'plugin' && it.data && it.data.lang; }).map(function(it){
+      var d = it.data, codes = d.codes && typeof d.codes === 'object' ? d.codes : {};
+      return { id:'org-' + it.id, org:true, orgItem:it.id, src:it.src, by:it.by, byName:it.by_name || '', name:d.name, lang:d.lang, desc:d.desc || '',
+        family:d.family || null, codes:codes, code:codes[d.lang] !== undefined ? codes[d.lang] : '' };
+    });
+  }
+  orgFromItems(SERVER && window.TRIOSTEUM_BOOT && window.TRIOSTEUM_BOOT.org_items);
   var S = {
     view:'canvas', lib:false, tool:'select',
     lang: load('triosteum.lang', 'python'),
@@ -67,7 +78,7 @@
     return null;
   }
   function nativeLang(id){ return LANGS.some(function(l){ return l.id === id; }); }
-  function pluginById(id){ return (CODE_PLUGINS ? allPlugins() : PLUGINS).filter(function(p){ return p.id === id; })[0] || MY.filter(function(p){ return p.id === id; })[0]; }
+  function pluginById(id){ return (CODE_PLUGINS ? allPlugins() : PLUGINS).filter(function(p){ return p.id === id; })[0] || MY.filter(function(p){ return p.id === id; })[0] || ORG.filter(function(p){ return p.id === id; })[0]; }
   // поиск блока по id через индекс: связи, мини-карта и раскладка вызывают его тысячи раз за кадр
   var NBI = { arr:null, map:null };
   function nodeById(id){

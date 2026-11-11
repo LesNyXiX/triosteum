@@ -161,3 +161,14 @@ Codex — через своё приложение GitHub (комментари�
 | GET | `/api/admin/agents/{n}` | задача + `messages:[{who: owner/claude/codex/system, to, text, at, edited, url}]` + `prs` |
 | POST | `/api/admin/agents/{n}/messages` | `{text, claude, codex}` — уточнение адресатам, 201 |
 | POST | `/api/admin/agents/{n}/state` | `{open}` — закрыть или открыть снова |
+
+## Библиотека организации
+
+Общие плагины компании: сотрудник делится своим плагином — он появляется в библиотеке у всех сотрудников организации
+(раздел «Компания»). Другие организации их не видят (построчная защита по `org_id`). Приходят и в данных страницы (`org_items`).
+
+| Метод | Путь | Кто | Что делает |
+|---|---|---|---|
+| GET | `/api/org/items?kind=plugin` | все сотрудники | `{items:[{id, kind, src, name, data, by, by_name, updated_at}]}` |
+| POST | `/api/org/items` | владелец, редактор | `{kind:"plugin", src, data}` — поделиться; тот же `src` — обновить (только автор или владелец), 201 |
+| DELETE | `/api/org/items/{id}` | автор, владелец | убрать из библиотеки |

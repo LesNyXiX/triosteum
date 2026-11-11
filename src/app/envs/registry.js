@@ -117,6 +117,7 @@
   var ALLP = null;
   function allPlugins(){ if(!ALLP){ var seen = {}; ALLP = [].concat.apply([], Object.keys(ENVS).map(function(k){ return ENVS[k].plugins; })).filter(function(p){ if(seen[p.id]) return false; seen[p.id] = 1; return true; }); } return ALLP; }
   function myVis(){ return MY.filter(function(p){ return !!langById(p.lang); }); }
+  function orgVis(){ return ORG.filter(function(p){ return !!langById(p.lang); }); }
   // isDocs — среда с маршрутами данных (Офис и отраслевые), isOffice — только «Офис» с рабочим столом файлов
   function isDocs(){ return !!ENV.route; }
   function isOffice(){ return !!(ENV && ENV.office); }
