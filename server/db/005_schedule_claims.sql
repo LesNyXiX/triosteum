@@ -8,6 +8,7 @@ CREATE TABLE schedule_claims (
   claimed_at  timestamptz NOT NULL DEFAULT now(),
   token       text NOT NULL DEFAULT '',   -- метка вкладки: повтор запроса после потерянного ответа
   done_at     timestamptz,                -- срок запущен (отметка клиента): такой срок заново не выдаётся
+  last_run    bigint,                     -- время этого запуска по часам клиента (как schedule.last в пространстве)
   PRIMARY KEY (org_id, space_id)
 );
 ALTER TABLE schedule_claims ENABLE ROW LEVEL SECURITY;

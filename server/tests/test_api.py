@@ -167,7 +167,7 @@ def test_schedule_claim(client, admin):
     put(client, "sc", {"a": 1}, 0)
     claim = lambda c, slot: c.post("/api/spaces/sc/schedule-claim", json={"slot": slot})
     assert claim(client, 1000).json() == {"ok": True}
-    assert claim(client, 1000).json() == {"ok": False, "slot": 1000, "done": False}, "второй клиент не запускает тот же срок"
+    assert claim(client, 1000).json() == {"ok": False, "slot": 1000, "done": False, "last": None}, "второй клиент не запускает тот же срок"
     assert claim(client, 2000).json()["ok"] is False, "новый срок раньше чем через 30 с не захватывается"
     admin.execute("UPDATE schedule_claims SET claimed_at = now() - interval '1 minute'")
     assert claim(client, 900).json()["ok"] is False, "старый срок не захватывается"
@@ -183,12 +183,22 @@ def test_schedule_claim(client, admin):
     assert tclaim(client, 3000, "tabB").json() == {"ok": True}, "незавершённый захват старше 10 минут можно взять заново"
     # срок, о запуске которого пришла отметка, заново не выдаётся даже спустя 10 минут
     done = lambda c, slot, t: c.post("/api/spaces/sc/schedule-done", json={"slot": slot, "token": t})
+    c_done = lambda c, slot, t, last: c.post("/api/spaces/sc/schedule-done", json={"slot": slot, "token": t, "last": last})
     assert done(client, 3000, "tabA").json() == {"ok": False}, "отметку ставит только вкладка, захватившая срок"
     assert done(client, 3000, "tabB").json() == {"ok": True}
     admin.execute("UPDATE schedule_claims SET claimed_at = now() - interval '11 minutes'")
-    assert tclaim(client, 3000, "tabC").json() == {"ok": False, "slot": 3000, "done": True}, "выполненный срок не повторяется, клиент узнаёт об этом"
+    assert tclaim(client, 3000, "tabC").json() == {"ok": False, "slot": 3000, "done": True, "last": None}, "выполненный срок не повторяется, клиент узнаёт об этом"
     assert tclaim(client, 3000, "tabB").json()["ok"] is False, "и той же вкладке после отметки"
     assert tclaim(client, 4000, "tabC").json() == {"ok": True}, "следующий срок захватывается как обычно"
+    # отметка с временем запуска: клиент с устаревшим пространством получает его и сдвигает свой срок
+    assert c_done(client, 4000, "tabC", 4500).json() == {"ok": True}
+    assert c_done(client, 4000, "tabC", 9999).json() == {"ok": True}, "повтор отметки безопасен"
+    assert tclaim(client, 4000, "tabD").json() == {"ok": False, "slot": 4000, "done": True, "last": 4500}, "время первого запуска не перезаписано"
+    # пространство сохранено с schedule.last: сроки до этой отметки не выдаются никому, даже новые
+    put(client, "sc", {"a": 1, "schedule": {"on": True, "last": 8000}}, 1)
+    admin.execute("UPDATE schedule_claims SET claimed_at = now() - interval '1 minute'")
+    assert tclaim(client, 6000, "tabE").json() == {"ok": False, "slot": 4000, "done": True, "last": 8000}, "срок раньше отметки в пространстве не выдаётся"
+    assert tclaim(client, 9000, "tabE").json() == {"ok": True}, "срок после отметки — как обычно"
     assert tclaim(client, 4000, "bad token!").status_code == 422
     other = TestClient(client.app, base_url="http://testserver")
     register(other, org="Другой завод")

@@ -48,6 +48,35 @@ ok(sp && sp.last > Date.now() - 60e3, 'отметка о запуске сохр
   ok(lost === 1 && runs > 0, 'после потерянного ответа о захвате срок выполнен при повторе (' + lost + ', ' + runs + ')');
   await d.close();
 }
+// отметка «срок запущен» не дошла до сервера — она повторяется до подтверждения
+{
+  const d = await page(), em = 'sched3' + Date.now() + '@z.ru';
+  await d.goto(B + '/login#register');
+  await d.fill('#org', 'Завод Отметка'); await d.fill('#name', 'Вера'); await d.fill('#email', em); await d.fill('#pw', 'password123'); await d.check('#pd');
+  await d.click('#go'); await d.waitForURL(B + '/'); await d.waitForTimeout(600);
+  await d.evaluate(async () => {
+    const id = window.TRIOSTEUM_BOOT.cur || 'p1';
+    const g = { nodes: [{ id: 'n1', name: 'Блок', lang: 'cpp', x: 200, y: 200, codes: { cpp: 'int run(){ return 1; }' } }], edges: [], notes: [], cam: { x: 0, y: 0, k: 1 }, seq: 5,
+      schedule: { on: true, kind: 'every', every: 60, notify: false, last: Date.now() - 3 * 3600e3 } };
+    const cur = await (await fetch('/api/spaces/' + id)).json().catch(() => null);
+    await fetch('/api/spaces/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'Цех', env: 'code', content: g, base_rev: cur && cur.rev ? cur.rev : 0 }) });
+  });
+  let tries = 0; const answers = [];
+  await d.route('**/schedule-done', async (route) => { tries++; if (tries === 1) return route.abort('connectionreset'); return route.continue(); });
+  d.on('response', async (r) => { if (/schedule-done/.test(r.url())) answers.push(await r.json().catch(() => null)); });
+  await d.reload(); await d.waitForTimeout(25000);
+  ok(tries >= 2 && answers.some((x) => x && x.ok === true), 'потерянная отметка о запуске отправлена снова и принята (' + tries + ', ' + JSON.stringify(answers) + ')');
+  const left = await d.evaluate(() => localStorage.getItem('triosteum.sched.done'));
+  ok(!left, 'подтверждённая отметка больше не хранится');
+  // другой клиент с устаревшим пространством (старая отметка last) этот срок не получает и сдвигает свой
+  const st = await d.evaluate(async () => {
+    const id = window.TRIOSTEUM_BOOT.cur || 'p1';
+    const r = await fetch('/api/spaces/' + id + '/schedule-claim', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slot: Date.now() - 2 * 3600e3, token: 'stale' }) });
+    return r.json();
+  });
+  ok(st.ok === false && st.last > Date.now() - 120e3, 'устаревший срок не выдаётся, сервер сообщает время последнего запуска: ' + JSON.stringify(st));
+  await d.close();
+}
 ok(errs.length === 0, 'нет ошибок JavaScript' + (errs.length ? ': ' + errs.join(' | ') : ''));
 await b.close();
 console.log(fail ? `\nПровалено: ${fail}` : '\nВсе проверки пройдены'); process.exit(fail ? 1 : 0);

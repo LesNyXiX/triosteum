@@ -41,8 +41,28 @@
     try { localStorage.setItem(k, JSON.stringify({ tab:SCH.tab, t:now })); } catch(e){ return true; }
     return true;
   }
+  // отметка на сервере «срок запущен»: после неё этот срок никому заново не выдаётся. Отметка хранится,
+  // пока сервер её не подтвердит, и отправляется снова при каждой проверке (сеть могла моргнуть, вкладку
+  // могли закрыть — тогда отправит другая вкладка этого браузера: метка вкладки сохранена в отметке)
+  var SCH_DONE = 'triosteum.sched.done';
+  function schDoneList(){ try { var l = JSON.parse(localStorage.getItem(SCH_DONE) || '[]'); return Array.isArray(l) ? l : []; } catch(e){ return []; } }
+  function schDoneSave(l){ try { if(l.length) localStorage.setItem(SCH_DONE, JSON.stringify(l.slice(-20))); else localStorage.removeItem(SCH_DONE); } catch(e){} }
+  function schDoneAdd(x){ var l = schDoneList(); l.push(x); schDoneSave(l); schDoneFlush(); }
+  function schDoneFlush(){
+    if(!SERVER || SCH.flushing) return;
+    var l = schDoneList(); if(!l.length) return;
+    var x = l[0]; SCH.flushing = true;
+    SERVER.api('POST', '/spaces/' + encodeURIComponent(x.space) + '/schedule-done', { slot:x.slot, token:x.token, last:x.last }).then(function(r){
+      SCH.flushing = false;
+      if(r.status >= 500 || r.status === 429 || !r.status) return;   // сервер недоступен или занят — попробуем при следующей проверке
+      // принята, или срок уже сменился, или пространства больше нет — отметка больше не нужна
+      schDoneSave(schDoneList().filter(function(y){ return !(y.space === x.space && y.slot === x.slot && y.token === x.token); }));
+      schDoneFlush();
+    }, function(){ SCH.flushing = false; });
+  }
   function schTick(){
     schChip();
+    schDoneFlush();
     var s = schOf(); if(!s || !s.on) return;   // и во второй панели «Две среды рядом»: кто запускает — решает метка ведущей вкладки
     if(!schLead()) return;
     var due = schNext(s, Date.now());
@@ -60,14 +80,15 @@
         if(r.status === 200 && r.data && r.data.ok){ SCH.claim = { space:sp, slot:slot }; schTick(); }   // наш срок — запускаем (если пространство и срок всё ещё те же)
         // иначе срок уже взял другой клиент. Если он его уже запустил, а у нас пространство из кеша со старой
         // отметкой — сдвигаем свой срок по ответу сервера, чтобы не просить этот срок снова
-        else if(r.status === 200 && r.data && r.data.done && r.data.slot >= slot && sp === curId()){
-          var cs = schOf(); if(cs && (cs.last || 0) < r.data.slot){ cs.last = r.data.slot; schChip(); }
+        // (last — фактическое время последнего запуска: из сохранённого пространства или отметки запустившей вкладки)
+        else if(r.status === 200 && r.data && sp === curId()){
+          var cs = schOf(), nl = +r.data.last || (r.data.done && r.data.slot >= slot ? r.data.slot : 0);
+          if(cs && nl > (cs.last || 0)){ cs.last = nl; schChip(); }
         }
       }, function(){ if(SCH.claiming === key) SCH.claiming = ''; });
       return;
     }
-    // отметка на сервере «срок запущен»: после неё этот срок никому заново не выдаётся
-    if(SERVER && SCH.claim) SERVER.api('POST', '/spaces/' + encodeURIComponent(SCH.claim.space) + '/schedule-done', { slot:SCH.claim.slot, token:SCH.tab }).then(null, function(){});
+    SCH.claim && schDoneAdd({ space:SCH.claim.space, slot:SCH.claim.slot, token:SCH.tab, last:Date.now() });
     SCH.claim = null;
     s.last = Date.now(); saveGraph();
     if(typeof RH !== 'undefined') RH.nextTrig = 'schedule';
