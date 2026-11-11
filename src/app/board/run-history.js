@@ -18,7 +18,7 @@
   // запись запуска — в конце cmpEnd, когда статусы блоков уже окончательные
   (function(){
     var _begin = cmpBegin, _end = cmpEnd;
-    cmpBegin = function(){ RH.t = Date.now(); RH.only = !!CMP.only; RH.space = curId(); return _begin.apply(this, arguments); };
+    cmpBegin = function(){ RH.t = Date.now(); RH.only = !!CMP.only; RH.space = curId(); RH.trig = RH.nextTrig || ''; RH.nextTrig = ''; return _begin.apply(this, arguments); };
     cmpEnd = function(results, stopped){
       var r = _end.apply(this, arguments);
       try { rhRecord(results, stopped); } catch(e){}
@@ -39,7 +39,7 @@
     var lastErr = notRun ? ((runEl.out.textContent || '').trim().split('\n').pop() || 'Исполнитель не запустился') : '';
     var log = runEl.out.textContent || '';
     var rec = { id:'r' + Date.now().toString(36), t:RH.t || Date.now(), ms:Math.round(performance.now() - CMP.t0), env:ENV.short || ENV.name || '',
-      stopped:!!stopped, fail:notRun ? lastErr.slice(0, 300) : '', only:!!RH.only, ok:st.ok, err:st.err, skip:st.skip, blocks:blocks,
+      trig:RH.trig || '', stopped:!!stopped, fail:notRun ? lastErr.slice(0, 300) : '', only:!!RH.only, ok:st.ok, err:st.err, skip:st.skip, blocks:blocks,
       log:log.length > RH_LOG ? '…' + log.slice(-RH_LOG) : log };
     var sp = RH.space || curId(), list = rhList(sp); list.unshift(rec); rhSave(list, sp);
     if(sp === curId()){ rhBadge(); if(CMP.tab === 'hist') rhRender(); }
@@ -119,7 +119,7 @@
     var open = !!RH.open[r.id], st = r.fail ? 'err' : r.stopped ? 'stop' : r.err ? 'err' : 'ok';
     var head = h('button', { type:'button', 'class':'rh-run-h', 'aria-expanded':open ? 'true' : 'false', on:{ click:function(){ RH.open[r.id] = !RH.open[r.id]; rhRender(); } } }, [
       h('span', { 'class':'rh-st ' + st, text:st === 'ok' ? '✓' : st === 'err' ? '✗' : '■' }),
-      h('span', { 'class':'rh-t', text:rhDate(r.t) }),
+      h('span', { 'class':'rh-t' }, [ document.createTextNode(rhDate(r.t)), r.trig === 'schedule' ? h('span', { 'class':'rh-trig', title:'Запущено по расписанию', text:'⏱ по расписанию' }) : null ]),
       h('span', { 'class':'rh-c', text:r.fail ? 'не запустился: ' + r.fail : 'успешно ' + r.ok + (r.err ? ' · ошибок ' + r.err : '') + (r.skip ? ' · пропущено ' + r.skip : '') + (r.stopped ? ' · остановлен' : '') }),
       h('span', { 'class':'rh-ms', text:cmpTime(r.ms) })
     ]);
