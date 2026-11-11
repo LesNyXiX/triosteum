@@ -65,6 +65,7 @@
     "app/workspace/selection.js",
     "app/workspace/arrange.js",
     "app/workspace/run-status.js",
+    "app/board/run-history.js",
     "app/ai/constructor.js",
     "app/ai/backend-code.js",
     "app/ai/architect.js",
