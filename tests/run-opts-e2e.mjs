@@ -199,6 +199,15 @@ console.log('Четвёртый раунд Codex: снимок не меняет
   check(errors.length === 0, 'ошибок JavaScript нет' + (errors.length ? ': ' + errors.join(' | ') : ''));
   await ctx.close();
 }
+console.log('Связующая точка языка C++ не выполняет шаблон, а передаёт вход дальше');
+{
+  const { page, ctx, errors } = await open([node('a', 'Источник', 120, OK), { id: 'h', name: 'Узел 1', lang: 'cpp', kind: 'hub', x: 400, y: 240, codes: {}, pluginId: null, family: null, desc: '', colors: null }, node('b', 'Приёмник', 620, OK)],
+    [{ id: 'e1', from: 'a', to: 'h', taps: [] }, { id: 'e2', from: 'h', to: 'b', taps: [] }]);
+  const log = await run(page);
+  check(/Узел 1 — связующая точка: объединено входов: 1/.test(log) && !/✗/.test(log), 'точка объединяет входы без исполнения кода');
+  check(errors.length === 0, 'ошибок JavaScript нет' + (errors.length ? ': ' + errors.join(' | ') : ''));
+  await ctx.close();
+}
 await browser.close(); srv.close();
 console.log(failed ? '\nПровалено: ' + failed : '\nВсё прошло');
 process.exit(failed ? 1 : 0);

@@ -103,35 +103,22 @@
         }
         function go(){
           if(cmpStopped()){ done(); return; }
-          if(n.lang === 'python' && RUN_SERVER){
+          if(n.kind !== 'hub' && (n.lang === 'python' || FOREIGN_LANGS[n.lang])){   // связующая точка любого языка только объединяет входы
             if(!attempt) rlog('▶ ' + n.name + (input === null ? '  (входных данных нет — тестовые данные блока)' : ''));
-            serverRun(nodeCode(n), input, 'block').then(function(r){
-              printLines(r.stdout, function(t){ rlog('   ' + t); }); printLines(r.stderr, function(t){ rlog('   ' + t, 'err'); });
-              if(r.ok) ok(r.output, ' · ' + r.ms + ' мс'); else fail(String(r.error));
+            executeBlock(n, input, { py:py, log:rlog, capture:true }).then(function(r){
+              printLines(r.stdout, function(t){ rlog('   ' + t); });
+              printLines(r.stderr, function(t){ rlog('   ' + t, 'err'); });
+              (r.notes || []).forEach(function(t){ rlog('   ℹ ' + t, 'dim'); });
+              if(r.ok) ok(r.output, typeof r.ms === 'number' ? ' · ' + r.ms + ' мс' : '');
+              else fail(String(r.error || 'Ошибка исполнения'));
             }, function(e){ fail(String(e && e.message || e)); });
             return;
           }
           try{
-            if(n.lang === 'python' && py){
-              if(!attempt) rlog('▶ ' + n.name + (input === null ? '  (входных данных нет — тестовые данные блока)' : ''));
-              py.setStdout({ batched:function(t){ rlog('   ' + t); } });
-              py.setStderr({ batched:function(t){ rlog('   ' + t, 'err'); } });
-              py.runPython(PY_STUB);
-              py.runPython(nodeCode(n));
-              py.globals.set('_inp_json', JSON.stringify(input));
-              py.runPython(PY_RUN_BOARD);
-              var oj = py.globals.get('_out_json');
-              ok(oj ? JSON.parse(oj) : null);
-            } else if(n.kind === 'hub'){
+            if(n.kind === 'hub'){
               rlog('▶ ' + n.name + ' — связующая точка: объединено входов: ' + ins.length, 'dim'); results[n.id] = input; stat.ok++; setRun(n, 'ok', 'Объединено входов: ' + ins.length); done();
             } else if(n.lang === 'html'){
               rlog('▶ ' + n.name + ' — HTML-виджет, отображается в предпросмотре', 'dim'); stat.ok++; setRun(n, 'ok', 'HTML-виджет — смотрите предпросмотр в редакторе'); done();
-            } else if(FOREIGN_LANGS[n.lang]){
-              if(!attempt) rlog('▶ ' + n.name + (input === null ? '  (входных данных нет — демо-данные блока)' : ''));
-              var fr = runForeign(n.lang, nodeCode(n), input, { resultName:n.name });
-              fr.stdout.forEach(function(t){ rlog('   ' + t); }); fr.notes.forEach(function(t){ rlog('   ℹ ' + t, 'dim'); });
-              if(!fr.ok) throw new Error(fr.error);
-              ok(fr.output);
             } else {
               rlog('▶ ' + n.name + ' — пропущен: для ' + shortName(l) + ' нет исполнителя', 'warn'); stat.skip++; setRun(n, 'skip', 'Пропущен: нет исполнителя'); done();
             }
