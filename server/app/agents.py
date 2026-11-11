@@ -77,14 +77,14 @@ def _who(login: str, owner: str) -> str:
     return "owner" if login.lower() == owner.lower() else "other"
 
 
-_MENTION = re.compile(r"(^|\s)@(claude|codex)\b[:,]?\s*", re.I)
+_MENTION = re.compile(r"(?<!\S)@(claude|codex)\b[:,]?[ \t]*", re.I)
 _HIDDEN = re.compile(r"<!--.*?-->", re.S)
 
 
 def _clean(body: str | None) -> str:
     """Текст для окна: без скрытых HTML-комментариев (служебные отметки ботов) и без наших обращений @claude/@codex."""
     s = _HIDDEN.sub("", body or "")
-    s = _MENTION.sub(lambda m: m.group(1), s)
+    s = _MENTION.sub("", s)
     return s.strip()
 
 
@@ -109,6 +109,18 @@ class MessageIn(BaseModel):
     text: str = Field(min_length=1, max_length=20000)
     claude: bool = True
     codex: bool = False
+
+
+def _own_task(issue: dict) -> dict:
+    """Окно работает только со своими задачами: чужие задачи и PR репозитория через него не читаются и не закрываются."""
+    if "pull_request" in issue or LABEL not in [(lb.get("name") if isinstance(lb, dict) else lb) for lb in issue.get("labels", [])]:
+        raise HTTPException(404, "Нет такой задачи для ИИ")
+    return issue
+
+
+def _plain(text: str) -> str:
+    """Текст владельца без его собственных обращений @claude/@codex: адресатов задаёт окно, а не случайное слово в тексте."""
+    return _MENTION.sub("", text).strip()     # убирается только обращение и пробел после него — отступы и код не трогаем
 
 
 def _need_target(claude: bool, codex: bool):
@@ -136,7 +148,9 @@ def list_tasks(w: Who = Depends(need_admin)):
 def create_task(body: TaskIn, w: Who = Depends(need_admin)):
     _need_target(body.claude, body.codex)
     _, repo = _cfg()
-    text_ = body.text.strip()
+    text_ = _plain(body.text)
+    if not text_:
+        raise HTTPException(422, "Напишите текст задачи")
     # Claude подхватывает «@claude» в самой задаче (workflow на открытие задачи); Codex — отдельный комментарий
     head = "@claude " if body.claude else ""
     issue = _gh("POST", f"/repos/{repo}/issues", {
@@ -161,8 +175,7 @@ def get_task(number: int, w: Who = Depends(need_admin)):
         return issue, comments
 
     issue, comments = _cached(f"t{number}", 5, load)
-    if "pull_request" in issue:
-        raise HTTPException(404, "Это не задача, а PR")
+    _own_task(issue)
     owner = issue["user"]["login"]
     msgs = [{"id": "i", "who": _who(owner, owner), "to": _to(issue.get("body")), "text": _clean(issue.get("body")),
              "at": issue["created_at"], "edited": issue["updated_at"], "url": issue["html_url"]}]
@@ -173,9 +186,10 @@ def get_task(number: int, w: Who = Depends(need_admin)):
         if not t:
             continue
         who = _who(cm["user"]["login"], owner)
-        if who == "owner" and t == first:
-            # та же задача, отправленная Codex отдельным комментарием, — в окне это одно сообщение «обоим»
-            msgs[0]["to"] = sorted(set(msgs[0]["to"]) | set(_to(cm.get("body"))))
+        last = msgs[-1]
+        if who == "owner" and last["who"] == "owner" and t == last["text"]:
+            # то же сообщение, отправленное второму адресату отдельным комментарием, — в окне одно сообщение «обоим»
+            last["to"] = sorted(set(last["to"]) | set(_to(cm.get("body"))))
             continue
         msgs.append({"id": cm["id"], "who": who, "to": _to(cm.get("body")), "text": t,
                      "at": cm["created_at"], "edited": cm["updated_at"], "url": cm["html_url"]})
@@ -189,7 +203,10 @@ def get_task(number: int, w: Who = Depends(need_admin)):
 def add_message(number: int, body: MessageIn, w: Who = Depends(need_admin)):
     _need_target(body.claude, body.codex)
     _, repo = _cfg()
-    t = body.text.strip()
+    _own_task(_gh("GET", f"/repos/{repo}/issues/{number}"))
+    t = _plain(body.text)
+    if not t:
+        raise HTTPException(422, "Напишите текст сообщения")
     if body.claude:
         _gh("POST", f"/repos/{repo}/issues/{number}/comments", {"body": "@claude " + t})
     if body.codex:
@@ -206,6 +223,7 @@ class StateIn(BaseModel):
 @router.post("/{number}/state")
 def set_state(number: int, body: StateIn, w: Who = Depends(need_admin)):
     _, repo = _cfg()
+    _own_task(_gh("GET", f"/repos/{repo}/issues/{number}"))
     issue = _gh("PATCH", f"/repos/{repo}/issues/{number}", {"state": "open" if body.open else "closed"})
     _drop_cache()
     return _task(issue)

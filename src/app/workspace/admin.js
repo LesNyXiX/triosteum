@@ -464,7 +464,7 @@
       ADM.agTimer = setInterval(function(){
         if(!ADM.el || ADM.el.hidden || ADM.tab !== 'agents') return;
         SERVER.api('GET', '/admin/agents').then(function(x){ if(x.status === 200 && x.data.configured) agList(side, x.data.tasks); });
-        if(ADM.agTask) agOpen(main, ADM.agTask, true);
+        if(ADM.agTask) agOpen(main, ADM.agTask, true, true);
       }, 15000);
     });
   }
@@ -498,12 +498,17 @@
     main.appendChild(c);
     setTimeout(function(){ c.focusText(); }, 30);
   }
-  function agOpen(main, num, quiet){
-    var keep = quiet && main.querySelector('.ag-comp textarea'), draft = keep ? keep.value : '';
-    if(quiet && keep && document.activeElement === keep && draft) return;   // не мешаем, пока владелец печатает
+  // quiet — без «Загружаем…»; poll — фоновое обновление: пропускаем, только пока владелец печатает (в поле есть текст)
+  function agTyping(ta){ return !!(ta && document.activeElement === ta && ta.value.trim()); }
+  function agOpen(main, num, quiet, poll){
+    if(poll && agTyping(main.querySelector('.ag-comp textarea'))) return;
     if(!quiet){ main.innerHTML = ''; main.appendChild(h('p', { 'class':'adm-empty', text:'Загружаем переписку…' })); }
     SERVER.api('GET', '/admin/agents/' + num).then(function(r){
       if(ADM.agTask !== num) return;
+      // черновик и адресатов берём прямо перед заменой формы: владелец мог начать печатать, пока шёл запрос
+      var keep = quiet && main.querySelector('.ag-comp textarea'), draft = keep ? keep.value : '', tgBox = quiet && main.querySelector('.ag-comp .ag-to'), tgNow = tgBox && tgBox.get ? tgBox.get() : null;
+      if(poll && agTyping(keep)) return;
+      var hadFocus = !!(keep && document.activeElement === keep);
       if(r.status !== 200){ if(!quiet){ main.innerHTML = ''; main.appendChild(h('p', { 'class':'adm-empty', text:admErr(r) })); } return; }
       var d = r.data, feed = main.querySelector('.ag-feed'), atBottom = !feed || feed.scrollHeight - feed.scrollTop - feed.clientHeight < 40;
       main.innerHTML = '';
@@ -524,7 +529,7 @@
       var waiting = d.state === 'open' && d.messages.length && d.messages[d.messages.length - 1].who === 'owner';
       if(waiting) f.appendChild(h('p', { 'class':'ag-wait', text:'Ждём ответ — обычно около минуты. Лента обновляется сама.' }));
       main.appendChild(f);
-      var c = agComposer('Ответить или уточнить задачу…', { claude:true, codex:false }, function(t, tg){
+      var c = agComposer('Ответить или уточнить задачу…', tgNow || { claude:true, codex:false }, function(t, tg){
         return SERVER.api('POST', '/admin/agents/' + num + '/messages', { text:t, claude:tg.claude, codex:tg.codex }).then(function(x){
           if(x.status !== 201){ toast(admErr(x)); return false; }
           setTimeout(function(){ agOpen(main, num, true); }, 0);      // после того как поле очистится
@@ -533,6 +538,7 @@
       });
       if(draft) c.querySelector('textarea').value = draft;
       main.appendChild(c);
+      if(hadFocus || (keep && !poll)) c.focusText();   // курсор остаётся в поле: после отправки и после обновления ленты
       if(atBottom) f.scrollTop = f.scrollHeight;
     });
   }

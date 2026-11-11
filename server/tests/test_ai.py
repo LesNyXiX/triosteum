@@ -23,7 +23,23 @@ def test_ai_boot_flag(client):
     register(client)
     html = client.get("/").text
     boot = json.loads(html.split("window.TRIOSTEUM_BOOT = ", 1)[1].split(";</script>", 1)[0])
-    assert boot["ai"] == {"enabled": True, "name": "Infinitum", "provider": "echo", "model": "echo"}
+    assert boot["ai"] == {"enabled": True, "name": "Infinitum", "provider": "echo", "model": "echo", "local": True, "where": ""}
+
+
+@pytest.mark.parametrize("env,local,where", [
+    ({"AI_PROVIDER": "openai", "AI_BASE_URL": "http://ollama:11434/v1"}, True, ""),
+    ({"AI_PROVIDER": "openai", "AI_BASE_URL": "http://10.1.2.3:8000/v1"}, True, ""),
+    ({"AI_PROVIDER": "openai", "AI_BASE_URL": "https://api.example.com/v1"}, False, "api.example.com"),
+    ({"AI_PROVIDER": "yandex", "YANDEX_API_KEY": "k", "YANDEX_FOLDER_ID": "f"}, False, "YandexGPT (Yandex Cloud)"),
+])
+def test_ai_where_requests_go(monkeypatch, env, local, where):
+    """Интерфейс обещает «данные не покидают сервер» только когда модель и правда на сервере организации."""
+    for k in ("AI_PROVIDER", "AI_BASE_URL", "YANDEX_API_KEY", "YANDEX_FOLDER_ID"):
+        monkeypatch.delenv(k, raising=False)
+    for k, v in env.items():
+        monkeypatch.setenv(k, v)
+    p = ai_mod.from_env()
+    assert p.local is local and p.where == where
 
 
 def test_infinitum_is_the_server_ai(client, monkeypatch):
