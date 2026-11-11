@@ -12,7 +12,8 @@
     "styles/welcome.css",
     "styles/team.css",
     "styles/live.css",
-    "styles/block-tests.css"
+    "styles/block-tests.css",
+    "styles/audit.css"
   ],
   "js": [
     "app/core/langs-plugins.js",
@@ -56,6 +57,7 @@
     "app/editor/new-plugin.js",
     "app/editor/code-editor.js",
     "app/editor/run.js",
+    "app/board/schedule.js",
     "app/editor/lang-cfam.js",
     "app/editor/lang-bsl.js",
     "app/editor/lang-run.js",
@@ -126,6 +128,7 @@
     "app/workspace/env-dock.js",
     "app/workspace/tour.js",
     "app/workspace/whats-new.js",
+    "app/workspace/audit.js",
     "app/main.js"
   ]
 }

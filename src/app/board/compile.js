@@ -78,7 +78,7 @@
         }
         // закреплённый результат — блок не выполняется (не дёргаем внешние системы при отладке)
         if(n.pin && n.kind !== 'hub'){
-          results[n.id] = n.pin.v; var pj = JSON.stringify(n.pin.v);
+          var pj = JSON.stringify(n.pin.v); results[n.id] = pj === undefined ? null : JSON.parse(pj);   // копия: следующий блок (C# dynamic) не должен менять снимок
           rlog('📌 ' + n.name + ' — закреплённый результат' + (n.pin.t ? ' от ' + new Date(n.pin.t).toLocaleString('ru-RU') : '') + ': ' + cmpCut(pj, 160), 'ok'); stat.ok++;
           setRun(n, 'ok', 'Закреплённый результат — блок не выполнялся. ' + cmpCut(pj, 200));
           done(); return;
