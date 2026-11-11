@@ -1,28 +1,31 @@
   /* =====================================================================
      РАСПИСАНИЕ ЗАПУСКА — схема запускается сама: каждые N минут, ежедневно или по будням в заданное время
      Работает, пока Triosteum открыт в браузере (хотя бы одна вкладка с этим пространством).
-     Если открыто несколько вкладок, запускает только одна — «ведущая» (метка в localStorage).
+     Если открыто несколько вкладок, запускает только одна — «ведущая» (метка в localStorage); для пространства
+     на сервере, открытого на разных компьютерах, срок дополнительно захватывается на сервере (schedule-claim).
      Пропущенные, пока вкладка была закрыта, запуски не догоняются пачкой: один запуск сразу
      и дальше по расписанию. Ошибка запуска — уведомление браузера (если разрешено) и сообщение.
      Хранится в пространстве: G.schedule = { on, kind:'every'|'daily'|'weekdays', every, at, notify, last }.
      ===================================================================== */
-  var SCH = { tab:'t' + Math.random().toString(36).slice(2, 9), timer:0, pending:false, chip:null };
+  var SCH = { tab:'t' + Math.random().toString(36).slice(2, 9), timer:0, pending:false, chip:null, claiming:false, claimed:false };
   var SCH_KINDS = { every:'Каждые N минут', daily:'Каждый день', weekdays:'По будням' };
 
   function schOf(){ return G.schedule && typeof G.schedule === 'object' ? G.schedule : null; }
   function schAt(at){ var m = /^(\d{1,2}):(\d{2})$/.exec(String(at || '')); return m ? [Math.min(23, +m[1]), Math.min(59, +m[2])] : [9, 0]; }
-  // следующий запуск после момента from
-  function schNext(s, from){
+  // срок, к которому относится ближайший запуск: первый подходящий срок после последнего запуска.
+  // Может быть в прошлом — вкладка была закрыта (например, с понедельника до среды): тогда один запуск сразу.
+  function schSlot(s, from){
     if(!s || !s.on) return null;
-    if(s.kind === 'every'){ var step = Math.max(1, Math.min(1440, s.every | 0 || 60)) * 60000; return s.last ? Math.max(s.last + step, from) : from; }
-    var hm = schAt(s.at), d = new Date(from); d.setSeconds(0, 0); d.setHours(hm[0], hm[1]);
-    for(var i = 0; i < 8; i++){
-      var ok = d.getTime() > (s.last || 0) && (s.kind !== 'weekdays' || (d.getDay() >= 1 && d.getDay() <= 5));
-      if(ok) return Math.max(d.getTime(), from);   // время уже прошло, а запуска после него не было (вкладка была закрыта) — один раз сейчас
+    if(s.kind === 'every'){ var step = Math.max(1, Math.min(1440, s.every | 0 || 60)) * 60000; return s.last ? s.last + step : Math.floor(from / 60000) * 60000; }
+    var hm = schAt(s.at), d = new Date(s.last || from); d.setHours(hm[0], hm[1], 0, 0);
+    for(var i = 0; i < 9; i++){   // начиная со дня последнего запуска: пропущенный день не теряется
+      if(d.getTime() > (s.last || 0) && (s.kind !== 'weekdays' || (d.getDay() >= 1 && d.getDay() <= 5))) return d.getTime();
       d.setDate(d.getDate() + 1); d.setHours(hm[0], hm[1], 0, 0);
     }
     return null;
   }
+  // следующий запуск после момента from
+  function schNext(s, from){ var t = schSlot(s, from); return t === null ? null : Math.max(t, from); }
   function schDesc(s){
     if(!s || !s.on) return 'выключено';
     if(s.kind === 'every') return 'каждые ' + (s.every || 60) + ' мин';
@@ -43,9 +46,21 @@
     var s = schOf(); if(!s || !s.on || PANE) return;
     if(!schLead()) return;
     var due = schNext(s, Date.now());
-    if(due === null || due > Date.now()) return;
+    if(due === null || due > Date.now()){ SCH.claimed = false; return; }
     if(CMP.busy || (typeof running !== 'undefined' && running)){ SCH.pending = true; return; }   // идёт ручной запуск — подождём
     SCH.pending = false;
+    if(SERVER && !SCH.claimed){   // пространство на сервере может быть открыто и на других компьютерах — срок захватывает один
+      if(SCH.claiming) return;
+      SCH.claiming = true;
+      var slot = schSlot(s, Date.now());
+      SERVER.api('POST', '/spaces/' + encodeURIComponent(curId()) + '/schedule-claim', { slot:slot }).then(function(r){
+        SCH.claiming = false;
+        if(r.status === 200 && r.data && r.data.ok){ SCH.claimed = true; schTick(); }   // наш срок — запускаем
+        // иначе срок уже взял другой клиент: его отметка о запуске придёт вместе с пространством
+      }, function(){ SCH.claiming = false; });
+      return;
+    }
+    SCH.claimed = false;
     s.last = Date.now(); saveGraph();
     if(typeof RH !== 'undefined') RH.nextTrig = 'schedule';
     CMP.only = null;

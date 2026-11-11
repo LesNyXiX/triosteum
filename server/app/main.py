@@ -482,6 +482,28 @@ def put_space(space_id: str, body: SpaceIn, request: Request, w: Who = Depends(n
     return JSONResponse({"rev": r["rev"], "updated_at": r["updated_at"].isoformat()}, status_code=201)
 
 
+class ScheduleClaim(BaseModel):
+    slot: int = Field(ge=0, le=2**62)
+
+
+@app.post("/api/spaces/{space_id}/schedule-claim")
+def schedule_claim(space_id: str, body: ScheduleClaim, w: Who = Depends(need_writer)):
+    """Захват срока запуска по расписанию: из всех открытых клиентов запускает только первый.
+
+    Срок захватывается, если он новее захваченного раньше; захваты чаще раза в 30 секунд отклоняются
+    (защита от клиентов с разными часовыми поясами, у которых один и тот же срок — разные числа)."""
+    check_id(space_id)
+    with tx(w.org_id) as c:
+        r = c.execute(text("""INSERT INTO schedule_claims (org_id, space_id, slot, claimed_by) VALUES (:o, :id, :slot, :u)
+                              ON CONFLICT (org_id, space_id) DO UPDATE
+                                SET slot = EXCLUDED.slot, claimed_by = EXCLUDED.claimed_by, claimed_at = now()
+                                WHERE schedule_claims.slot < EXCLUDED.slot
+                                  AND schedule_claims.claimed_at < now() - interval '30 seconds'
+                              RETURNING slot"""),
+                      {"o": w.org_id, "id": space_id, "slot": body.slot, "u": w.user_id}).first()
+    return {"ok": r is not None}
+
+
 @app.patch("/api/spaces/{space_id}")
 def patch_space(space_id: str, body: SpacePatch, w: Who = Depends(need_writer)):
     check_id(space_id)

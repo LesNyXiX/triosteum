@@ -64,6 +64,22 @@ console.log('Ошибка при запуске по расписанию');
   check(/ошибок при запуске по расписанию — 1/.test(t), 'сообщение об ошибке запуска по расписанию');
   await ctx.close();
 }
+console.log('Пропущенные дни: догоняющий запуск, а не ожидание следующего срока');
+async function missed(now, schedule) {
+  const ctx = await ctxWith(schedule); const page = await ctx.newPage();
+  await page.clock.setFixedTime(now);
+  await page.goto(URL); await page.waitForTimeout(4500);
+  const n = (await hist(page)).length; await ctx.close(); return n;
+}
+{
+  const at = (d) => new Date(d).getTime();
+  // среда 08:00, последний запуск — понедельник 09:00: вторник пропущен
+  check(await missed(at('2026-11-11T08:00:00'), { on: true, kind: 'daily', at: '09:00', notify: false, last: at('2026-11-09T09:00:05') }) === 1, 'ежедневно: вторник пропущен — при открытии в среду до 09:00 один запуск сразу');
+  check(await missed(at('2026-11-11T08:00:00'), { on: true, kind: 'daily', at: '09:00', notify: false, last: at('2026-11-10T09:00:05') }) === 0, 'ежедневно: вчерашний запуск был — ждём сегодняшних 09:00');
+  // суббота 10:00, последний запуск — четверг: пятница пропущена
+  check(await missed(at('2026-11-14T10:00:00'), { on: true, kind: 'weekdays', at: '09:00', notify: false, last: at('2026-11-12T09:00:05') }) === 1, 'по будням: пятница пропущена — в субботу один запуск сразу');
+  check(await missed(at('2026-11-14T10:00:00'), { on: true, kind: 'weekdays', at: '09:00', notify: false, last: at('2026-11-13T09:00:05') }) === 0, 'по будням: в выходные без пропусков запуска нет');
+}
 await browser.close(); srv.close();
 console.log(failed ? '\nПровалено: ' + failed : '\nВсё прошло');
 process.exit(failed ? 1 : 0);

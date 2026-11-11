@@ -162,6 +162,22 @@ def test_viewer_cannot_write(client, admin):
     assert viewer.delete("/api/spaces/ro").status_code == 403
 
 
+def test_schedule_claim(client, admin):
+    register(client)
+    put(client, "sc", {"a": 1}, 0)
+    claim = lambda c, slot: c.post("/api/spaces/sc/schedule-claim", json={"slot": slot})
+    assert claim(client, 1000).json() == {"ok": True}
+    assert claim(client, 1000).json() == {"ok": False}, "второй клиент не запускает тот же срок"
+    assert claim(client, 2000).json() == {"ok": False}, "новый срок раньше чем через 30 с не захватывается"
+    admin.execute("UPDATE schedule_claims SET claimed_at = now() - interval '1 minute'")
+    assert claim(client, 900).json() == {"ok": False}, "старый срок не захватывается"
+    assert claim(client, 2000).json() == {"ok": True}
+    assert claim(client, -1).status_code == 422
+    other = TestClient(client.app, base_url="http://testserver")
+    register(other, org="Другой завод")
+    assert claim(other, 5000).json() == {"ok": True}, "у другой организации свои захваты"
+
+
 # ---------- защита запросов ----------
 
 def test_csrf_foreign_origin_rejected(client):

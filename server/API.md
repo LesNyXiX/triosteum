@@ -51,6 +51,7 @@
 | `GET /api/spaces/{id}/versions` | — | история версий: `[{id, rev, label, created_at, by}]` |
 | `POST /api/spaces/{id}/versions` | `{label}` | сохранить текущую версию с подписью |
 | `GET /api/spaces/{id}/versions/{vid}` | — | содержимое версии (для возврата) |
+| `POST /api/spaces/{id}/schedule-claim` | `{slot}` | захват срока запуска по расписанию (`slot` — время срока в мс): `{ok:true}` — запускает этот клиент, `{ok:false}` — срок уже взял другой. Только редактор и выше |
 
 Права: `viewer` и `approver` получают 403 на PUT, PATCH и DELETE.
 
