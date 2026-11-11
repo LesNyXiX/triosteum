@@ -12,14 +12,23 @@
     { id:'claude-sonnet-5-5', name:'Claude Sonnet 5.5 — быстрее и дешевле' },
     { id:'claude-haiku-5-5', name:'Claude Haiku 5.5 — самая быстрая' }
   ];
+  // три способа: Infinitum (свой ИИ Triosteum на сервере), локальный ИИ (Ollama), ИИ по API (Claude или совместимый с OpenAI)
   var CL_PROV = {
+    infinitum:{ name:'Infinitum', title:'Infinitum — собственный ИИ Triosteum на сервере' },
     claude:{ name:'Claude', title:'Claude (Anthropic)' },
     ollama:{ name:'Ollama', title:'Ollama — модель на этом компьютере' },
     openai:{ name:'Свой ИИ', title:'Совместимый с OpenAI сервис' }
   };
+  var CL_GROUPS = [
+    { id:'infinitum', name:'Infinitum', title:'Собственный ИИ Triosteum — работает на сервере, без ключей и установки', provs:['infinitum'] },
+    { id:'local', name:'Локальный ИИ', title:'Ollama — модель на этом компьютере, без интернета', provs:['ollama'] },
+    { id:'api', name:'ИИ по API', title:'Claude по ключу или любой сервис, совместимый с API OpenAI', provs:['claude', 'openai'] }
+  ];
+  function clGroupOf(p){ return CL_GROUPS.filter(function(g){ return g.provs.indexOf(p) >= 0; })[0] || CL_GROUPS[2]; }
+  function clInfReady(){ return !!(SERVER && window.TRIOSTEUM_BOOT && window.TRIOSTEUM_BOOT.ai && window.TRIOSTEUM_BOOT.ai.enabled); }
   var CL_KEY = 'triosteum.claude.key', CL_MODEL = 'triosteum.claude.model', CL_ON = 'triosteum.claude.on', CL_CFG = 'triosteum.ai.cfg', CL_OKEY = 'triosteum.ai.key.openai';
   var CL = { on:false, prev:undefined, src:null, busy:false, status:null, model:CL_MODELS[0].id, inClaude:!!(window.claude && typeof window.claude.use === 'function'), embedded:null,
-    prov:'claude', cfg:{ ollama:{ url:'http://localhost:11434', model:'' }, openai:{ url:'', model:'', name:'' } }, models:{} };
+    prov:clInfReady() ? 'infinitum' : 'claude', apiProv:'claude', cfg:{ ollama:{ url:'http://localhost:11434', model:'' }, openai:{ url:'', model:'', name:'' } }, models:{} };
   function clStore(kind){ try { return kind === 'local' ? window.localStorage : window.sessionStorage; } catch(e){ return null; } }
   function clGet(k){ var s = clStore('session'), l = clStore('local'); try { return (s && s.getItem(k)) || (l && l.getItem(k)) || ''; } catch(e){ return ''; } }
   function clKeyName(p){ return (p || CL.prov) === 'openai' ? CL_OKEY : CL_KEY; }
@@ -28,11 +37,11 @@
     var s = clStore('session'), l = clStore('local'), k = clKeyName(p);
     try { if(s){ if(v) s.setItem(k, v); else s.removeItem(k); } if(l){ if(v && remember) l.setItem(k, v); else l.removeItem(k); } } catch(e){}
   }
-  function clSaveCfg(){ try { var l = clStore('local'); if(l) l.setItem(CL_CFG, JSON.stringify({ prov:CL.prov, ollama:CL.cfg.ollama, openai:CL.cfg.openai })); } catch(e){} }
+  function clSaveCfg(){ try { var l = clStore('local'); if(l) l.setItem(CL_CFG, JSON.stringify({ prov:CL.prov, apiProv:CL.apiProv, ollama:CL.cfg.ollama, openai:CL.cfg.openai })); } catch(e){} }
   try {
     var m0 = clGet(CL_MODEL); if(m0 && CL_MODELS.some(function(m){ return m.id === m0; })) CL.model = m0;
     var c0 = JSON.parse(clGet(CL_CFG) || 'null');
-    if(c0){ if(CL_PROV[c0.prov]) CL.prov = c0.prov; ['ollama', 'openai'].forEach(function(p){ if(c0[p]) for(var k in c0[p]) CL.cfg[p][k] = c0[p][k]; }); }
+    if(c0){ if(CL_PROV[c0.prov]) CL.prov = c0.prov; if(c0.apiProv === 'claude' || c0.apiProv === 'openai') CL.apiProv = c0.apiProv; ['ollama', 'openai'].forEach(function(p){ if(c0[p]) for(var k in c0[p]) CL.cfg[p][k] = c0[p][k]; }); }
   } catch(e){}
   function clProvName(){ return CL.prov === 'openai' && CL.cfg.openai.name ? CL.cfg.openai.name : CL_PROV[CL.prov].name; }
 
@@ -186,7 +195,7 @@
     var pairs = [['builder', typeof renderBuilder === 'function' ? renderBuilder : null], ['arcW', typeof renderArc === 'function' ? renderArc : null], ['schemeW', typeof renderScheme === 'function' ? renderScheme : null], ['ofAi', typeof renderOfAi === 'function' ? renderOfAi : null]];
     pairs.forEach(function(p){ var w = $(p[0]); if(w && !w.hidden && p[1]) try { p[1](); } catch(e){} });
   }
-  function clModelName(){ if(CL.prov !== 'claude') return CL.cfg[CL.prov].model || '—'; var m = CL_MODELS.filter(function(x){ return x.id === CL.model; })[0]; return m ? m.name.split(' — ')[0] : CL.model; }
+  function clModelName(){ if(CL.prov === 'infinitum') return 'на сервере Triosteum'; if(CL.prov !== 'claude') return CL.cfg[CL.prov].model || '—'; var m = CL_MODELS.filter(function(x){ return x.id === CL.model; })[0]; return m ? m.name.split(' — ')[0] : CL.model; }
   function clSourceText(){ return CL.src === 'claude.ai' ? 'Claude через claude.ai' : clProvName() + ' · ' + clModelName(); }
   function clPaint(){
     var b = $('claudeBtn'); if(!b) return;
@@ -198,6 +207,11 @@
   }
   // какой обработчик запросов получит Triosteum при включении (null — не хватает настроек)
   function clMakeApi(){
+    if(CL.prov === 'infinitum'){
+      if(!clInfReady()) return Promise.resolve(null);
+      CL.src = 'infinitum';
+      return Promise.resolve(function(prompt, opts){ return serverAI(prompt, opts); });
+    }
     if(CL.prov === 'claude'){
       return clEmbedded().then(function(emb){
         if(emb){ CL.src = 'claude.ai'; return emb; }
@@ -211,7 +225,7 @@
     var p = CL.prov; CL.src = p;
     return Promise.resolve(function(prompt, opts){ return oaiHttp(prompt, opts, { prov:p }); });
   }
-  function clNeedText(){ return CL.prov === 'claude' ? 'Чтобы подключить Claude, вставьте свой ключ API Anthropic и нажмите «Сохранить и включить».' : CL.prov === 'ollama' ? 'Выберите модель Ollama (кнопка «Найти модели») и нажмите «Сохранить и включить».' : 'Укажите адрес сервиса, ключ и модель, затем нажмите «Сохранить и включить».'; }
+  function clNeedText(){ if(CL.prov === 'infinitum') return !SERVER ? 'Infinitum работает на сервере Triosteum — откройте Triosteum с сервера вашей организации (например, triosteum.ru).' : 'На этом сервере Infinitum пока не подключён: его включает администратор в настройках сервера.'; return CL.prov === 'claude' ? 'Чтобы подключить Claude, вставьте свой ключ API Anthropic и нажмите «Сохранить и включить».' : CL.prov === 'ollama' ? 'Выберите модель Ollama (кнопка «Найти модели») и нажмите «Сохранить и включить».' : 'Укажите адрес сервиса, ключ и модель, затем нажмите «Сохранить и включить».'; }
   function clEnable(silent){
     if(CL.on || CL.busy) return Promise.resolve(CL.on);
     CL.busy = true; clPaint();
@@ -238,7 +252,7 @@
     var p = $('claudeP'); p.hidden = false; clRenderPanel();
     var inp = p.querySelector('input[type=password]'); if(inp && !inp.value) setTimeout(function(){ inp.focus(); }, 30);
   }
-  function clCheck(fn){ CL.status = { cls:'', text:'Проверяю связь…' }; clRenderPanel(); fn().then(function(r){ CL.status = { cls:'ok', text:'Связь есть: ' + (CL.prov === 'claude' ? clModelName() : clProvName() + ' · ' + (CL.cfg[CL.prov].model || '')) + ' ответил «' + String(r.text || '').trim().slice(0, 40) + '».' }; clRenderPanel(); }, function(err){ CL.status = { cls:'err', text:err.message }; clRenderPanel(); }); }
+  function clCheck(fn){ CL.status = { cls:'', text:'Проверяю связь…' }; clRenderPanel(); fn().then(function(r){ CL.status = { cls:'ok', text:'Связь есть: ' + (CL.prov === 'claude' ? clModelName() : clProvName() + ' · ' + clModelName()) + ' ответил «' + String(r.text || '').trim().slice(0, 40) + '».' }; clRenderPanel(); }, function(err){ CL.status = { cls:'err', text:err.message }; clRenderPanel(); }); }
   /* Проверка Ollama по шагам: запущена ли, пускает ли страницу (CORS), есть ли модели, как быстро отвечает
      и помещается ли модель в видеопамять. Каждый шаг — с понятным советом, что сделать. */
   function clOllamaDiag(){
@@ -295,16 +309,25 @@
   }
   function clRenderPanel(){
     var b = $('claudePBody'); b.textContent = '';
-    b.appendChild(h('div', { 'class':'clp-src' }, [ h('i', { 'class':CL.on ? 'on' : '' }), h('span', { text:CL.on ? 'Включено: ИИ Triosteum работает через ' + clSourceText() : (AI.api ? 'Выключено: работает встроенный ИИ Triosteum' : 'Выключено: встроенный ИИ Triosteum не подключён') }) ]));
-    var seg = h('div', { 'class':'clp-seg', role:'radiogroup', 'aria-label':'Поставщик ИИ' });
-    Object.keys(CL_PROV).forEach(function(p){
-      var on = CL.prov === p;
-      seg.appendChild(h('button', { type:'button', role:'radio', 'aria-checked':on ? 'true' : 'false', 'class':on ? 'on' : '', 'data-prov':p, text:CL_PROV[p].name, title:CL_PROV[p].title, on:{ click:function(){
-        if(CL.prov === p) return; CL.prov = p; CL.status = null; CL.draft = undefined; clSaveCfg(); clPaint(); clRenderPanel(); clReconnect();
+    b.appendChild(h('div', { 'class':'clp-src' }, [ h('i', { 'class':CL.on ? 'on' : '' }), h('span', { text:CL.on ? 'Включено: ИИ Triosteum работает через ' + clSourceText() : (AI.api === serverAI ? 'Выключено: работает Infinitum — ИИ Triosteum на сервере' : AI.api ? 'Выключено: работает встроенный ИИ Triosteum' : 'Выключено: встроенный ИИ Triosteum не подключён') }) ]));
+    var seg = h('div', { 'class':'clp-seg', role:'radiogroup', 'aria-label':'Какой ИИ' }), cur = clGroupOf(CL.prov);
+    function pick(p){ if(CL.prov === p) return; CL.prov = p; if(p === 'claude' || p === 'openai') CL.apiProv = p; CL.status = null; CL.draft = undefined; clSaveCfg(); clPaint(); clRenderPanel(); clReconnect(); }
+    CL_GROUPS.forEach(function(g){
+      var on = cur.id === g.id;
+      seg.appendChild(h('button', { type:'button', role:'radio', 'aria-checked':on ? 'true' : 'false', 'class':on ? 'on' : '', 'data-group':g.id, 'data-prov':g.id === 'api' ? null : g.provs[0], text:g.name, title:g.title, on:{ click:function(){
+        pick(g.id === 'api' ? (CL.apiProv || 'claude') : g.provs[0]);
       } } }));
     });
     b.appendChild(seg);
-    if(CL.prov === 'claude') clPanelClaude(b); else clPanelOai(b, CL.prov);
+    if(cur.id === 'api'){
+      var sub = h('div', { 'class':'clp-seg sub', role:'radiogroup', 'aria-label':'Сервис по API' });
+      [['claude', 'Claude'], ['openai', 'Другой сервис']].forEach(function(o){
+        var on2 = CL.prov === o[0];
+        sub.appendChild(h('button', { type:'button', role:'radio', 'aria-checked':on2 ? 'true' : 'false', 'class':on2 ? 'on' : '', 'data-prov':o[0], text:o[1], title:CL_PROV[o[0]].title, on:{ click:function(){ pick(o[0]); } } }));
+      });
+      b.appendChild(sub);
+    }
+    if(CL.prov === 'infinitum') clPanelInfinitum(b); else if(CL.prov === 'claude') clPanelClaude(b); else clPanelOai(b, CL.prov);
     if(CL.prov === 'ollama' && !CL.models.ollama && !CL.autoFind){ CL.autoFind = true; clListModels('ollama').then(function(ms){ CL.models.ollama = ms; var c = CL.cfg.ollama; if(ms.length && ms.indexOf(c.model) < 0){ c.model = clPickModel(ms); clSaveCfg(); } if(!$('claudeP').hidden && CL.prov === 'ollama') clRenderPanel(); }, function(){}); }
     if(CL.status && CL.status.steps){
       var dg = h('div', { 'class':'clp-st clp-diag ' + (CL.status.cls || ''), role:'status' }, [ h('b', { text:CL.status.text }) ]);
@@ -312,6 +335,23 @@
       b.appendChild(dg);
     } else if(CL.status) b.appendChild(h('div', { 'class':'clp-st ' + (CL.status.cls || ''), text:CL.status.text, role:'status' }));
     b.appendChild(h('p', { text:'Пока переключатель включён, помощник блока, архитектор, конструктор, бэкенд и ИИ офиса работают через выбранный ИИ. Выключите — вернётся прежний. После закрытия вкладки переключатель выключается.' }));
+  }
+  // Infinitum: ничего настраивать не нужно — ИИ на сервере организации; администратор выбирает модель под капотом
+  function clPanelInfinitum(b){
+    var ready = clInfReady();
+    b.appendChild(h('div', { 'class':'clp-inf' }, [
+      h('div', { 'class':'clp-inf-mark', 'aria-hidden':'true', html:'<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7.5 8.5c-2.2 0-4 1.6-4 3.5s1.8 3.5 4 3.5c3.5 0 5.5-7 9-7 2.2 0 4 1.6 4 3.5s-1.8 3.5-4 3.5c-3.5 0-5.5-7-9-7z"/></svg>' }),
+      h('div', null, [ h('b', { text:'Infinitum — собственный ИИ Triosteum' }),
+        h('span', { text:'Знает Triosteum: блоки, среды, схемы, документы. Работает на сервере вашей организации — без ключей и установки, данные не уходят сторонним сервисам.' }) ]) ]));
+    if(!ready){
+      if(!CL.status) b.appendChild(h('div', { 'class':'clp-st', text:clNeedText() }));   // иначе это же сообщение покажет общий статус ниже
+      if(SERVER && SERVER.admin) b.appendChild(h('p', { html:'Как включить (вы администратор): в файле <code>.env</code> сервера задайте <code>AI_PROVIDER=openai</code>, <code>AI_MODEL=qwen2.5:1.5b</code> и <code>COMPOSE_PROFILES=ai</code>, обновите сервер и скачайте модель — команды в инструкции к серверу.' }));
+      return;
+    }
+    b.appendChild(h('div', { 'class':'row2' }, [
+      h('button', { type:'button', 'class':'btn sm primary', text:CL.on ? 'Выключить' : 'Включить', on:{ click:function(){ if(CL.on) clDisable(); else clEnable(); clRenderPanel(); } } }),
+      h('button', { type:'button', 'class':'btn sm', text:'Проверить', on:{ click:function(){ clCheck(function(){ return serverAI('Ответь одним словом: готово', {}); }); } } })
+    ]));
   }
   function clRemember(k){ var rem = h('input', { type:'checkbox' }); try { var l = clStore('local'); rem.checked = !!(l && l.getItem(k)); } catch(e){} return rem; }
   function clPanelClaude(b){

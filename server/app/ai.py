@@ -104,7 +104,9 @@ def from_env() -> Provider | None:
         return EchoProvider()
     if kind == "openai":
         base = os.environ.get("AI_BASE_URL") or "http://127.0.0.1:11434/v1"
-        p = OpenAICompatible(base, os.environ.get("AI_MODEL") or "qwen2.5-coder:7b", os.environ.get("AI_API_KEY", ""))
+        # своя модель на процессоре без видеокарты думает долго — ожидание ответа задаётся AI_TIMEOUT (секунды)
+        p = OpenAICompatible(base, os.environ.get("AI_MODEL") or "qwen2.5-coder:7b", os.environ.get("AI_API_KEY", ""),
+                             timeout=float(os.environ.get("AI_TIMEOUT") or 300))
         p.name = "openai"
         return p
     if kind == "yandex":

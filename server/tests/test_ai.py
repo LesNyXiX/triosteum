@@ -23,7 +23,26 @@ def test_ai_boot_flag(client):
     register(client)
     html = client.get("/").text
     boot = json.loads(html.split("window.TRIOSTEUM_BOOT = ", 1)[1].split(";</script>", 1)[0])
-    assert boot["ai"] == {"enabled": True, "provider": "echo", "model": "echo"}
+    assert boot["ai"] == {"enabled": True, "name": "Infinitum", "provider": "echo", "model": "echo"}
+
+
+def test_infinitum_is_the_server_ai(client, monkeypatch):
+    """Системный ИИ сервера — Infinitum: модели уходит его характер и справка о Triosteum."""
+    from app import infinitum
+    register(client)
+    assert client.get("/api/ai/status").json()["name"] == "Infinitum"
+    seen = {}
+
+    class Spy(ai_mod.EchoProvider):
+        def stream(self, system, prompt, max_tokens, result):
+            seen["system"] = system
+            yield from super().stream(system, prompt, max_tokens, result)
+
+    monkeypatch.setattr(main, "AI", Spy())
+    assert client.post("/api/ai/complete", json={"prompt": "кто ты?"}).status_code == 200
+    sp = seen["system"]
+    assert sp == infinitum.system_prompt()
+    assert "Ты — Infinitum, собственный ИИ Triosteum" in sp and "«Разработка»" in sp and "Ctrl+K" in sp
 
 
 def test_ai_budget_exhausted(client, admin):
