@@ -122,3 +122,34 @@ def test_token_never_leaks(boss, gh):
     boss.post("/api/admin/agents", json={"text": "проверка"})
     for path in ("/api/admin/agents", "/api/admin/agents/1", "/api/me"):
         assert "test-token" not in boss.get(path).text
+
+
+def test_only_own_tasks(boss, gh):
+    """Чужую задачу или PR репозитория окно не читает, не закрывает и не пишет в неё."""
+    gh.issues[99] = {"number": 99, "title": "чужая", "body": "x", "state": "open", "labels": [{"name": "bug"}],
+                     "html_url": "u", "comments": 0, "user": {"login": "LesNyXiX"}, "created_at": "t", "updated_at": "t"}
+    gh.comments[99] = []
+    assert boss.get("/api/admin/agents/99").status_code == 404
+    assert boss.post("/api/admin/agents/99/state", json={"open": False}).status_code == 404
+    assert boss.post("/api/admin/agents/99/messages", json={"text": "x"}).status_code == 404
+    assert gh.issues[99]["state"] == "open" and gh.comments[99] == []
+
+
+def test_mentions_in_text_do_not_call_extra_agent(boss, gh):
+    """«@claude» в тексте задачи только для Codex не будит Claude: адресатов задают переключатели окна."""
+    n = boss.post("/api/admin/agents", json={"text": "@claude глянь потом, а пока @codex сделай", "claude": False, "codex": True}).json()["number"]
+    assert "@claude" not in gh.issues[n]["body"]
+    assert gh.comments[n][0]["body"] == "@codex глянь потом, а пока сделай"
+    assert boss.post("/api/admin/agents", json={"text": "@claude @codex", "claude": True}).status_code == 422
+    n2 = boss.post("/api/admin/agents", json={"text": "@claude шаг 1\n\nшаг 2", "claude": True, "codex": False}).json()["number"]
+    assert gh.issues[n2]["body"].startswith("@claude шаг 1\n\nшаг 2")             # переносы строк сохранены
+
+
+def test_follow_up_to_both_shown_once(boss, gh):
+    from app import agents
+    n = boss.post("/api/admin/agents", json={"text": "Почини экспорт", "claude": True, "codex": True}).json()["number"]
+    boss.post(f"/api/admin/agents/{n}/messages", json={"text": "и импорт тоже", "claude": True, "codex": True})
+    agents._drop_cache()
+    msgs = boss.get(f"/api/admin/agents/{n}").json()["messages"]
+    assert [(m["who"], m["text"], m["to"]) for m in msgs] == [
+        ("owner", "Почини экспорт", ["claude", "codex"]), ("owner", "и импорт тоже", ["claude", "codex"])]

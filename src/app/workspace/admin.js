@@ -464,7 +464,7 @@
       ADM.agTimer = setInterval(function(){
         if(!ADM.el || ADM.el.hidden || ADM.tab !== 'agents') return;
         SERVER.api('GET', '/admin/agents').then(function(x){ if(x.status === 200 && x.data.configured) agList(side, x.data.tasks); });
-        if(ADM.agTask) agOpen(main, ADM.agTask, true);
+        if(ADM.agTask) agOpen(main, ADM.agTask, true, true);
       }, 15000);
     });
   }
@@ -498,9 +498,10 @@
     main.appendChild(c);
     setTimeout(function(){ c.focusText(); }, 30);
   }
-  function agOpen(main, num, quiet){
+  // quiet — без «Загружаем…»; poll — фоновое обновление: не трогаем ленту, пока владелец в поле ввода
+  function agOpen(main, num, quiet, poll){
     var keep = quiet && main.querySelector('.ag-comp textarea'), draft = keep ? keep.value : '';
-    if(quiet && keep && document.activeElement === keep && draft) return;   // не мешаем, пока владелец печатает
+    if(poll && keep && document.activeElement === keep) return;
     if(!quiet){ main.innerHTML = ''; main.appendChild(h('p', { 'class':'adm-empty', text:'Загружаем переписку…' })); }
     SERVER.api('GET', '/admin/agents/' + num).then(function(r){
       if(ADM.agTask !== num) return;
@@ -533,6 +534,7 @@
       });
       if(draft) c.querySelector('textarea').value = draft;
       main.appendChild(c);
+      if(keep && !poll && document.activeElement !== c.querySelector('textarea') && quiet) c.focusText();   // после отправки — сразу писать дальше
       if(atBottom) f.scrollTop = f.scrollHeight;
     });
   }
