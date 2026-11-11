@@ -21,7 +21,8 @@
       if(saveGraphTimer && !silent){ toast('Это пространство изменено в другой вкладке — сохранится последняя правка'); return; }
       try{
         var g = normGraph(val); Object.keys(G).forEach(function(k){ delete G[k]; }); for(var k in g) G[k] = g[k];
-        hist.undo = []; hist.redo = []; hist.last = null; commitHist();
+        // Внешний граф обновляет базовый снимок, но не создаёт новое локальное действие.
+        hist.undo = []; hist.redo = []; hist.last = null; commitHist(true);
         S.sel = null; S.multi = []; hidePop(); renderGraph(); applyCam();
         if(typeof ofLoad === 'function'){ var keep = OF.tab; ofLoad(); if(keep && keep !== OF.tab && (keep === 'auto' || keep === 'desk' || keep === 'map' || ofFile(keep))) ofSetTab(keep); }
         if(!silent) toast('Пространство обновлено: изменения из другой вкладки');

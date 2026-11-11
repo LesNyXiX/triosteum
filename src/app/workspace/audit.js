@@ -57,6 +57,7 @@
       AUD.ui = { layer:layer, box:box, q:q, type:type, rows:rows };
       q.addEventListener('input', audRender); type.addEventListener('change', audRender);
       box.addEventListener('keydown', function(e){
+        e.stopPropagation();
         if(e.key === 'Escape'){ e.preventDefault(); e.stopPropagation(); audClose(); }
         if(e.key === 'Tab'){ var all = box.querySelectorAll('button,input,select'); if(e.shiftKey && document.activeElement === all[0]){ e.preventDefault(); all[all.length - 1].focus(); } else if(!e.shiftKey && document.activeElement === all[all.length - 1]){ e.preventDefault(); all[0].focus(); } }
       });
@@ -83,7 +84,7 @@
   }
   (function(){
     AUD.last = audSnap();
-    var commit = commitHist; commitHist = function(){ var r = commit.apply(this, arguments); audCollect(); return r; };
+    var commit = commitHist; commitHist = function(external){ var r = commit.apply(this, arguments); if(external){ AUD.last = audSnap(); AUD.space = curId(); } else audCollect(); return r; };
     var graph = setGraph; setGraph = function(){ AUD.quiet++; try { return graph.apply(this, arguments); } finally { AUD.quiet--; AUD.space = curId(); AUD.last = audSnap(); } };
     var restore = restoreSnap; restoreSnap = function(){ var r = restore.apply(this, arguments); AUD.last = audSnap(); AUD.space = curId(); audAppend([audEntry('restore', 'Схема', 'Возврат состояния доски')]); return r; };
     var create = newProj; newProj = function(name, data){ var r = create.apply(this, arguments); if(data) audAppend([audEntry('import', name || 'Пространство', 'Создано пространство из схемы')]); AUD.last = audSnap(); AUD.space = curId(); return r; };

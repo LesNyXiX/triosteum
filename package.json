@@ -7,7 +7,7 @@
   "scripts": {
     "build": "node build.mjs",
     "dev": "node build.mjs --watch",
-    "test": "node tests/merge.test.cjs && node tests/formulas.test.cjs && node tests/foreign.test.cjs && node tests/lang-corpus.test.cjs && node tests/highlight.test.cjs && node tests/plugins.test.cjs && node tests/smoke.mjs",
+    "test": "node tests/merge.test.cjs && node tests/formulas.test.cjs && node tests/foreign.test.cjs && node tests/lang-corpus.test.cjs && node tests/highlight.test.cjs && node tests/plugins.test.cjs && node tests/vars-server.test.cjs && node tests/smoke.mjs",
     "serve:mock": "node tests/mock-server.mjs",
     "test:server": "node tests/server-e2e.mjs",
     "test:envs": "node tests/envs-e2e.mjs",
@@ -29,6 +29,8 @@
     "test:errai": "node tests/err-ai-e2e.mjs",
     "test:touch": "node tests/touch-stem-e2e.mjs",
     "test:arc": "node tests/arc-ai-e2e.mjs",
+    "test:vars": "node tests/vars-e2e.mjs",
+    "test:runopts": "node tests/run-opts-e2e.mjs",
     "test:groups": "node tests/groups-e2e.mjs",
     "test:runhist": "node tests/run-history-e2e.mjs",
     "test:dataflow": "node tests/data-flow-e2e.mjs",

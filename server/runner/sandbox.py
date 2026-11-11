@@ -89,14 +89,14 @@ def _limits(mem_mb, cpu, file_mb, procs):
     return apply
 
 
-def run(code: str, input_data=None, mode: str = "block") -> dict:
+def run(code: str, input_data=None, mode: str = "block", vars_=None, secrets=None) -> dict:
     """Выполнить код. Возвращает {ok, stdout, stderr, output?, error?, ms, limits}."""
     global NET_OFF
     lim = LIMITS
     NET_OFF = net_isolation_available()
     work = tempfile.mkdtemp(prefix="trun-")
     os.chmod(work, 0o777)
-    job = json.dumps({"code": code, "input": input_data, "mode": mode}, ensure_ascii=False)
+    job = json.dumps({"code": code, "input": input_data, "mode": mode, "vars": vars_ or {}, "secrets": secrets or {}}, ensure_ascii=False)
     cmd = [PY, "-I", "-X", "utf8", "-B", str(HARNESS)]
     env = {"PATH": "/usr/local/bin:/usr/bin:/bin", "HOME": work, "LANG": "C.UTF-8", "PYTHONIOENCODING": "utf-8", "MPLBACKEND": "Agg"}
     t0 = time.monotonic()

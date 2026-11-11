@@ -48,6 +48,15 @@ try {
   check((await records()).length===4,'до подтверждения записи не удаляются');
   await page.getByRole('button',{name:'Очистить',exact:true}).click();await page.waitForTimeout(250);
   check((await records()).length===0 && await page.locator('.aud-row').count()===0,'очистка подтверждённого пространства');
+  await page.keyboard.press('Escape');await page.locator('.node[data-id="a"]').click();await cmd('Журнал действий');
+  const position=await page.locator('.node[data-id="a"]').getAttribute('style');
+  await page.getByRole('combobox',{name:'Тип действия'}).focus();await page.keyboard.press('ArrowDown');
+  await page.getByRole('button',{name:'Выгрузить CSV',exact:true}).focus();await page.keyboard.press('Delete');
+  check(await page.locator('.node[data-id="a"]').count()===1 && await page.locator('.node[data-id="a"]').getAttribute('style')===position,'стрелки и Delete в журнале не меняют выделенный блок');
+  await page.keyboard.press('Escape');const peer=await ctx.newPage();await peer.goto('http://127.0.0.1:'+srv.address().port);await peer.locator('.node').first().waitFor();
+  await cmd('Новый блок C++');await page.waitForTimeout(900);await peer.waitForTimeout(600);
+  check((await records()).length===1 && await peer.locator('.node').count()===2,'обновление во второй вкладке не дублирует запись аудита');
+  await peer.close();
   check(errors.length===0,'нет ошибок JavaScript: '+errors.join('; '));await ctx.close();
 } finally {await browser.close();await new Promise(ok=>srv.close(ok));}
 console.log(failed?'Ошибок: '+failed:'Всё прошло');process.exitCode=failed?1:0;
