@@ -26,4 +26,10 @@ check(r.ok && JSON.stringify(r.output) === JSON.stringify(['7', 'tok-12345']), '
 r = run('import triosteum\n@triosteum.block("Т")\ndef run(d):\n    return triosteum.secret("ДРУГОЙ")\n');
 check(r.ok && r.output === null, 'неизвестный секрет — значение по умолчанию (None)');
 check(api.varMask('ошибка: tok-12345 не принят') === 'ошибка: •••••• не принят', 'секрет скрывается в тексте ошибки');
+{
+  const api2 = new Function('G', 'secretGet', 'toast', 'rlog', 'CMP', head + '\nreturn { varSubst: varSubst, varMask: varMask };')(G, (n) => (n === 'П' ? 'ab"cd\\ef\ngh' : undefined), () => {}, () => {}, { busy: false });
+  api2.varSubst('{{secret:П}}');
+  const shown = JSON.stringify({ out: 'ab"cd\\ef\ngh' });
+  check(!/ab\\"cd/.test(api2.varMask(shown)) && /••••••/.test(api2.varMask(shown)), 'секрет с кавычкой, \\ и переводом строки скрыт и в JSON-виде: ' + api2.varMask(shown));
+}
 console.log(failed ? '\nПровалено: ' + failed : '\nВсё прошло'); process.exit(failed ? 1 : 0);

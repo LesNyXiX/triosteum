@@ -141,7 +141,8 @@
   }
   function runScheme(code){
     SC.out = RUN_SERVER ? 'Запуск на сервере…\n' : 'Загружаю Python…\n'; SC.err = null; renderScheme();
-    function log(t){ SC.out += t + '\n'; var o = $('scBody').querySelector('.sc-out'); if(!o){ renderScheme(); o = $('scBody').querySelector('.sc-out'); } if(o){ o.textContent = SC.out; o.scrollTop = o.scrollHeight; } }
+    // секреты блоков в выводе схемы не показываем
+    function log(t){ SC.out += (typeof varMask === 'function' ? varMask(String(t)) : t) + '\n'; var o = $('scBody').querySelector('.sc-out'); if(!o){ renderScheme(); o = $('scBody').querySelector('.sc-out'); } if(o){ o.textContent = SC.out; o.scrollTop = o.scrollHeight; } }
     if(RUN_SERVER){
       serverRun(code, null, 'script').then(function(r){
         SC.out = ''; renderScheme();

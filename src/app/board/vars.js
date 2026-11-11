@@ -49,8 +49,21 @@
   // значения секретов не должны попасть в журнал, вывод и историю запусков
   function varMask(t){
     if(typeof t !== 'string') return t;
-    Object.keys(VARS_RUN.used).forEach(function(s){ if(s.length >= 4) t = t.split(s).join('••••••'); });
+    Object.keys(VARS_RUN.used).forEach(function(s){
+      if(s.length < 4) return;
+      // сам секрет и его вид внутри JSON (кавычки, \\, переводы строк экранированы) — результаты блоков сериализуются
+      var js = JSON.stringify(s).slice(1, -1);
+      t = t.split(s).join('••••••');
+      if(js !== s) t = t.split(js).join('••••••');
+    });
     return t;
+  }
+  // копия значения с замаскированными строками — для показа результатов (данные на связях), исходные данные не меняем
+  function varMaskDeep(v){
+    if(!Object.keys(VARS_RUN.used).length || v === null || v === undefined) return v;
+    if(typeof v === 'string') return varMask(v);
+    if(typeof v !== 'object') return v;
+    try { return JSON.parse(varMask(JSON.stringify(v))); } catch(e){ return v; }
   }
 
   (function(){
@@ -89,6 +102,14 @@
     cmpMark = function(n, st, info){ return _mark(n, st, varMask(info)); };
     var _print = print;   // вывод редактора (stdout, результат и ошибки «Запустить код»)
     print = function(text, cls){ return _print(varMask(text), cls); };
+    // история запусков: результаты блоков сохраняются в настройки пространства — маскируем до обрезки
+    if(typeof rhShort === 'function'){
+      var _rhs = rhShort;
+      rhShort = function(v, max){ var t = varMask(_rhs(v, 1e9)); return t.length > max ? t.slice(0, max) + '…' : t; };
+    }
+    // данные на связях и результат блока в его настройках
+    if(typeof dfView === 'function'){ var _dfv = dfView; dfView = function(v){ return _dfv(varMaskDeep(v)); }; }
+    if(typeof dfKind === 'function'){ var _dfk = dfKind; dfKind = function(v){ return _dfk(varMaskDeep(v)); }; }
     var _rlog = rlog;
     rlog = function(text, cls){ return _rlog(varMask(text), cls); };
     var _std = cmpStd;
