@@ -649,3 +649,13 @@
   .rh-run .acts{padding:0 12px 10px 34px}
   .rh-log{margin:0 12px 12px;max-height:240px}
   @media (max-width:640px){ .rh-sum{grid-template-columns:repeat(2,minmax(0,1fr))} }
+  .rh-trig{margin-left:8px;padding:1px 7px;border-radius:999px;font-size:10.5px;font-weight:600;color:var(--ink-strong);background:color-mix(in srgb,#60A5FA 25%,transparent)}
+
+  /* расписание запуска */
+  .sch-w{width:520px;left:calc(50% - 260px);top:10%;height:auto;max-height:84vh}
+  .sch-kind{display:grid !important;grid-template-columns:repeat(3,1fr);gap:4px}
+  .sch-info{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--ink);padding:10px 12px;border-radius:10px;background:color-mix(in srgb,var(--bg) 70%,transparent);border:1px solid var(--line)}
+  .sch-info b{color:var(--muted);font-weight:600}
+  .sch-chip{height:32px;margin-right:6px;padding:0 10px;border-radius:9px;border:1px solid color-mix(in srgb,#60A5FA 55%,transparent);background:color-mix(in srgb,#60A5FA 14%,transparent);color:var(--ink-strong);font:600 12.5px/1 inherit;font-family:inherit;cursor:pointer;white-space:nowrap}
+  .sch-chip:hover{background:color-mix(in srgb,#60A5FA 24%,transparent)}
+  @media (max-width:720px){ .sch-w{left:8px;width:calc(100vw - 16px)} .sch-chip{display:none} }
