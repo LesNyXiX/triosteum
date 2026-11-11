@@ -8,16 +8,17 @@
   var RH_MAX = 30, RH_LOG = 6000, RH_RES = 600;
   var RH = { open:{}, t:0 };
 
-  function rhKey(){ return 'runs.' + curId(); }
-  function rhList(){ var v = Repo.pref(rhKey(), []); return Array.isArray(v) ? v : []; }
-  function rhSave(list){ try { Repo.setPref(rhKey(), list.slice(0, RH_MAX)); } catch(e){ if(list.length > 5) rhSave(list.slice(0, Math.floor(list.length / 2))); } }
+  // sp — пространство; по умолчанию текущее, а запуск пишется туда, где он начался
+  function rhKey(sp){ return 'runs.' + (sp || curId()); }
+  function rhList(sp){ var v = Repo.pref(rhKey(sp), []); return Array.isArray(v) ? v : []; }
+  function rhSave(list, sp){ try { Repo.setPref(rhKey(sp), list.slice(0, RH_MAX)); } catch(e){ if(list.length > 5) rhSave(list.slice(0, Math.floor(list.length / 2)), sp); } }
   function rhShort(v, max){ var t; try { t = JSON.stringify(v); } catch(e){ t = String(v); } if(t === undefined) return ''; return t.length > max ? t.slice(0, max) + '…' : t; }
   function rhDate(t){ var d = new Date(t); return d.toLocaleDateString('ru-RU', { day:'numeric', month:'short' }) + ', ' + d.toLocaleTimeString('ru-RU', { hour:'2-digit', minute:'2-digit', second:'2-digit' }); }
 
   // запись запуска — в конце cmpEnd, когда статусы блоков уже окончательные
   (function(){
     var _begin = cmpBegin, _end = cmpEnd;
-    cmpBegin = function(){ RH.t = Date.now(); RH.only = !!CMP.only; return _begin.apply(this, arguments); };
+    cmpBegin = function(){ RH.t = Date.now(); RH.only = !!CMP.only; RH.space = curId(); return _begin.apply(this, arguments); };
     cmpEnd = function(results, stopped){
       var r = _end.apply(this, arguments);
       try { rhRecord(results, stopped); } catch(e){}
@@ -33,13 +34,15 @@
       var res = results && Object.prototype.hasOwnProperty.call(results, id) ? rhShort(results[id], RH_RES) : '';
       return { id:id, name:b.name, lang:b.lang, s:b.s, ms:b.ms, info:String(b.info || '').slice(0, 300), res:res };
     }).filter(Boolean);
+    // не дошёл до конца не по вине блоков (не загрузился Python, сбой исполнителя) — это не успешный запуск
+    var notRun = !stopped && blocks.some(function(b){ return b.s === 'wait' || b.s === 'run'; });
+    var lastErr = notRun ? ((runEl.out.textContent || '').trim().split('\n').pop() || 'Исполнитель не запустился') : '';
     var log = runEl.out.textContent || '';
     var rec = { id:'r' + Date.now().toString(36), t:RH.t || Date.now(), ms:Math.round(performance.now() - CMP.t0), env:ENV.short || ENV.name || '',
-      stopped:!!stopped, only:!!RH.only, ok:st.ok, err:st.err, skip:st.skip, blocks:blocks,
+      stopped:!!stopped, fail:notRun ? lastErr.slice(0, 300) : '', only:!!RH.only, ok:st.ok, err:st.err, skip:st.skip, blocks:blocks,
       log:log.length > RH_LOG ? '…' + log.slice(-RH_LOG) : log };
-    var list = rhList(); list.unshift(rec); rhSave(list);
-    rhBadge();
-    if(CMP.tab === 'hist') rhRender();
+    var sp = RH.space || curId(), list = rhList(sp); list.unshift(rec); rhSave(list, sp);
+    if(sp === curId()){ rhBadge(); if(CMP.tab === 'hist') rhRender(); }
   }
 
   // статистика по блокам за все сохранённые запуски
@@ -82,7 +85,7 @@
   function rhRender(){
     var list = rhList(); rhBox.textContent = '';
     if(!list.length){ rhBox.appendChild(h('div', { 'class':'rh-empty', text:'Запусков ещё не было. Нажмите «Запустить» — каждый запуск сохранится здесь с итогом по блокам.' })); return; }
-    var okRuns = list.filter(function(r){ return !r.err && !r.stopped; }).length, avg = Math.round(list.reduce(function(a, r){ return a + r.ms; }, 0) / list.length);
+    var okRuns = list.filter(function(r){ return !r.err && !r.stopped && !r.fail; }).length, avg = Math.round(list.reduce(function(a, r){ return a + r.ms; }, 0) / list.length);
     rhBox.appendChild(h('div', { 'class':'rh-sum' }, [
       rhKpi(String(list.length), 'запусков'),
       rhKpi(Math.round(okRuns / list.length * 100) + '%', 'без ошибок'),
@@ -113,11 +116,11 @@
   }
   function rhKpi(v, l){ return h('div', { 'class':'rh-kpi' }, [ h('b', { text:v }), h('span', { text:l }) ]); }
   function rhRun(r){
-    var open = !!RH.open[r.id], st = r.stopped ? 'stop' : r.err ? 'err' : 'ok';
+    var open = !!RH.open[r.id], st = r.fail ? 'err' : r.stopped ? 'stop' : r.err ? 'err' : 'ok';
     var head = h('button', { type:'button', 'class':'rh-run-h', 'aria-expanded':open ? 'true' : 'false', on:{ click:function(){ RH.open[r.id] = !RH.open[r.id]; rhRender(); } } }, [
       h('span', { 'class':'rh-st ' + st, text:st === 'ok' ? '✓' : st === 'err' ? '✗' : '■' }),
       h('span', { 'class':'rh-t', text:rhDate(r.t) }),
-      h('span', { 'class':'rh-c', text:'успешно ' + r.ok + (r.err ? ' · ошибок ' + r.err : '') + (r.skip ? ' · пропущено ' + r.skip : '') + (r.stopped ? ' · остановлен' : '') }),
+      h('span', { 'class':'rh-c', text:r.fail ? 'не запустился: ' + r.fail : 'успешно ' + r.ok + (r.err ? ' · ошибок ' + r.err : '') + (r.skip ? ' · пропущено ' + r.skip : '') + (r.stopped ? ' · остановлен' : '') }),
       h('span', { 'class':'rh-ms', text:cmpTime(r.ms) })
     ]);
     var box = h('div', { 'class':'rh-run ' + st }, [ head ]);
@@ -143,7 +146,7 @@
     return box;
   }
   function rhText(r){
-    return ['Triosteum · запуск ' + rhDate(r.t) + ' · ' + r.env, 'Итог: успешно ' + r.ok + ', ошибок ' + r.err + ', пропущено ' + r.skip + (r.stopped ? ', остановлен' : '') + ' · ' + cmpTime(r.ms), '']
+    return ['Triosteum · запуск ' + rhDate(r.t) + ' · ' + r.env, (r.fail ? 'Итог: не запустился — ' + r.fail : 'Итог: успешно ' + r.ok + ', ошибок ' + r.err + ', пропущено ' + r.skip + (r.stopped ? ', остановлен' : '')) + ' · ' + cmpTime(r.ms), '']
       .concat(r.blocks.map(function(b, i){ return (i + 1) + '. ' + b.name + ' [' + b.lang + '] — ' + (CMP_ST[b.s] || b.s) + (b.ms !== null && b.ms !== undefined ? ', ' + cmpTime(b.ms) : '') + (b.info && b.s !== 'ok' ? ' — ' + b.info : ''); }))
       .concat(['', '== Журнал ==', r.log || '']).join('\n');
   }
@@ -155,7 +158,7 @@
     var q = function(v){ v = v === null || v === undefined ? '' : String(v); return /[;"\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
     var rows = [['Запуск', 'Дата и время', 'Длительность, мс', 'Итог', 'Блок', 'Язык', 'Статус', 'Время блока, мс', 'Сообщение']];
     rhList().forEach(function(r){
-      var st = r.stopped ? 'остановлен' : r.err ? 'с ошибками' : 'успешно';
+      var st = r.fail ? 'не запустился' : r.stopped ? 'остановлен' : r.err ? 'с ошибками' : 'успешно';
       r.blocks.forEach(function(b){ rows.push([r.id, new Date(r.t).toLocaleString('ru-RU'), r.ms, st, b.name, b.lang, CMP_ST[b.s] || b.s, b.ms === null || b.ms === undefined ? '' : b.ms, b.s !== 'ok' ? b.info : '']); });
     });
     var csv = '﻿' + rows.map(function(r){ return r.map(q).join(';'); }).join('\r\n');

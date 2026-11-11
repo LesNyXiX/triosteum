@@ -12,7 +12,8 @@ const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, acceptDownloads: true });
 await ctx.addInitScript((g) => {
   if (sessionStorage.getItem('seeded')) return; sessionStorage.setItem('seeded', '1');
-  localStorage.setItem('triosteum.projects', JSON.stringify({ cur: 'p1', list: [{ id: 'p1', name: 'История', t: Date.now() }, { id: 'p2', name: 'Другое', t: 1 }] }));
+  localStorage.setItem('triosteum.projects', JSON.stringify({ cur: 'p1', list: [{ id: 'p1', name: 'История', t: Date.now() }, { id: 'p2', name: 'Другое', t: 1 }, { id: 'p3', name: 'Питон', t: 2 }] }));
+  localStorage.setItem('triosteum.proj.p3', JSON.stringify({ nodes: [{ id: 'py', name: 'Блок Питона', lang: 'python', x: 200, y: 200, codes: { python: 'def run(d):\n    return 1' } }], edges: [], notes: [], cam: { x: 0, y: 0, k: 1 }, seq: 3 }));
   localStorage.setItem('triosteum.proj.p1', JSON.stringify(g));
   localStorage.setItem('triosteum.proj.p2', JSON.stringify({ nodes: [], edges: [], notes: [], cam: { x: 0, y: 0, k: 1 }, seq: 1 }));
   localStorage.setItem('triosteum.profile', JSON.stringify({ name: 'Т', org: 'З' })); localStorage.setItem('triosteum.tour', '{"done":true}');
@@ -50,6 +51,22 @@ check(await page.textContent('#rtHist') === '2', 'вернулись — сно�
 await run(); await page.click('#runp .runp-tabs button[data-rt="hist"]'); await page.waitForTimeout(200);
 await page.locator('#runHist button', { hasText: 'Очистить' }).click(); await page.waitForTimeout(200); await page.click('#askYes'); await page.waitForTimeout(300);
 check(await page.textContent('#rtHist') === '0' && /Запусков ещё не было/.test(await page.textContent('#runHist')), 'очистка истории с подтверждением');
+
+console.log('Сбой исполнителя и переключение пространства во время запуска');
+{
+  // Python не загружается (CDN недоступен, с задержкой); пока ждём — переключаемся в другое пространство
+  await ctx.route('**/pyodide/**', async (r) => { await new Promise((ok) => setTimeout(ok, 1500)); await r.abort(); });
+  await goSpace('Питон');
+  await page.keyboard.press('Control+r'); await page.waitForTimeout(300);
+  await goSpace('Другое');
+  await page.waitForTimeout(3000);
+  const other = await page.textContent('#rtHist');
+  if (process.env.DBG) console.log(await page.evaluate(() => Object.keys(localStorage).filter((k) => /runs/.test(k)).map((k) => k + '=' + localStorage.getItem(k).slice(0, 200))), await page.textContent('#runOut'));
+  await goSpace('Питон');
+  check(other === '0' && await page.textContent('#rtHist') === '1', 'запуск записан в пространство, где начался, а не в то, куда переключились (' + other + ')');
+  await page.$eval('#runp', (e) => { e.hidden = false; }); await page.click('#runp .runp-tabs button[data-rt="hist"]'); await page.waitForTimeout(200);
+  check(await page.locator('#runHist .rh-run.err').count() === 1 && /не запустился/.test(await page.textContent('#runHist .rh-run')) && (await page.locator('#runHist .rh-kpi b').allTextContents())[1] === '0%', 'сбой загрузки Python — «не запустился», а не успешный запуск');
+}
 check(errors.length === 0, 'ошибок JavaScript нет' + (errors.length ? ': ' + errors.join(' | ') : ''));
 await browser.close();
 console.log(failed ? '\nПровалено: ' + failed : '\nВсё прошло');
