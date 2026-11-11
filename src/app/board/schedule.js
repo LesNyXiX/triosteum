@@ -43,7 +43,7 @@
   }
   function schTick(){
     schChip();
-    var s = schOf(); if(!s || !s.on || PANE) return;
+    var s = schOf(); if(!s || !s.on) return;   // и во второй панели «Две среды рядом»: кто запускает — решает метка ведущей вкладки
     if(!schLead()) return;
     var due = schNext(s, Date.now());
     if(due === null || due > Date.now()){ SCH.claim = null; return; }
@@ -58,10 +58,16 @@
       SERVER.api('POST', '/spaces/' + encodeURIComponent(sp) + '/schedule-claim', { slot:slot, token:SCH.tab }).then(function(r){
         if(SCH.claiming === key) SCH.claiming = '';
         if(r.status === 200 && r.data && r.data.ok){ SCH.claim = { space:sp, slot:slot }; schTick(); }   // наш срок — запускаем (если пространство и срок всё ещё те же)
-        // иначе срок уже взял другой клиент: его отметка о запуске придёт вместе с пространством
+        // иначе срок уже взял другой клиент. Если он его уже запустил, а у нас пространство из кеша со старой
+        // отметкой — сдвигаем свой срок по ответу сервера, чтобы не просить этот срок снова
+        else if(r.status === 200 && r.data && r.data.done && r.data.slot >= slot && sp === curId()){
+          var cs = schOf(); if(cs && (cs.last || 0) < r.data.slot){ cs.last = r.data.slot; schChip(); }
+        }
       }, function(){ if(SCH.claiming === key) SCH.claiming = ''; });
       return;
     }
+    // отметка на сервере «срок запущен»: после неё этот срок никому заново не выдаётся
+    if(SERVER && SCH.claim) SERVER.api('POST', '/spaces/' + encodeURIComponent(SCH.claim.space) + '/schedule-done', { slot:SCH.claim.slot, token:SCH.tab }).then(null, function(){});
     SCH.claim = null;
     s.last = Date.now(); saveGraph();
     if(typeof RH !== 'undefined') RH.nextTrig = 'schedule';

@@ -167,20 +167,28 @@ def test_schedule_claim(client, admin):
     put(client, "sc", {"a": 1}, 0)
     claim = lambda c, slot: c.post("/api/spaces/sc/schedule-claim", json={"slot": slot})
     assert claim(client, 1000).json() == {"ok": True}
-    assert claim(client, 1000).json() == {"ok": False}, "второй клиент не запускает тот же срок"
-    assert claim(client, 2000).json() == {"ok": False}, "новый срок раньше чем через 30 с не захватывается"
+    assert claim(client, 1000).json() == {"ok": False, "slot": 1000, "done": False}, "второй клиент не запускает тот же срок"
+    assert claim(client, 2000).json()["ok"] is False, "новый срок раньше чем через 30 с не захватывается"
     admin.execute("UPDATE schedule_claims SET claimed_at = now() - interval '1 minute'")
-    assert claim(client, 900).json() == {"ok": False}, "старый срок не захватывается"
+    assert claim(client, 900).json()["ok"] is False, "старый срок не захватывается"
     assert claim(client, 2000).json() == {"ok": True}
     assert claim(client, -1).status_code == 422
     tclaim = lambda c, slot, t: c.post("/api/spaces/sc/schedule-claim", json={"slot": slot, "token": t})
     admin.execute("UPDATE schedule_claims SET claimed_at = now() - interval '1 minute'")
     assert tclaim(client, 3000, "tabA").json() == {"ok": True}
     assert tclaim(client, 3000, "tabA").json() == {"ok": True}, "ответ потерялся — повтор той же вкладкой подтверждается"
-    assert tclaim(client, 3000, "tabB").json() == {"ok": False}, "другая вкладка тот же срок не получает"
-    assert claim(client, 3000).json() == {"ok": False}, "без метки повтор не подтверждается"
+    assert tclaim(client, 3000, "tabB").json()["ok"] is False, "другая вкладка тот же срок не получает"
+    assert claim(client, 3000).json()["ok"] is False, "без метки повтор не подтверждается"
     admin.execute("UPDATE schedule_claims SET claimed_at = now() - interval '11 minutes'")
     assert tclaim(client, 3000, "tabB").json() == {"ok": True}, "незавершённый захват старше 10 минут можно взять заново"
+    # срок, о запуске которого пришла отметка, заново не выдаётся даже спустя 10 минут
+    done = lambda c, slot, t: c.post("/api/spaces/sc/schedule-done", json={"slot": slot, "token": t})
+    assert done(client, 3000, "tabA").json() == {"ok": False}, "отметку ставит только вкладка, захватившая срок"
+    assert done(client, 3000, "tabB").json() == {"ok": True}
+    admin.execute("UPDATE schedule_claims SET claimed_at = now() - interval '11 minutes'")
+    assert tclaim(client, 3000, "tabC").json() == {"ok": False, "slot": 3000, "done": True}, "выполненный срок не повторяется, клиент узнаёт об этом"
+    assert tclaim(client, 3000, "tabB").json()["ok"] is False, "и той же вкладке после отметки"
+    assert tclaim(client, 4000, "tabC").json() == {"ok": True}, "следующий срок захватывается как обычно"
     assert tclaim(client, 4000, "bad token!").status_code == 422
     other = TestClient(client.app, base_url="http://testserver")
     register(other, org="Другой завод")

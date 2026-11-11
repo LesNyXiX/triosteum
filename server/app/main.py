@@ -494,23 +494,41 @@ def schedule_claim(space_id: str, body: ScheduleClaim, w: Who = Depends(need_wri
     Срок захватывается, если он новее захваченного раньше; захваты чаще раза в 30 секунд отклоняются
     (защита от клиентов с разными часовыми поясами, у которых один и тот же срок — разные числа).
     Повтор того же срока с тем же token (метка вкладки) подтверждается: ответ мог потеряться в сети.
-    Тот же срок, захваченный больше 10 минут назад и так и не выполненный (вкладка закрылась, отметка
-    о запуске не пришла), можно захватить заново — иначе расписание остановилось бы навсегда."""
+    Тот же срок, захваченный больше 10 минут назад, можно захватить заново, только если о его запуске
+    так и не пришла отметка (schedule-done): вкладка закрылась раньше — иначе расписание остановилось бы.
+    При отказе возвращается последний захваченный срок и выполнен ли он: клиент с устаревшим
+    пространством (открыл его из кеша) сдвигает свой срок и не просит его снова."""
     check_id(space_id)
     with tx(w.org_id) as c:
         r = c.execute(text("""INSERT INTO schedule_claims (org_id, space_id, slot, claimed_by, token) VALUES (:o, :id, :slot, :u, :t)
                               ON CONFLICT (org_id, space_id) DO UPDATE
                                 SET slot = EXCLUDED.slot, claimed_by = EXCLUDED.claimed_by, token = EXCLUDED.token,
                                     claimed_at = CASE WHEN schedule_claims.slot = EXCLUDED.slot AND schedule_claims.token = EXCLUDED.token
-                                                      THEN schedule_claims.claimed_at ELSE now() END
+                                                      THEN schedule_claims.claimed_at ELSE now() END,
+                                    done_at = CASE WHEN schedule_claims.slot = EXCLUDED.slot THEN schedule_claims.done_at END
                                 WHERE (schedule_claims.slot < EXCLUDED.slot
                                        AND schedule_claims.claimed_at < now() - interval '30 seconds')
-                                   OR (schedule_claims.slot = EXCLUDED.slot
+                                   OR (schedule_claims.slot = EXCLUDED.slot AND schedule_claims.done_at IS NULL
                                        AND ((EXCLUDED.token <> '' AND schedule_claims.token = EXCLUDED.token)
                                             OR schedule_claims.claimed_at < now() - interval '10 minutes'))
                               RETURNING slot"""),
                       {"o": w.org_id, "id": space_id, "slot": body.slot, "u": w.user_id, "t": body.token}).first()
-    return {"ok": r is not None}
+        if r is not None:
+            return {"ok": True}
+        cur = c.execute(text("SELECT slot, done_at IS NOT NULL FROM schedule_claims WHERE org_id = :o AND space_id = :id"),
+                        {"o": w.org_id, "id": space_id}).first()
+    return {"ok": False, "slot": cur[0] if cur else None, "done": bool(cur and cur[1])}
+
+
+@app.post("/api/spaces/{space_id}/schedule-done")
+def schedule_done(space_id: str, body: ScheduleClaim, w: Who = Depends(need_writer)):
+    """Отметка «срок запущен» от вкладки, которая его захватила: после неё срок заново не выдаётся."""
+    check_id(space_id)
+    with tx(w.org_id) as c:
+        n = c.execute(text("""UPDATE schedule_claims SET done_at = coalesce(done_at, now())
+                              WHERE org_id = :o AND space_id = :id AND slot = :slot AND token = :t AND :t <> ''"""),
+                      {"o": w.org_id, "id": space_id, "slot": body.slot, "t": body.token}).rowcount
+    return {"ok": bool(n)}
 
 
 @app.patch("/api/spaces/{space_id}")

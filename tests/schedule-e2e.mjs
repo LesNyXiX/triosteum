@@ -56,6 +56,26 @@ console.log('Срок наступил: запуск один раз и в од�
   await p1.locator('#runp .runp-tabs button[data-rt="hist"]').click().catch(() => {}); await p1.waitForTimeout(200);
   await ctx.close();
 }
+console.log('Пространство открыто только во второй панели «Две среды рядом»');
+{
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  await ctx.addInitScript((g) => {
+    if (window.top !== window || localStorage.getItem('__seeded')) return; localStorage.setItem('__seeded', '1');
+    localStorage.setItem('triosteum.projects', JSON.stringify({ cur: 'p0', list: [{ id: 'p0', name: 'Другое', t: Date.now() }, { id: 'p1', name: 'Расписание', t: Date.now() }] }));
+    localStorage.setItem('triosteum.proj.p0', JSON.stringify(Object.assign({}, g, { schedule: null })));
+    localStorage.setItem('triosteum.proj.p1', JSON.stringify(g));
+    localStorage.setItem('triosteum.profile', JSON.stringify({ name: 'Т', org: 'З' })); localStorage.setItem('triosteum.tour', '{"done":true}');
+  }, { nodes: [node('a', 'Блок', 200, 'int run(){ return 1; }')], edges: [], notes: [], cam: { x: 0, y: 0, k: 1 }, seq: 3, schedule: { on: true, kind: 'every', every: 60, notify: false, last: Date.now() - 2 * 3600e3 } });
+  const page = await ctx.newPage(); const errors = []; page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto(URL); await page.waitForTimeout(800);
+  await page.keyboard.press('Control+k'); await page.keyboard.type('Расписание'); await page.waitForTimeout(400); await page.keyboard.press('Escape');
+  await page.evaluate((u) => { const f = document.createElement('iframe'); f.src = u + '?pane=p1'; f.style.cssText = 'width:900px;height:600px'; document.body.appendChild(f); }, URL);
+  await page.waitForTimeout(7000);
+  const h = await hist(page);
+  check(h.length === 1 && h[0].trig === 'schedule', 'срок выполнен во второй панели (запусков: ' + h.length + ')');
+  check(errors.length === 0, 'ошибок JavaScript нет' + (errors.length ? ': ' + errors.join(' | ') : ''));
+  await ctx.close();
+}
 console.log('Ошибка при запуске по расписанию');
 {
   const ctx = await ctxWith({ on: true, kind: 'daily', at: '00:00', notify: true, last: Date.now() - 2 * 86400e3 }, 'int run(){ return undefinedThing; }');
