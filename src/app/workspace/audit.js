@@ -42,6 +42,13 @@
     if(!AUD.quiet && AUD.last && AUD.space === space) audAppend(audDiff(AUD.last, next), space);
     AUD.last = next; AUD.space = space;
   }
+  function audRestoreData(data,label){
+    var copy=Object.assign({},data);
+    Object.keys(copy).forEach(function(k){if(k.indexOf('triosteum.audit:')===0){var next='triosteum.audit.'+k.slice('triosteum.audit:'.length);if(!Object.prototype.hasOwnProperty.call(copy,next))copy[next]=copy[k];delete copy[k];}});
+    var projects=copy['triosteum.projects'],space=projects&&projects.cur||curId(),key='triosteum.audit.'+space;
+    copy[key]=[audEntry('restore','Резервная копия',label)].concat(Array.isArray(copy[key])?copy[key]:[]).slice(0,AUD.max);
+    return copy;
+  }
   function audClose(){ if(document.activeElement && document.activeElement.blur) document.activeElement.blur(); if(AUD.ui) AUD.ui.layer.hidden = true; if(AUD.back && document.contains(AUD.back)) AUD.back.focus(); }
   function audOpen(){
     flushSave(); AUD.back = document.activeElement; AUD.view = curId();
@@ -98,10 +105,7 @@
       var r = end.apply(this, arguments); audAppend([audEntry('run', 'Схема', detail)], space); return r;
     };
     var apply = bkApply; bkApply = function(data, label){
-      var copy = Object.assign({}, data), projects = copy['triosteum.projects'], space = projects && projects.cur || curId(), key = 'triosteum.audit.' + space;
-      var previous=Array.isArray(copy[key])?copy[key]:copy['triosteum.audit:' + space];
-      copy[key] = [audEntry('restore', 'Резервная копия', label)].concat(Array.isArray(previous) ? previous : []).slice(0, AUD.max);
-      return apply(copy, label);
+      return apply(audRestoreData(data,label), label);
     };
     var commands = cmdCommands; cmdCommands = function(){ return commands().concat([{ sec:'space', label:'Журнал действий', d:'Кто и когда менял блоки и связи в этом браузере', icon:'file', act:audOpen, k:'аудит история изменения audit' }]); };
     var menu = projItems; projItems = function(){ return menu().concat([{ label:'Журнал действий', icon:'file', act:audOpen }]); };
