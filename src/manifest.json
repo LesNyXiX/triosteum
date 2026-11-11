@@ -11,7 +11,8 @@
     "styles/animations.css",
     "styles/welcome.css",
     "styles/team.css",
-    "styles/live.css"
+    "styles/live.css",
+    "styles/block-tests.css"
   ],
   "js": [
     "app/core/langs-plugins.js",
@@ -26,6 +27,7 @@
     "app/board/code-plugins.js",
     "app/board/library.js",
     "app/board/camera.js",
+    "app/board/groups.js",
     "app/board/render.js",
     "app/board/notes-edit.js",
     "app/board/popup.js",
@@ -37,6 +39,8 @@
     "app/board/clipboard.js",
     "app/board/compiler.js",
     "app/board/err-ai.js",
+    "app/board/data-flow.js",
+    "app/board/block-exec.js",
     "app/board/compile.js",
     "app/vendor/wobble.js",
     "app/ui/jelly.js",
@@ -65,6 +69,9 @@
     "app/workspace/selection.js",
     "app/workspace/arrange.js",
     "app/workspace/run-status.js",
+    "app/board/run-history.js",
+    "app/board/block-test-match.js",
+    "app/board/block-tests.js",
     "app/ai/constructor.js",
     "app/ai/backend-code.js",
     "app/ai/architect.js",
@@ -116,6 +123,7 @@
     "app/workspace/env-icons.js",
     "app/workspace/env-dock.js",
     "app/workspace/tour.js",
+    "app/workspace/whats-new.js",
     "app/main.js"
   ]
 }
