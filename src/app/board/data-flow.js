@@ -74,6 +74,8 @@
     edgesMoved = function(){ var r = _em.apply(this, arguments); if(DF.layer.firstChild) dfSchedule(); return r; };
     var _end = cmpEnd;
     cmpEnd = function(){ var r = _end.apply(this, arguments); dfSchedule(); return r; };
+    var _sg = setGraph;   // другое пространство (или новое содержимое) — результаты прошлого запуска к нему не относятся: ID блоков повторяются между пространствами
+    setGraph = function(o){ if(CMP) CMP.last = {}; return _sg.apply(this, arguments); };
     var _ep = renderEdgePop;
     renderEdgePop = function(p, e){
       _ep(p, e);

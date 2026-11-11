@@ -55,6 +55,17 @@ await page.keyboard.down('Control'); for (let i = 0; i < 4; i++) { await page.mo
 await page.waitForTimeout(600);
 const k = await page.evaluate(() => JSON.parse(localStorage.getItem('triosteum.proj.p1')).cam.k);
 check(k < 0.9 && await chipOnEdge() < 4, 'при масштабе ' + Math.round(k * 100) + '% плашка на середине связи (' + Math.round(await chipOnEdge()) + ' px)');
+// копия пространства — те же ID блоков, но запуска в ней ещё не было: чужие результаты не показываются
+await page.keyboard.press('Control+k'); await page.keyboard.type('Дублировать пространство'); await page.waitForTimeout(600); await page.keyboard.press('Enter'); await page.waitForTimeout(1200);
+{
+  const bc = await page.locator('.node[data-id="c"]').boundingBox(); await page.mouse.click(bc.x + bc.width / 2, bc.y + 20, { button: 'right' }); await page.waitForTimeout(400);
+  check(await page.locator('.df-chip').count() === 0 && !/Результат последнего запуска/.test(await page.textContent('#pop')), 'в копии пространства (те же ID блоков) результатов прошлого запуска нет');
+  await page.keyboard.press('Escape'); await page.waitForTimeout(200);
+  await page.keyboard.press('Control+r');
+  await page.waitForFunction(() => !document.querySelector('#runp.busy') && /успешно/.test(document.querySelector('#runSum').textContent), null, { timeout: 15000 }).catch(() => {});
+  await page.keyboard.press('Escape'); await page.waitForTimeout(500);
+  check(await page.locator('.df-chip').count() === 1, 'после запуска копии плашка появилась');
+}
 await page.keyboard.press('Control+k'); await page.keyboard.type('Скрыть данные на связях'); await page.waitForTimeout(600); await page.keyboard.press('Enter'); await page.waitForTimeout(300);
 check(await page.locator('.df-chip').count() === 0, 'плашки можно скрыть командой');
 check(errors.length === 0, 'ошибок JavaScript нет' + (errors.length ? ': ' + errors.join(' | ') : ''));
