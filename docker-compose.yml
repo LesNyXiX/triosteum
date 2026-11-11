@@ -49,6 +49,9 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       MAIL_FROM: ${MAIL_FROM:-}
+      # задачи для ИИ из панели администратора: токен GitHub владельца (только этот репозиторий, Issues — чтение и запись)
+      AGENTS_GITHUB_TOKEN: ${AGENTS_GITHUB_TOKEN:-}
+      AGENTS_REPO: ${AGENTS_REPO:-LesNyXiX/triosteum}
       # Python-блоки выполняются в отдельном исполнителе
       RUNNER_URL: http://runner:8100
       RUNNER_TOKEN: ${RUNNER_TOKEN:?задайте RUNNER_TOKEN в .env}

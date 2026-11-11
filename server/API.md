@@ -146,3 +146,18 @@ RETURNING rev, updated_at;
 | `GET`/`POST /api/admin/points`, `POST /api/admin/points/{id}/restore`, `DELETE /api/admin/points/{id}` | Точки восстановления: снимок пользователей, участников, пространств и настроек; перед возвратом сохраняется точка «Перед восстановлением» |
 
 Приглашения на сервер принимают `GET /api/join/{token}`, `POST /api/auth/register` с полем `invite` (kind `org`) и `POST /api/auth/join` (kind `member`). `GET /api/auth/options` сообщает `registration` и `access`.
+
+## Задачи для ИИ (только администратор)
+
+Окно «Задачи для ИИ» в панели администратора. Задачи хранятся как задачи (Issues) GitHub с меткой «ии-задача»:
+Claude получает их через `.github/workflows/claude.yml` (упоминание `@claude`, по подписке владельца),
+Codex — через своё приложение GitHub (комментарий `@codex …`). Нужен `AGENTS_GITHUB_TOKEN` в `.env`
+(fine-grained токен владельца: только этот репозиторий, Issues — Read and write). Токен в браузер не уходит.
+
+| Метод | Путь | Что делает |
+|---|---|---|
+| GET | `/api/admin/agents` | `{configured, repo, tasks:[{number,title,state,url,comments,created_at,updated_at}]}` |
+| POST | `/api/admin/agents` | `{text, title?, claude, codex}` → новая задача, 201 |
+| GET | `/api/admin/agents/{n}` | задача + `messages:[{who: owner/claude/codex/system, to, text, at, edited, url}]` + `prs` |
+| POST | `/api/admin/agents/{n}/messages` | `{text, claude, codex}` — уточнение адресатам, 201 |
+| POST | `/api/admin/agents/{n}/state` | `{open}` — закрыть или открыть снова |
