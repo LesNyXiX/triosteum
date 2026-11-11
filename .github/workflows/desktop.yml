@@ -1,0 +1,74 @@
+# Приложение Triosteum для Windows (desktop/): проверка и сборка установщика .exe.
+#   • при изменениях в desktop/ — проверка приложения и пробная сборка (файлы — во вкладке Actions, «Artifacts»);
+#   • запуск вручную (Actions → «Приложение для Windows» → Run workflow) с галочкой «Опубликовать» —
+#     релиз на GitHub; установленные приложения сами предложат обновиться.
+# Новая версия: поднять "version" в desktop/package.json и запустить с публикацией.
+name: Приложение для Windows
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Опубликовать релиз (установленные приложения обновятся)'
+        type: boolean
+        default: false
+  pull_request:
+    paths: ['desktop/**', '.github/workflows/desktop.yml']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Проверка приложения
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Зависимости
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+        run: |
+          npm install --no-audit --no-fund
+          cd desktop && npm install --no-audit --no-fund
+      - name: Стартовый экран, оба режима, Ollama
+        working-directory: desktop
+        run: xvfb-run -a npm test
+
+  windows:
+    name: Сборка .exe
+    needs: check
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Зависимости
+        shell: bash
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+        run: |
+          npm install --no-audit --no-fund --ignore-scripts
+          cd desktop && npm install --no-audit --no-fund
+      - name: Установщик и переносная версия
+        shell: bash
+        working-directory: desktop
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          node prepare.mjs
+          npx electron-builder --win --publish ${{ inputs.publish && 'always' || 'never' }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Triosteum-Windows
+          path: desktop/dist/*.exe
+          if-no-files-found: error
