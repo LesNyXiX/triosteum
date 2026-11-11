@@ -59,6 +59,7 @@ jobs:
           npm run test:envdock
           npm run test:errai
           npm run test:touch
+          npm run test:docgen
           npm run test:arc
           npm run test:vars
           npm run test:runopts

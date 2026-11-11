@@ -15,7 +15,8 @@
     "styles/block-tests.css",
     "styles/versions.css",
     "styles/audit.css",
-    "styles/admin.css"
+    "styles/admin.css",
+    "styles/docgen.css"
   ],
   "js": [
     "app/core/langs-plugins.js",
@@ -133,6 +134,7 @@
     "app/workspace/whats-new.js",
     "app/workspace/versions.js",
     "app/workspace/audit.js",
+    "app/workspace/docgen.js",
     "app/main.js"
   ]
 }
