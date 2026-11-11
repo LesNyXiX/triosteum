@@ -59,10 +59,25 @@
     if(!ADM.el) admBuild();
     if(tab) ADM.tab = tab;
     ADM.el.hidden = false; document.body.classList.add('adm-open');
+    var ab = $('admBtn'); if(ab) ab.setAttribute('aria-pressed', 'true');
+    admKeyChip();
     admRefresh();
     setTimeout(function(){ var b = ADM.el.querySelector('.adm-nav button[aria-selected="true"]'); if(b) b.focus(); }, 30);
   }
-  function closeAdmin(){ if(ADM.el) ADM.el.hidden = true; document.body.classList.remove('adm-open'); }
+  function closeAdmin(){
+    if(ADM.el) ADM.el.hidden = true; document.body.classList.remove('adm-open');
+    var b = $('admBtn'); if(b){ b.setAttribute('aria-pressed', 'false'); }
+  }
+  // горячая клавиша и кнопка в шапке: открыть или закрыть
+  function admToggle(){ if(ADM.el && !ADM.el.hidden) closeAdmin(); else openAdmin(); }
+  // клавиша панели прямо в её шапке: нажать — затем нужное сочетание (Esc — отмена, Backspace — убрать)
+  function admKeyChip(){
+    var box = $('admKey'); if(!box || typeof keyCatcher !== 'function') return;
+    var tk = toolKeyFor('#admBtn'); if(!tk) return;
+    box.innerHTML = '';
+    box.appendChild(h('span', { 'class':'adm-key-l', text:'Клавиша' }));
+    box.appendChild(keyCatcher(tk, 'Панель администратора', admKeyChip));
+  }
 
   function admBuild(){
     var back = h('div', { 'class':'adm-back', id:'admW', role:'dialog', 'aria-modal':'true', 'aria-label':'Панель администратора', hidden:'' });
@@ -76,12 +91,18 @@
     close.addEventListener('click', closeAdmin);
     var head = h('header', { 'class':'adm-head' }, [
       h('div', { 'class':'adm-title' }, [ h('h2', { text:'Панель администратора' }), h('p', { 'class':'adm-host', text:location.host }) ]),
-      h('div', { 'class':'adm-pills', id:'admPills' }), close ]);
+      h('div', { 'class':'adm-pills', id:'admPills' }), h('div', { 'class':'adm-key', id:'admKey', title:'Горячая клавиша панели — работает в любой среде' }), close ]);
     var main = h('main', { 'class':'adm-main', id:'admMain', role:'tabpanel' });
     back.appendChild(h('div', { 'class':'adm' }, [ head, h('div', { 'class':'adm-body' }, [ nav, main ]) ]));
     back.addEventListener('mousedown', function(e){ if(e.target === back) closeAdmin(); });
     // клавиши внутри панели не доходят до доски (стрелки, Delete, сочетания) — элементы панели работают как обычно
-    back.addEventListener('keydown', function(e){ e.stopPropagation(); if(e.key === 'Escape') closeAdmin(); });
+    back.addEventListener('keydown', function(e){
+      e.stopPropagation();
+      if(e.key === 'Escape'){ closeAdmin(); return; }
+      // та же клавиша закрывает панель (кроме набора текста в полях)
+      var t = e.target, typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
+      if(!e.repeat && typeof toolKeyMatch === 'function' && toolKeyMatch('#admBtn', e) && (!typing || e.ctrlKey || e.metaKey)){ e.preventDefault(); closeAdmin(); }
+    });
     document.body.appendChild(back);
     ADM.el = back;
   }
@@ -448,6 +469,12 @@
   }
   if(SERVER && SERVER.admin){
     setTimeout(admBanner, 0);
+    var admB = $('admBtn');
+    if(admB){
+      admB.hidden = (UI.tools || {}).admin === false;
+      admB.setAttribute('aria-pressed', 'false');
+      admB.addEventListener('click', function(){ admToggle(); });
+    }
     if(typeof cmdCommands === 'function'){
       var _admCmds = cmdCommands;
       cmdCommands = function(){ return _admCmds().concat([{ sec:'help', label:'Панель администратора', d:'Пользователи, приглашения, доступ, точки восстановления', icon:'keys', act:function(){ openAdmin(); }, k:'админ администратор панель пользователи приглашения доступ точки восстановления' }]); };
