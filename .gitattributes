@@ -1,0 +1,6 @@
+# Переводы строк в репозитории — всегда LF, в том числе при выгрузке на Windows (сборка сайта сверяет текст шаблона)
+* text=auto eol=lf
+*.png binary
+*.ico binary
+*.jpg binary
+*.woff2 binary

@@ -13,7 +13,8 @@ const OUT = join(ROOT, 'docs', 'index.html');   // папка docs/ — её у�
 
 export function build() {
   const man = JSON.parse(readFileSync(join(SRC, 'manifest.json'), 'utf8'));
-  const read = (p) => readFileSync(join(SRC, p), 'utf8');
+  // на Windows git может отдать файлы с переводами строк CRLF — сборка от этого не должна зависеть
+  const read = (p) => readFileSync(join(SRC, p), 'utf8').replace(/\r\n/g, '\n');
   const css = man.css.map(read).join('\n');
   const js = man.js.map(read).join('\n');
   const tpl = read('index.template.html');
