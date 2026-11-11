@@ -177,6 +177,17 @@ console.log('Четвёртый раунд Codex: снимок не меняет
   check(pin2 && Array.isArray(pin2.items) && pin2.items.some((x) => x.type === 'metric'), 'после запуска только таблицы показатель закрепляется вместе с элементом');
   log = await run(page);
   check(/Показателей: 1/.test(log), 'и дашборд его получает');
+  // запуск, остановленный до показателя, не стирает его элементы из кэша
+  await pop(page, 'm'); await page.locator('#pop .ropts button', { hasText: 'Открепить' }).click(); await page.waitForTimeout(200);
+  await run(page); await page.keyboard.press('Escape');
+  await page.evaluate(() => { document.getElementById('runGo').click(); document.getElementById('runStop').click(); });
+  await page.waitForFunction(() => !document.querySelector('#runp.busy'), null, { timeout: 15000 }); await page.waitForTimeout(300);
+  check(/остановлен пользователем/.test(await page.textContent('#runOut')), 'запуск остановлен до показателя');
+  await pop(page, 'm'); await page.locator('#pop .ropts button', { hasText: 'Закрепить результат последнего запуска' }).click(); await page.waitForTimeout(300);
+  const pin3 = (await graph(page)).nodes.find((n) => n.id === 'm').pin;
+  check(pin3 && Array.isArray(pin3.items) && pin3.items.some((x) => x.type === 'metric' && x.value === 12), 'после остановленного запуска показатель закрепляется вместе с элементом');
+  log = await run(page);
+  check(/Показателей: 1/.test(log), 'и дашборд его получает');
   check(errors.length === 0, 'ошибок JavaScript нет' + (errors.length ? ': ' + errors.join(' | ') : ''));
   await ctx.close();
 }
