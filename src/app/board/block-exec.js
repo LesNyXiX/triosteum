@@ -8,7 +8,9 @@
     ];
     if(exact) tail.push('if not callable(__ts_fn):', '    raise ValueError("У Python-блока нет функции run(data) или @block")');
     // Общая обёртка сообщает фактический вход, включая sample: такой кейс можно повторить.
-    tail.push('import json as __ts_json', '__ts_input = __ts_json.loads(' + JSON.stringify(JSON.stringify(input)) + ')');
+    // вход — в base64: подстановка переменных ({{var:…}}) применяется ко всему исходнику и не должна менять данные
+    var b64 = btoa(unescape(encodeURIComponent(JSON.stringify(input === undefined ? null : input))));
+    tail.push('import json as __ts_json', 'import base64 as __ts_b64', '__ts_input = __ts_json.loads(__ts_b64.b64decode("' + b64 + '").decode("utf-8"))');
     if(!exact) tail.push('if __ts_input is None:', '    __ts_input = getattr(__ts_fn, "_t_sample", None)', '    if __ts_input is None:', '        __ts_input = {"values": [120, 340, 95]}');
     tail.push('if callable(__ts_fn):', '    @__ts_block()', '    def __ts_case(_ignored, _fn=__ts_fn, _data=__ts_input):', '        _before = __ts_json.loads(__ts_json.dumps(_data, ensure_ascii=False, default=str))', '        return {"__triosteum_exec": True, "input": _before, "value": _fn(_data)}');
     return code + '\n\n' + tail.join('\n');

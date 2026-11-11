@@ -103,7 +103,7 @@
         }
         function go(){
           if(cmpStopped()){ done(); return; }
-          if(n.lang === 'python' || FOREIGN_LANGS[n.lang]){
+          if(n.kind !== 'hub' && (n.lang === 'python' || FOREIGN_LANGS[n.lang])){   // связующая точка любого языка только объединяет входы
             if(!attempt) rlog('▶ ' + n.name + (input === null ? '  (входных данных нет — тестовые данные блока)' : ''));
             executeBlock(n, input, { py:py, log:rlog, capture:true }).then(function(r){
               printLines(r.stdout, function(t){ rlog('   ' + t); });

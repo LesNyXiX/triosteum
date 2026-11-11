@@ -8,6 +8,7 @@ const harness = fs.readFileSync(path.join(root, 'server/runner/harness.py'), 'ut
 const python = process.env.PYTHON || 'python3';
 const CMP = {}, n = { id:'a', lang:'python', codes:{} };
 async function serverRun(code, input, mode) {
+  code = code.replaceAll('{{var:x}}', 'SUB');   // как обёртка serverRun в vars.js: подстановка во всём исходнике
   // Файлы harness перенаправлены в память: тест одинаково работает в Linux и Windows.
   const job = JSON.stringify({ code, input, mode });
   const script = 'import io, sys, builtins, os\n' +
@@ -41,6 +42,8 @@ const api = new Function('RUN_SERVER', 'serverRun', 'nodeCode', 'curId', 'nodeBy
   n.codes.python = 'def run(data):\n    raise ValueError("ошибка теста")';
   r = await api.executeBlock(n, {}, { exact:true }); assert.equal(r.ok, false); assert.match(r.error, /ошибка теста/);
   n.codes.python = 'def run(data):\n    return data'; r = await api.executeBlock(n, 'SENSITIVE_VALUE', {capture:true}); assert.equal(r.ok,true); assert.equal(CMP.samples.a,undefined,'секрет не сохраняется как тестовый пример');
+  n.codes.python = 'def run(data):\n    return data'; r = await api.executeBlock(n, { s:'{{var:x}} и «кириллица»' }, { exact:true });
+  assert.equal(r.ok, true); assert.deepEqual(r.output, { s:'{{var:x}} и «кириллица»' }, 'подстановка переменных не меняет входные данные');
   n.codes.python = 'x = 1'; r = await api.executeBlock(n, {}, { exact:true });
   assert.equal(r.ok, false); assert.match(r.error, /нет функции/);
   console.log('Серверный Python: обычная функция, декоратор, null, фактический вход и ошибки — прошли');
