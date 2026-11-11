@@ -80,7 +80,8 @@
     var main = h('main', { 'class':'adm-main', id:'admMain', role:'tabpanel' });
     back.appendChild(h('div', { 'class':'adm' }, [ head, h('div', { 'class':'adm-body' }, [ nav, main ]) ]));
     back.addEventListener('mousedown', function(e){ if(e.target === back) closeAdmin(); });
-    back.addEventListener('keydown', function(e){ if(e.key === 'Escape'){ e.stopPropagation(); closeAdmin(); } });
+    // клавиши внутри панели не доходят до доски (стрелки, Delete, сочетания) — элементы панели работают как обычно
+    back.addEventListener('keydown', function(e){ e.stopPropagation(); if(e.key === 'Escape') closeAdmin(); });
     document.body.appendChild(back);
     ADM.el = back;
   }

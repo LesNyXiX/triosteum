@@ -57,11 +57,18 @@ def _user(c, uid: str, lock: bool = False):
     return r
 
 
+def _admins_lock(c) -> None:
+    # общая блокировка для всех изменений, которые могут уменьшить число администраторов:
+    # два администратора, одновременно отключающие друг друга, не оставят сервер без администратора
+    c.execute(text("SELECT pg_advisory_xact_lock(87215)"))
+
+
 def _who(u) -> str:
     return (u["name"] or "").strip() or u["email"]
 
 
 def _active_admins(c) -> int:
+    """Сколько действующих администраторов. Вызывать после _admins_lock: проверки идут по одной."""
     return c.execute(text("SELECT count(*) FROM users WHERE is_admin AND NOT disabled AND deleted_at IS NULL")).scalar_one()
 
 
@@ -95,6 +102,7 @@ def op_access(w: Who, open_: bool, message: str = "") -> tuple[str, dict]:
 
 def op_user_disabled(w: Who, uid: str, disabled: bool) -> tuple[str, dict]:
     with tx() as c:
+        _admins_lock(c)
         u = _user(c, uid, lock=True)          # прежнее состояние — для отмены, под блокировкой строки
         if disabled and str(u["id"]) == w.user_id:
             raise HTTPException(409, "Нельзя отключить самого себя")
@@ -110,6 +118,7 @@ def op_user_disabled(w: Who, uid: str, disabled: bool) -> tuple[str, dict]:
 
 def op_user_deleted(w: Who, uid: str, deleted: bool) -> tuple[str, dict]:
     with tx() as c:
+        _admins_lock(c)
         u = _user(c, uid, lock=True)
         if deleted and str(u["id"]) == w.user_id:
             raise HTTPException(409, "Нельзя удалить самого себя")
@@ -126,6 +135,7 @@ def op_user_deleted(w: Who, uid: str, deleted: bool) -> tuple[str, dict]:
 
 def op_user_admin(w: Who, uid: str, flag: bool) -> tuple[str, dict]:
     with tx() as c:
+        _admins_lock(c)
         u = _user(c, uid, lock=True)
         if not flag and u["is_admin"] and _active_admins(c) <= 1:
             raise HTTPException(409, "Должен остаться хотя бы один администратор")
@@ -248,6 +258,7 @@ def _apply_point(w: Who, data: dict, label: str) -> None:
         mem_by_org.setdefault(m["org"], {})[m["user"]] = m["role"]
     kicked: set[str] = set()
     with tx() as c:
+        _admins_lock(c)
         snap_settings = data.get("settings") or {}
         for k, v in snap_settings.items():
             inst_set(c, k, v, w.user_id)
