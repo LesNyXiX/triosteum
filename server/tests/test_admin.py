@@ -185,3 +185,14 @@ def test_restore_point_brings_back_default_settings(client, boss):
     _inst["t"] = 0.0
     opts = new_client(client).get("/api/auth/options").json()
     assert opts["access"]["open"] is True and opts["registration"] == "open"
+
+
+def test_undo_restores_actual_previous_state(client, boss):
+    """Повторное отключение уже отключённого: его отмена не включает вход обратно."""
+    guest = new_client(client)
+    email = register(guest, org="Цех Дважды")
+    uid = guest.get("/api/me").json()["user"]["id"]
+    assert boss.post(f"/api/admin/users/{uid}/disable").status_code == 200
+    assert boss.post(f"/api/admin/users/{uid}/disable").status_code == 200
+    assert boss.post(f"/api/admin/actions/{last_action(boss)['id']}/undo").status_code == 200
+    assert new_client(client).post("/api/auth/login", json={"email": email, "password": "password123"}).status_code == 401

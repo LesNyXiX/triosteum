@@ -46,10 +46,10 @@ def _orgs(c) -> list[dict]:
     return [dict(r) for r in c.execute(text("SELECT id, name, created_at FROM organizations ORDER BY created_at")).mappings()]
 
 
-def _user(c, uid: str):
+def _user(c, uid: str, lock: bool = False):
     try:
-        r = c.execute(text("SELECT id, email, name, is_admin, disabled, deleted_at FROM users WHERE id = CAST(:u AS uuid)"),
-                      {"u": uid}).mappings().first()
+        r = c.execute(text("SELECT id, email, name, is_admin, disabled, deleted_at FROM users WHERE id = CAST(:u AS uuid)"
+                           + (" FOR UPDATE" if lock else "")), {"u": uid}).mappings().first()
     except Exception:
         r = None
     if not r:
@@ -95,7 +95,7 @@ def op_access(w: Who, open_: bool, message: str = "") -> tuple[str, dict]:
 
 def op_user_disabled(w: Who, uid: str, disabled: bool) -> tuple[str, dict]:
     with tx() as c:
-        u = _user(c, uid)
+        u = _user(c, uid, lock=True)          # прежнее состояние — для отмены, под блокировкой строки
         if disabled and str(u["id"]) == w.user_id:
             raise HTTPException(409, "Нельзя отключить самого себя")
         if disabled and u["is_admin"] and _active_admins(c) <= 1:
@@ -105,28 +105,28 @@ def op_user_disabled(w: Who, uid: str, disabled: bool) -> tuple[str, dict]:
             c.execute(text("DELETE FROM sessions WHERE user_id = :u"), {"u": u["id"]})
     if disabled:
         _kick_user(uid)
-    return ("Отключён вход: " if disabled else "Включён вход: ") + _who(u), {"op": "user.disabled", "user": uid, "disabled": not disabled}
+    return ("Отключён вход: " if disabled else "Включён вход: ") + _who(u), {"op": "user.disabled", "user": uid, "disabled": bool(u["disabled"])}
 
 
 def op_user_deleted(w: Who, uid: str, deleted: bool) -> tuple[str, dict]:
     with tx() as c:
-        u = _user(c, uid)
+        u = _user(c, uid, lock=True)
         if deleted and str(u["id"]) == w.user_id:
             raise HTTPException(409, "Нельзя удалить самого себя")
         if deleted and u["is_admin"] and _active_admins(c) <= 1:
             raise HTTPException(409, "Должен остаться хотя бы один администратор")
-        c.execute(text("UPDATE users SET deleted_at = " + ("now()" if deleted else "NULL") + " WHERE id = :u"), {"u": u["id"]})
+        c.execute(text("UPDATE users SET deleted_at = " + ("coalesce(deleted_at, now())" if deleted else "NULL") + " WHERE id = :u"), {"u": u["id"]})
         if deleted:
             c.execute(text("DELETE FROM sessions WHERE user_id = :u"), {"u": u["id"]})
     if deleted:
         _kick_user(uid)
     return ("Удалён пользователь: " if deleted else "Восстановлен пользователь: ") + _who(u), \
-        {"op": "user.deleted", "user": uid, "deleted": not deleted}
+        {"op": "user.deleted", "user": uid, "deleted": u["deleted_at"] is not None}
 
 
 def op_user_admin(w: Who, uid: str, flag: bool) -> tuple[str, dict]:
     with tx() as c:
-        u = _user(c, uid)
+        u = _user(c, uid, lock=True)
         if not flag and u["is_admin"] and _active_admins(c) <= 1:
             raise HTTPException(409, "Должен остаться хотя бы один администратор")
         if not flag and str(u["id"]) == w.user_id:
@@ -135,21 +135,23 @@ def op_user_admin(w: Who, uid: str, flag: bool) -> tuple[str, dict]:
     if not flag and not access_open():
         _kick_user(uid)                  # сервер закрыт: бывший администратор теряет открытые вкладки сразу
     return ("Назначен администратором: " if flag else "Сняты права администратора: ") + _who(u), \
-        {"op": "user.admin", "user": uid, "flag": not flag}
+        {"op": "user.admin", "user": uid, "flag": bool(u["is_admin"])}
 
 
 def op_invite_revoked(w: Who, iid: str, revoked: bool) -> tuple[str, dict]:
     with tx() as c:
         try:
-            r = c.execute(text("UPDATE instance_invites SET revoked_at = " + ("now()" if revoked else "NULL")
-                               + " WHERE id = CAST(:i AS uuid) RETURNING note, kind"), {"i": iid}).mappings().first()
+            r = c.execute(text("SELECT note, kind, revoked_at FROM instance_invites WHERE id = CAST(:i AS uuid) FOR UPDATE"),
+                          {"i": iid}).mappings().first()
         except Exception:
             r = None
-    if not r:
-        raise HTTPException(404, "Нет такого приглашения")
+        if not r:
+            raise HTTPException(404, "Нет такого приглашения")
+        c.execute(text("UPDATE instance_invites SET revoked_at = " + ("coalesce(revoked_at, now())" if revoked else "NULL")
+                       + " WHERE id = CAST(:i AS uuid)"), {"i": iid})
     what = r["note"] or ("новая организация" if r["kind"] == "org" else "вход в организацию")
     return ("Отозвано приглашение: " if revoked else "Возвращено приглашение: ") + what, \
-        {"op": "invite.revoked", "invite": iid, "revoked": not revoked}
+        {"op": "invite.revoked", "invite": iid, "revoked": r["revoked_at"] is not None}
 
 
 def op_point_restore(w: Who, pid: int) -> tuple[str, dict]:
@@ -296,7 +298,8 @@ def _apply_point(w: Who, data: dict, label: str) -> None:
         want = by_org.get(oid, {})
         announce = []
         with tx(oid) as c:
-            cur = {r["id"]: r for r in c.execute(text("SELECT id, name, env, rev, content::text AS c, deleted_at FROM spaces")).mappings()}
+            # строки пространств блокируем до чтения: правка, сохранённая в это время, не затрётся без записи в историю
+            cur = {r["id"]: r for r in c.execute(text("SELECT id, name, env, rev, content::text AS c, deleted_at FROM spaces FOR UPDATE")).mappings()}
             for sid, s in want.items():
                 cj = json.dumps(s["content"], ensure_ascii=False)
                 r = cur.get(sid)
