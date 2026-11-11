@@ -4,7 +4,7 @@ const srv=createServer((q,r)=>{r.writeHead(200,{'content-type':'text/html; chars
 try{
  const ctx=await browser.newContext({viewport:{width:1400,height:900}});await ctx.addInitScript(()=>{if(window.top!==window)return;if(localStorage.getItem('__fiSeed'))return;localStorage.setItem('__fiSeed','1');localStorage.setItem('triosteum.projects',JSON.stringify({cur:'p1',list:[{id:'p1',name:'Исходное',env:'code',t:Date.now()}]}));localStorage.setItem('triosteum.proj.p1',JSON.stringify({nodes:[{id:'n1',name:'Существующий',kind:'block',lang:'cpp',x:0,y:0,codes:{cpp:'int run(){return 1;}'}}],edges:[],notes:[],seq:2,cam:{x:0,y:0,k:1}}));localStorage.setItem('triosteum.profile','{"name":"Тест","org":"Тест"}');localStorage.setItem('triosteum.tour','{"done":true}');});
  const page=await ctx.newPage(),errors=[];page.on('pageerror',e=>{if(!/sandboxed/.test(e.message))errors.push(e.message);});await page.goto('http://127.0.0.1:'+srv.address().port);await page.locator('.node').waitFor();
- const graph=()=>page.evaluate(()=>JSON.parse(localStorage.getItem('triosteum.proj.'+JSON.parse(localStorage.getItem('triosteum.projects')).cur)));
+ const graph=()=>page.evaluate(()=>{const key='triosteum.proj.'+JSON.parse(localStorage.getItem('triosteum.projects')).cur;return JSON.parse(localStorage.getItem(key)||(window.__tsIDB.map||{})[key]);});
  const file=async(f)=>{await page.keyboard.press('Control+k');await page.locator('#cmdQ').fill('Импорт n8n / Make');const [fc]=await Promise.all([page.waitForEvent('filechooser'),page.getByRole('option',{name:'Импорт n8n / Make',exact:true}).first().click()]);await fc.setFiles(new URL('fixtures/'+f,import.meta.url).pathname.replace(/^\/([A-Z]:)/,'$1'));};
  await file('n8n-small.json');const dialog=page.getByRole('dialog',{name:'Импорт n8n / Make'});await dialog.waitFor();
  check((await dialog.innerText()).includes('4 блоков, 3 связей'),'предпросмотр n8n считает блоки и связи');check((await graph()).nodes.length===1,'до подтверждения доска не изменяется');
@@ -17,5 +17,13 @@ try{
  check((await dialog.innerText()).includes('n8n'),'JSON из буфера открывает предпросмотр');await page.setViewportSize({width:390,height:844});let b=await dialog.boundingBox();check(b.x>=0&&b.x+b.width<=391,'предпросмотр помещается на телефоне');await page.keyboard.press('Escape');check(!(await dialog.isVisible()),'Escape отменяет импорт');check((await graph()).nodes.length===3,'отмена не меняет схему');
  // Неизвестный JSON через явную команду импорта даёт объяснение, сохраняя текущий граф.
  await page.keyboard.press('Control+k');await page.locator('#cmdQ').fill('Импорт n8n / Make');const [fc]=await Promise.all([page.waitForEvent('filechooser'),page.getByRole('option',{name:'Импорт n8n / Make',exact:true}).first().click()]);await fc.setFiles({name:'bad.json',mimeType:'application/json',buffer:Buffer.from('{"other":true}')});await page.waitForTimeout(300);
- check((await page.locator('body').innerText()).includes('Неизвестный формат'),'неизвестный формат объясняется пользователю');check(errors.length===0,'нет ошибок JavaScript: '+errors.join('; '));await ctx.close();
+ check((await page.locator('body').innerText()).includes('Неизвестный формат'),'неизвестный формат объясняется пользователю');
+ const large={app:'Triosteum',kind:'space',name:'Большое пространство',env:'code',graph:{nodes:[{id:'big',name:'Большой блок',lang:'cpp',kind:'block',x:0,y:0,codes:{cpp:'//'+ 'x'.repeat(5*1024*1024)+'\nint run(){return 1;}'}}],edges:[],notes:[],seq:2}};
+ for(const ext of ['tsm','json']){
+   const beforeLarge=await page.evaluate(()=>JSON.parse(localStorage.getItem('triosteum.projects')).cur);
+   await page.locator('input[type=file][accept=".tsm,.json,application/json"]').setInputFiles({name:'large.'+ext,mimeType:'application/json',buffer:Buffer.from(JSON.stringify(large))});
+   await page.waitForFunction(old=>JSON.parse(localStorage.getItem('triosteum.projects')).cur!==old,beforeLarge);
+   check((await graph()).nodes[0].codes.cpp.length>5*1024*1024,'собственный файл .'+ext+' больше 5 МБ открывается');
+ }
+ check(errors.length===0,'нет ошибок JavaScript: '+errors.join('; '));await ctx.close();
 }finally{await browser.close();await new Promise(ok=>srv.close(ok));}console.log(failed?'Ошибок: '+failed:'Всё прошло');process.exitCode=failed?1:0;

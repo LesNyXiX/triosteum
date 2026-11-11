@@ -89,7 +89,7 @@
     p.warnings.slice(0,100).forEach(function(t){ui.body.appendChild(h('p',{'class':'flowimp-warning',text:t}));});ui.box.querySelector('button').focus();return true;
   }
   var flowIn=document.createElement('input');flowIn.type='file';flowIn.accept='.json,application/json';flowIn.hidden=true;document.body.appendChild(flowIn);
-  function flowRead(f,fallback){if(f.size>5*1024*1024){toast('Файл больше 5 МБ. Разделите сценарий.');return;}return f.text().then(function(text){var o=JSON.parse(text);if(flowFormat(o)||!fallback)return flowPreview(o);return fallback(f);}).catch(function(){toast('Не удалось прочитать JSON сценария.');});}
+  function flowRead(f,fallback){if(fallback&&/\.tsm$/i.test(f.name))return fallback(f);if(!fallback&&f.size>5*1024*1024){toast('Файл больше 5 МБ. Разделите сценарий.');return;}return f.text().then(function(text){var o=JSON.parse(text);if(flowFormat(o)||!fallback){if(f.size>5*1024*1024){toast('Файл больше 5 МБ. Разделите сценарий.');return;}return flowPreview(o);}return fallback(f);}).catch(function(){toast('Не удалось прочитать JSON сценария.');});}
   flowIn.addEventListener('change',function(){if(flowIn.files[0])flowRead(flowIn.files[0]);flowIn.value='';});
   (function(){
     var file=importFile;importFile=function(f){return flowRead(f,file);};
