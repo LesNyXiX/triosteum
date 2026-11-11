@@ -288,7 +288,7 @@
         var np = { id:'my-' + Date.now().toString(36) + i, my:true, name:bk.name, lang:bk.lang, desc:bk.desc, family:null, codes:{}, ai:true };
         np.codes[bk.lang] = bk.code; MY.unshift(np); pid = np.id; nNew++;
       } else { var p = pluginById(pid); fam = p && p.family || null; }
-      var n = { id:newId('n'), name:bk.name, lang:bk.lang, x:0, y:0, codes:{}, pluginId:pid, family:fam, desc:desc, colors:null };
+      var n = orgSnapshot({ id:newId('n'), name:bk.name, lang:bk.lang, x:0, y:0, codes:{}, pluginId:pid, family:fam, desc:desc, colors:null }, pluginById(pid));
       G.nodes.push(n); map[bk.key] = n.id; made.push(n);
     });
     r.links.forEach(function(l){

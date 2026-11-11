@@ -276,6 +276,7 @@
     var n = { id:newId('n'), name:name, lang:lang, x:Math.round(x), y:Math.round(y), codes:{},
       pluginId:pluginId || null, family:(p && p.family) || null, desc:(p && p.desc) || '', colors:null };
     if(kind === 'hub'){ n.kind = 'hub'; n.desc = 'Объединяет входящие потоки'; }
+    orgSnapshot(n, p);
     S.multi = [];
     G.nodes.push(n);
     S.sel = { type:'node', id:n.id };

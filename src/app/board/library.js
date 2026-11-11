@@ -181,7 +181,9 @@
   }
   function orgShare(p, btn){
     if(btn) btn.disabled = true;
-    SERVER.api('POST', '/org/items', { kind:'plugin', src:p.id, data:p }).then(function(r){
+    var data = JSON.parse(JSON.stringify(p)); data.codes = data.codes || {};
+    if(data.codes[p.lang] === undefined) data.codes[p.lang] = pluginCodeFor(p, p.lang);
+    SERVER.api('POST', '/org/items', { kind:'plugin', src:p.id, data:data }).then(function(r){
       if(btn) btn.disabled = false;
       if(r.status !== 201){ toast((r.data && r.data.detail) || 'Не получилось поделиться'); return; }
       orgRefresh().then(function(){ toast('«' + p.name + '» теперь в библиотеке компании — его видят все сотрудники организации'); });

@@ -46,6 +46,11 @@ ok(await card.locator('.org-remove').count() === 0, 'коллега не мож�
 await card.locator('.open').click(); await k.waitForTimeout(800);
 ok(await k.evaluate(() => [...document.querySelectorAll('.node .nm, .node')].some((n) => /Расчёт брака по сменам/.test(n.textContent))), 'плагин компании встал на доску');
 
+// схема коллеги на сервере: у блока снимок кода плагина (код не пустой, хотя автор его не правил)
+const nodeOf = async (p) => { await p.waitForTimeout(1600); const list = (await api(p, 'GET', '/spaces')).data; const sp = list.spaces || list; for (const s0 of sp) { const s1 = (await api(p, 'GET', '/spaces/' + s0.id)).data; const n = ((s1.content || {}).nodes || []).filter((x) => x.name === 'Расчёт брака по сменам')[0]; if (n) return n; } return null; };
+const placedNode = await nodeOf(k), placed = placedNode && placedNode.orig && placedNode.orig.python;
+ok(!!placed && placed.length > 0, 'у коллеги блок со снимком кода, а не пустой (плагин делился без правок кода)');
+
 console.log('Другая организация не видит');
 const s = await page();
 await register(s, 'Чужой завод ' + T, 'Сергей', `serg${T}@zavod.ru`);
@@ -58,6 +63,8 @@ await a.click('.pcard:has-text("Расчёт брака по сменам") .org
 ok((await api(a, 'GET', '/org/items')).data.items.length === 0, 'после второго нажатия плагин убран из библиотеки компании');
 await openLib(k); await openLib(k);
 ok(await k.locator('.lib-cat:has-text("Компания")').count() === 0, 'у коллеги раздел «Компания» пропал после открытия библиотеки');
+const after = await nodeOf(k);
+ok(after && after.orig && after.orig.python === placed, 'блок на доске коллеги сохранил код после удаления плагина из библиотеки');
 
 ok(errs.length === 0, 'нет ошибок JavaScript' + (errs.length ? ': ' + errs.join(' | ') : ''));
 await b.close();

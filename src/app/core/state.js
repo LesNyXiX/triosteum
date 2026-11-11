@@ -24,10 +24,12 @@
     ORG = (items || []).filter(function(it){ return it && it.kind === 'plugin' && it.data && it.data.lang; }).map(function(it){
       var d = it.data, codes = d.codes && typeof d.codes === 'object' ? d.codes : {};
       return { id:'org-' + it.id, org:true, orgItem:it.id, src:it.src, by:it.by, byName:it.by_name || '', name:d.name, lang:d.lang, desc:d.desc || '',
-        family:d.family || null, codes:codes, code:codes[d.lang] !== undefined ? codes[d.lang] : '' };
+        family:d.family || null, codes:codes, code:codes[d.lang] !== undefined ? codes[d.lang] : null };
     });
   }
   orgFromItems(SERVER && window.TRIOSTEUM_BOOT && window.TRIOSTEUM_BOOT.org_items);
+  // блок из плагина компании хранит снимок кода: если плагин потом обновят или уберут из библиотеки, схема не изменится
+  function orgSnapshot(n, p){ if(n && p && p.org){ n.orig = {}; n.orig[p.lang] = pluginCodeFor(p, p.lang); } return n; }
   var S = {
     view:'canvas', lib:false, tool:'select',
     lang: load('triosteum.lang', 'python'),
