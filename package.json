@@ -29,6 +29,7 @@
     "test:errai": "node tests/err-ai-e2e.mjs",
     "test:touch": "node tests/touch-stem-e2e.mjs",
     "test:arc": "node tests/arc-ai-e2e.mjs",
+    "test:groups": "node tests/groups-e2e.mjs",
     "test:runhist": "node tests/run-history-e2e.mjs",
     "test:schedule": "node tests/schedule-e2e.mjs",
     "test:whatsnew": "node tests/whats-new-e2e.mjs"

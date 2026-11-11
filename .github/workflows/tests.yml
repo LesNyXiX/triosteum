@@ -55,6 +55,7 @@ jobs:
           npm run test:errai
           npm run test:touch
           npm run test:arc
+          npm run test:groups
           npm run test:runhist
           npm run test:schedule
           npm run test:whatsnew
