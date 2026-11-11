@@ -64,6 +64,7 @@
     "app/workspace/backups.js",
     "app/workspace/files-io.js",
     "app/workspace/command-palette.js",
+    "app/board/run-opts.js",
     "app/workspace/minimap.js",
     "app/workspace/selection.js",
     "app/workspace/arrange.js",

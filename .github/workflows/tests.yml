@@ -56,6 +56,7 @@ jobs:
           npm run test:touch
           npm run test:arc
           npm run test:vars
+          npm run test:runopts
           npm run test:groups
           npm run test:runhist
           npm run test:dataflow
