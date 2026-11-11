@@ -188,6 +188,14 @@ console.log('Четвёртый раунд Codex: снимок не меняет
   check(pin3 && Array.isArray(pin3.items) && pin3.items.some((x) => x.type === 'metric' && x.value === 12), 'после остановленного запуска показатель закрепляется вместе с элементом');
   log = await run(page);
   check(/Показателей: 1/.test(log), 'и дашборд его получает');
+  // выключенный показатель: CMP.last получает проходящие записи — старый элемент в снимок не попадает
+  await pop(page, 'm'); await page.locator('#pop .ropts button', { hasText: 'Открепить' }).click(); await page.waitForTimeout(200);
+  await page.locator('#pop label.tgl', { hasText: 'Блок включён' }).locator('input').uncheck(); await page.waitForTimeout(200);
+  log = await run(page);
+  check(/⏸ Выручка — выключен/.test(log), 'показатель выключен и пропущен');
+  await pop(page, 'm'); await page.locator('#pop .ropts button', { hasText: 'Закрепить результат последнего запуска' }).click(); await page.waitForTimeout(300);
+  const pin4 = (await graph(page)).nodes.find((n) => n.id === 'm').pin;
+  check(pin4 && !(pin4.items || []).some((x) => x.type === 'metric'), 'снимок выключенного блока не содержит устаревший показатель');
   check(errors.length === 0, 'ошибок JavaScript нет' + (errors.length ? ': ' + errors.join(' | ') : ''));
   await ctx.close();
 }

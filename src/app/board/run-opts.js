@@ -57,9 +57,10 @@
     cmpEnd = function(results){
       if(results && typeof RES !== 'undefined' && RES && RES.items && RES.items !== seen){
         seen = RES.items; CMP.lastItems = CMP.lastItems || {};
-        // только блоки, успешно выполненные в этом запуске: при запуске выделенного results дополнен прежними
-        // результатами (cmpSeed), а при остановке или ошибке CMP.last блока остаётся прежним — их кэш не трогаем
-        var ran = {}; (CMP.order || []).forEach(function(id){ var b = CMP.blocks && CMP.blocks[id]; if(b && b.s === 'ok') ran[id] = 1; });
+        // кэш меняется ровно у тех блоков, чей CMP.last обновляет этот запуск: блок из плана запуска с результатом
+        // (успех, выключен, ошибка). Прежние результаты вне выделения (cmpSeed) не в плане, а блоки,
+        // до которых остановленный запуск не дошёл, результата не имеют — их кэш не трогаем
+        var ran = {}; (CMP.order || []).forEach(function(id){ if(Object.prototype.hasOwnProperty.call(results, id) && results[id] !== CMP.last[id]) ran[id] = 1; });   // тот же объект — подставлен cmpSeed, не обновлён
         for(var k in ran) delete CMP.lastItems[k];
         RES.items.forEach(function(x){
           if(!x || !x.node || !ran[x.node] || x.type === 'doc' || x.type === 'pack') return;
