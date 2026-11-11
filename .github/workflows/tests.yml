@@ -60,6 +60,7 @@ jobs:
           npm run test:groups
           npm run test:runhist
           npm run test:block-tests
+          npm run test:versions
           npm run test:audit
           npm run test:schedule
           npm run test:dataflow

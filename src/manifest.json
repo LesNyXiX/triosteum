@@ -13,6 +13,7 @@
     "styles/team.css",
     "styles/live.css",
     "styles/block-tests.css",
+    "styles/versions.css",
     "styles/audit.css"
   ],
   "js": [
@@ -128,6 +129,7 @@
     "app/workspace/env-dock.js",
     "app/workspace/tour.js",
     "app/workspace/whats-new.js",
+    "app/workspace/versions.js",
     "app/workspace/audit.js",
     "app/main.js"
   ]

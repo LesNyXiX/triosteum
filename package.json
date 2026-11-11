@@ -37,6 +37,7 @@
     "test:dataflow": "node tests/data-flow-e2e.mjs",
     "test:whatsnew": "node tests/whats-new-e2e.mjs",
     "test:block-tests": "node tests/block-tests.test.cjs && node tests/block-exec.test.cjs && node tests/block-tests-e2e.mjs",
+    "test:versions": "node tests/versions.test.cjs && node tests/versions-e2e.mjs",
     "test:audit": "node tests/audit.test.cjs && node tests/audit-e2e.mjs"
   },
   "devDependencies": {
