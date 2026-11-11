@@ -1,0 +1,47 @@
+{
+  "name": "triosteum-desktop",
+  "productName": "Triosteum",
+  "version": "1.0.0",
+  "description": "Triosteum для Windows: сервер организации или работа без интернета",
+  "main": "main.js",
+  "author": "Triosteum",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "prepare-web": "node prepare.mjs",
+    "start": "node prepare.mjs && electron .",
+    "dist": "node prepare.mjs && electron-builder --win --publish never",
+    "test": "node prepare.mjs && node test-e2e.mjs"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.11"
+  },
+  "devDependencies": {
+    "electron": "^45.3.0",
+    "electron-builder": "^26.18.0"
+  },
+  "build": {
+    "appId": "ru.triosteum.desktop",
+    "productName": "Triosteum",
+    "copyright": "Triosteum",
+    "directories": { "output": "dist", "buildResources": "build" },
+    "files": ["main.js", "preload.js", "launcher.html", "launcher.js", "logo.svg", "build/icon.png", "web/**/*"],
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }, { "target": "portable", "arch": ["x64"] }],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Triosteum",
+      "installerLanguages": ["ru_RU"],
+      "language": "1049",
+      "artifactName": "Triosteum-Setup-${version}.${ext}"
+    },
+    "portable": { "artifactName": "Triosteum-Portable-${version}.${ext}" },
+    "publish": [{ "provider": "github", "owner": "LesNyXiX", "repo": "triosteum", "releaseType": "release" }]
+  }
+}

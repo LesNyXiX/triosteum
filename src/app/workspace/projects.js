@@ -231,17 +231,20 @@
       { label:'Удалить пространство', icon:'trash', danger:true, act:delProj }]).concat(accountItems()));
   }
   // вход в облако: кто вошёл, перенос из браузера, выход
+  // в приложении для Windows — вернуться к выбору режима (сервер или без интернета)
+  function desktopItems(){ return window.triosteumDesktop && window.triosteumDesktop.switchMode ? [{ label:'Режим работы приложения…', icon:'layout', act:function(){ window.triosteumDesktop.switchMode(); } }] : []; }
   function accountItems(){
     if(!SERVER){
-      var lp = localProfile(); if(!lp) return [];
-      return [{ sep:true }, { head:lp.name + ' · ' + lp.org }, { label:'Профиль…', icon:'user', act:function(){ showWelcome(true); } },
-        { label:'Выйти', icon:'logout', act:localLogout }];
+      var lp = localProfile(); if(!lp) return desktopItems().length ? [{ sep:true }].concat(desktopItems()) : [];
+      return [{ sep:true }, { head:lp.name + ' · ' + lp.org }, { label:'Профиль…', icon:'user', act:function(){ showWelcome(true); } }].concat(desktopItems()).concat([
+        { label:'Выйти', icon:'logout', act:localLogout }]);
     }
     var u = SERVER.user || {}, items = [{ sep:true }, { head:(u.name || u.email || 'Аккаунт') + (SERVER.org ? ' · ' + SERVER.org.name : '') }];
     if(SERVER.localCount()) items.push({ label:'Перенести пространства из этого браузера…', icon:'cloud', act:importLocal });
     items.push({ label:'Команда…', icon:'user', act:openTeam });
     items.push({ label:'История версий…', icon:'layout', act:openHistory });
     if(SERVER.admin) items.push({ label:'Панель администратора…', icon:'keys', act:function(){ openAdmin(); } });
+    items = items.concat(desktopItems());
     items.push({ label:'Выйти', icon:'logout', act:function(){ SERVER.logout(); } });
     return items;
   }
