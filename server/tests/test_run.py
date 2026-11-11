@@ -119,3 +119,10 @@ def test_api_runner_off(client, monkeypatch):
     register(client)
     monkeypatch.setattr(main, "RUNNER_ON", False)
     assert client.post("/api/run/python", json={"code": "1"}).status_code == 503
+
+
+def test_vars_and_secrets_before_user_code():
+    code = 'import triosteum\nrate = triosteum.var("СТАВКА")\n@triosteum.block("П")\ndef run(d):\n    return [rate, triosteum.secret("ТОКЕН"), triosteum.var("НЕТ", "по умолчанию")]\n'
+    r = sandbox.run(code, {}, "block", {"СТАВКА": "7"}, {"ТОКЕН": "t-1"})
+    assert r["ok"] and r["output"] == ["7", "t-1", "по умолчанию"]
+    assert sandbox.run(code, {}, "block")["output"] == [None, None, "по умолчанию"]     # без переменных — значения по умолчанию
