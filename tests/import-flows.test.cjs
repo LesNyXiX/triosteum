@@ -1,0 +1,15 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
+const src=fs.readFileSync(path.join(__dirname,'../src/app/workspace/import-flows.js'),'utf8');
+const api=new Function('PLUGINS',src.slice(0,src.indexOf('  function flowClose'))+'\nreturn {flowParse,flowCode};')([{id:'py-http',lang:'python',name:'HTTP запрос',desc:''}]);
+const read=name=>JSON.parse(fs.readFileSync(path.join(__dirname,'fixtures',name),'utf8'));
+let n=api.flowParse(read('n8n-small.json'));assert.equal(n.nodes.length,4);assert.equal(n.edges.length,3);assert.equal(n.nodes[1].codes.python.includes('def run(data):'),true);assert.equal(n.nodes[3].imported.suggestedPlugin,'py-http');assert.equal(n.nodes[3].x,1000);assert(n.nodes.every(x=>x.off));
+let m=api.flowParse(read('make-small.json'));assert.equal(m.nodes.length,3);assert.equal(m.edges.length,2);assert.equal(m.edges[1].from,m.nodes[1].id);assert.equal(m.nodes[2].y,220);
+const branch={flow:[{id:1,module:'router',routes:[{flow:[{id:2,module:'A'}]},{flow:[{id:3,module:'B'}]}]},{id:4,module:'C'}]};m=api.flowParse(branch);assert.equal(m.edges.length,4);assert.equal(m.edges.filter(e=>e.to===m.nodes[3].id).length,2);
+assert.throws(()=>api.flowParse({foo:1}),/Неизвестный/);assert.throws(()=>api.flowParse({nodes:[{name:'A',type:'t'},{name:'A',type:'t'}],connections:{}}),/уникальные/);assert.throws(()=>api.flowParse({nodes:[{name:'A',type:'t'}],connections:{A:{main:[[{node:'B'}]]}}}),/отсутствующий/);
+const js=api.flowCode('n8n: custom',{'triple':'"""\nprint("danger")'},'', 'console.log(1);');assert(js.includes('# console.log(1);'));assert(js.includes('NotImplementedError'));assert(!js.includes('\nprint("danger")'));
+const odd=api.flowParse({nodes:[{name:'__proto__',type:'x'}],connections:{}});assert.equal(odd.nodes.length,1);
+const ports=read('n8n-small.json');ports.connections['Условие'].main[0][0].index=1;
+let portPlan=api.flowParse(ports);assert.equal(portPlan.edges[2].imported.target.index,1);assert.equal(portPlan.edges[2].imported.target.type,'main');assert.equal(portPlan.edges[2].imported.source.index,0);
+const filtered=read('make-small.json');filtered.flow[1].routes[0].flow[0].filter={name:'Положительная сумма',conditions:[[{a:'{{1.amount}}',o:'number:greater',b:'0'}]]};
+let filterPlan=api.flowParse(filtered);assert.deepEqual(filterPlan.nodes[2].imported.parameters.filter,filtered.flow[1].routes[0].flow[0].filter);assert.deepEqual(filterPlan.edges[1].imported.filter,filtered.flow[1].routes[0].flow[0].filter);assert(filterPlan.warnings.some(x=>x.includes('фильтр Make')));
+console.log('Импорт: форматы, ветвление, позиции, безопасные заготовки и ошибочные связи — прошли');
