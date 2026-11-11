@@ -2,6 +2,7 @@
   var ADM = { el:null, tab:'overview', ov:null, orgs:null, userFilter:'all', userQuery:'', lastLink:null };
   var ADM_TABS = [
     { id:'overview', label:'Обзор', ic:'<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>' },
+    { id:'agents', label:'Задачи для ИИ', ic:'<path d="M12 3l1.6 4.7L18.5 9l-4.9 1.4L12 15l-1.6-4.6L5.5 9l4.9-1.3z"/><path d="M5 17h6M5 20.5h10"/>' },
     { id:'users', label:'Пользователи', ic:'<circle cx="9" cy="8" r="3.5"/><path d="M3 20c1-3.5 3.4-5.5 6-5.5s5 2 6 5.5M16 4.5a3.5 3.5 0 010 7M18 14.5c1.6.7 2.6 2.6 3 5.5"/>' },
     { id:'invites', label:'Приглашения', ic:'<path d="M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 00-5.7 0l-3 3a4 4 0 005.7 5.7l1-1"/>' },
     { id:'access', label:'Доступ', ic:'<rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/>' },
@@ -65,6 +66,7 @@
     setTimeout(function(){ var b = ADM.el.querySelector('.adm-nav button[aria-selected="true"]'); if(b) b.focus(); }, 30);
   }
   function closeAdmin(){
+    clearInterval(ADM.agTimer); ADM.agTimer = null;
     if(ADM.el) ADM.el.hidden = true; document.body.classList.remove('adm-open');
     var b = $('admBtn'); if(b){ b.setAttribute('aria-pressed', 'false'); }
   }
@@ -130,7 +132,8 @@
     if(!ADM.el) return;
     ADM.el.querySelectorAll('.adm-nav button').forEach(function(b){ b.setAttribute('aria-selected', String(b.getAttribute('data-tab') === ADM.tab)); });
     var m = $('admMain'); m.innerHTML = '';
-    ({ overview:admOverview, users:admUsers, invites:admInvites, access:admAccess, points:admPoints, log:admLog })[ADM.tab](m);
+    clearInterval(ADM.agTimer); ADM.agTimer = null;
+    ({ agents:admAgents, overview:admOverview, users:admUsers, invites:admInvites, access:admAccess, points:admPoints, log:admLog })[ADM.tab](m);
   }
   function admSec(title, sub, kids){
     return h('section', { 'class':'adm-sec' }, [ h('div', { 'class':'adm-sec-h' }, [ h('h3', { text:title }), sub ? h('p', { text:sub }) : null ]) ].concat(kids || []));
@@ -380,6 +383,158 @@
     });
     m.appendChild(admSec('Регистрация', null, [ seg ]));
     m.appendChild(admSec('Кто сейчас может войти', null, [ flow ]));
+  }
+
+  // ---- задачи для ИИ: Claude и Codex получают задачу через задачи GitHub и отвечают сюда ----
+  var AG_WHO = { owner:'Вы', claude:'Claude', codex:'Codex', system:'GitHub', other:'Участник' };
+  // маленький безопасный markdown: сначала экранируем, потом код, ссылки, жирный, заголовки, галочки
+  function agMd(src){
+    var esc = function(t){ return String(t).replace(/[&<>"]/g, function(c){ return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]; }); };
+    var parts = String(src || '').split(/```[^\n]*\n?/), out = '';
+    parts.forEach(function(p, i){
+      if(i % 2){ out += '<pre>' + esc(p.replace(/\n$/, '')) + '</pre>'; return; }
+      var t = esc(p);
+      t = t.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+      t = t.replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+      t = t.replace(/(^|[\s(])(https?:\/\/[^\s<)]+)/g, '$1<a href="$2" target="_blank" rel="noopener">$2</a>');
+      t = t.replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>');
+      t = t.replace(/^#{1,6}\s+(.+)$/gm, '<b class="ag-h">$1</b>');
+      t = t.replace(/^(\s*)[-*] \[x\] /gim, '$1✓ ').replace(/^(\s*)[-*] \[ \] /gm, '$1○ ').replace(/^(\s*)[-*] /gm, '$1• ');
+      out += t;
+    });
+    return out;
+  }
+  function agAvatar(who){
+    var ic = { owner:'<circle cx="12" cy="8" r="3.5"/><path d="M5 20c1.2-3.6 3.8-5.5 7-5.5s5.8 1.9 7 5.5"/>',
+      claude:'<path d="M12 3l1.6 4.7L18.5 9l-4.9 1.4L12 15l-1.6-4.6L5.5 9l4.9-1.3z"/>',
+      codex:'<path d="M8 8l-4 4 4 4M16 8l4 4-4 4"/>', system:'<circle cx="12" cy="12" r="8"/><path d="M12 8v5M12 16h.01"/>', other:'<circle cx="12" cy="9" r="3.5"/>' }[who] || '';
+    return h('div', { 'class':'ag-av ' + who, html:admIcon(ic) });
+  }
+  // кому: две кнопки-переключателя
+  function agTargets(def){
+    var st = { claude:def.claude, codex:def.codex }, box = h('div', { 'class':'ag-to', role:'group', 'aria-label':'Кому' }, [ h('span', { text:'Кому:' }) ]);
+    ['claude', 'codex'].forEach(function(k){
+      var b = h('button', { type:'button', 'class':'ag-chip ' + k, 'aria-pressed':String(!!st[k]), html:'<i></i>' + AG_WHO[k] });
+      b.addEventListener('click', function(){ st[k] = !st[k]; b.setAttribute('aria-pressed', String(st[k])); });
+      box.appendChild(b);
+    });
+    box.get = function(){ return { claude:!!st.claude, codex:!!st.codex }; };
+    return box;
+  }
+  function agComposer(ph, def, send){
+    var ta = h('textarea', { rows:'4', maxlength:'20000', placeholder:ph, 'aria-label':'Текст задачи' });
+    var to = agTargets(def), go = h('button', { type:'submit', 'class':'btn primary sm', text:'Отправить' });
+    var f = h('form', { 'class':'ag-comp' }, [ ta, h('div', { 'class':'ag-comp-b' }, [ to, h('span', { 'class':'ag-hint', text:'Ctrl+Enter — отправить' }), go ]) ]);
+    f.addEventListener('submit', function(e){
+      e.preventDefault();
+      var t = ta.value.trim(), tg = to.get();
+      if(!t){ ta.focus(); return; }
+      if(!tg.claude && !tg.codex){ toast('Выберите, кому: Claude, Codex или обоим'); return; }
+      go.disabled = true;
+      send(t, tg).then(function(ok){ go.disabled = false; if(ok){ ta.value = ''; } });
+    });
+    ta.addEventListener('keydown', function(e){ if(e.key === 'Enter' && (e.ctrlKey || e.metaKey)){ e.preventDefault(); f.requestSubmit ? f.requestSubmit() : go.click(); } });
+    f.focusText = function(){ ta.focus(); };
+    return f;
+  }
+  function agSetup(m, repo){
+    var steps = [
+      ['Приложение Claude для репозитория', 'github.com/apps/claude → Install → только репозиторий ' + repo + '.'],
+      ['Ключ подписки Claude', 'На своём компьютере: claude setup-token. Токен — в секреты репозитория под именем CLAUDE_CODE_OAUTH_TOKEN.'],
+      ['Токен GitHub для сервера', 'github.com → Settings → Developer settings → Fine-grained tokens: только репозиторий ' + repo + ', право Issues — Read and write.'],
+      ['Токен — в настройки сервера', 'Строкой AGENTS_GITHUB_TOKEN=… в файл /opt/triosteum/.env, затем обновить сервер (deploy/update.sh).']
+    ];
+    m.appendChild(admSec('Задачи для ИИ не подключены', 'Пишете задачу здесь — Claude и Codex получают её через задачи GitHub, отвечают сюда и сразу берутся за работу (ветка, PR, тесты). Работает по вашим подпискам Claude и ChatGPT, без платных ключей API. Подключение — один раз:', [
+      h('ol', { 'class':'ag-steps' }, steps.map(function(s){ return h('li', null, [ h('b', { text:s[0] }), h('span', { text:s[1] }) ]); })) ]));
+  }
+  function admAgents(m){
+    var wrap = h('div', { 'class':'ag' }), side = h('aside', { 'class':'ag-side' }), main = h('section', { 'class':'ag-main' });
+    var load = h('p', { 'class':'adm-empty', text:'Загружаем задачи…' });
+    m.appendChild(load);
+    SERVER.api('GET', '/admin/agents').then(function(r){
+      load.remove();
+      if(r.status !== 200){ m.appendChild(h('p', { 'class':'adm-empty', text:admErr(r) })); return; }
+      if(!r.data.configured){ agSetup(m, r.data.repo); return; }
+      ADM.agRepo = r.data.repo;
+      m.appendChild(h('p', { 'class':'ag-note', text:'Задачи хранятся в публичном репозитории ' + r.data.repo + ' — их видят все. Не пишите сюда пароли, ключи и личные данные.' }));
+      wrap.appendChild(side); wrap.appendChild(main); m.appendChild(wrap);
+      agList(side, r.data.tasks);
+      if(ADM.agTask) agOpen(main, ADM.agTask); else agNew(main);
+      // пока окно открыто — подтягиваем ответы каждые 15 секунд
+      ADM.agTimer = setInterval(function(){
+        if(!ADM.el || ADM.el.hidden || ADM.tab !== 'agents') return;
+        SERVER.api('GET', '/admin/agents').then(function(x){ if(x.status === 200 && x.data.configured) agList(side, x.data.tasks); });
+        if(ADM.agTask) agOpen(main, ADM.agTask, true);
+      }, 15000);
+    });
+  }
+  function agList(side, tasks){
+    side.innerHTML = '';
+    var nb = h('button', { type:'button', 'class':'btn primary sm ag-newb', text:'+ Новая задача' });
+    nb.addEventListener('click', function(){ ADM.agTask = null; agNew(side.parentNode.querySelector('.ag-main')); agList(side, tasks); });
+    side.appendChild(nb);
+    if(!tasks.length){ side.appendChild(h('p', { 'class':'adm-empty', text:'Задач пока нет' })); return; }
+    var ul = h('ul', { 'class':'ag-list' });
+    tasks.forEach(function(t){
+      var b = h('button', { type:'button', 'class':'ag-it' + (ADM.agTask === t.number ? ' on' : '') + (t.state === 'closed' ? ' closed' : ''), 'aria-current':ADM.agTask === t.number ? 'true' : null }, [
+        h('span', { 'class':'ag-it-t', text:t.title }),
+        h('span', { 'class':'ag-it-m', text:'№' + t.number + ' · ' + admWhen(t.updated_at) + (t.comments ? ' · ответов: ' + t.comments : '') + (t.state === 'closed' ? ' · закрыта' : '') }) ]);
+      b.addEventListener('click', function(){ ADM.agTask = t.number; agList(side, tasks); agOpen(side.parentNode.querySelector('.ag-main'), t.number); });
+      ul.appendChild(h('li', null, [ b ]));
+    });
+    side.appendChild(ul);
+  }
+  function agNew(main){
+    main.innerHTML = '';
+    var c = agComposer('Опишите задачу: что сделать, где, как проверить. Например: «В разделе Склад добавь фильтр по поставщику и тест к нему».', { claude:true, codex:true }, function(t, tg){
+      return SERVER.api('POST', '/admin/agents', { text:t, claude:tg.claude, codex:tg.codex }).then(function(r){
+        if(r.status !== 201){ toast(admErr(r)); return false; }
+        toast('Задача №' + r.data.number + ' отправлена' + (tg.claude && tg.codex ? ' Claude и Codex' : tg.claude ? ' Claude' : ' Codex'));
+        ADM.agTask = r.data.number; admRender();
+        return true;
+      });
+    });
+    main.appendChild(h('div', { 'class':'ag-head' }, [ h('h3', { text:'Новая задача' }), h('p', { text:'Claude и Codex ответят в этой ленте примерно через минуту и сразу возьмутся за работу.' }) ]));
+    main.appendChild(c);
+    setTimeout(function(){ c.focusText(); }, 30);
+  }
+  function agOpen(main, num, quiet){
+    var keep = quiet && main.querySelector('.ag-comp textarea'), draft = keep ? keep.value : '';
+    if(quiet && keep && document.activeElement === keep && draft) return;   // не мешаем, пока владелец печатает
+    if(!quiet){ main.innerHTML = ''; main.appendChild(h('p', { 'class':'adm-empty', text:'Загружаем переписку…' })); }
+    SERVER.api('GET', '/admin/agents/' + num).then(function(r){
+      if(ADM.agTask !== num) return;
+      if(r.status !== 200){ if(!quiet){ main.innerHTML = ''; main.appendChild(h('p', { 'class':'adm-empty', text:admErr(r) })); } return; }
+      var d = r.data, feed = main.querySelector('.ag-feed'), atBottom = !feed || feed.scrollHeight - feed.scrollTop - feed.clientHeight < 40;
+      main.innerHTML = '';
+      var st = h('button', { type:'button', 'class':'btn sm', text:d.state === 'open' ? 'Закрыть задачу' : 'Открыть снова' });
+      st.addEventListener('click', function(){ SERVER.api('POST', '/admin/agents/' + num + '/state', { open:d.state !== 'open' }).then(function(x){ if(x.status !== 200){ toast(admErr(x)); return; } toast(x.data.state === 'open' ? 'Задача снова открыта' : 'Задача закрыта'); admRender(); }); });
+      main.appendChild(h('div', { 'class':'ag-head' }, [
+        h('div', null, [ h('h3', { text:d.title }), h('p', null, [ document.createTextNode('№' + d.number + ' · '), h('a', { href:d.url, target:'_blank', rel:'noopener', text:'открыть на GitHub' }) ]) ]),
+        h('div', { 'class':'ag-head-b' }, d.prs.map(function(p){ return h('a', { 'class':'ag-pr', href:p.url, target:'_blank', rel:'noopener', text:'PR #' + p.number }); }).concat([ st ])) ]));
+      var f = h('div', { 'class':'ag-feed', role:'log', 'aria-live':'polite' });
+      d.messages.forEach(function(msg){
+        f.appendChild(h('article', { 'class':'ag-msg ' + msg.who }, [ agAvatar(msg.who),
+          h('div', { 'class':'ag-bub' }, [
+            h('div', { 'class':'ag-meta' }, [ h('b', { text:AG_WHO[msg.who] || msg.who }),
+              msg.to && msg.to.length && msg.who === 'owner' ? h('span', { 'class':'ag-tob', text:'→ ' + msg.to.map(function(x){ return AG_WHO[x]; }).join(' и ') }) : null,
+              h('span', { text:admWhen(msg.at) + (msg.edited && msg.edited !== msg.at && msg.who !== 'owner' ? ' · обновлено ' + admWhen(msg.edited) : '') }) ]),
+            h('div', { 'class':'ag-txt', html:agMd(msg.text) }) ]) ]));
+      });
+      var waiting = d.state === 'open' && d.messages.length && d.messages[d.messages.length - 1].who === 'owner';
+      if(waiting) f.appendChild(h('p', { 'class':'ag-wait', text:'Ждём ответ — обычно около минуты. Лента обновляется сама.' }));
+      main.appendChild(f);
+      var c = agComposer('Ответить или уточнить задачу…', { claude:true, codex:false }, function(t, tg){
+        return SERVER.api('POST', '/admin/agents/' + num + '/messages', { text:t, claude:tg.claude, codex:tg.codex }).then(function(x){
+          if(x.status !== 201){ toast(admErr(x)); return false; }
+          setTimeout(function(){ agOpen(main, num, true); }, 0);      // после того как поле очистится
+          return true;
+        });
+      });
+      if(draft) c.querySelector('textarea').value = draft;
+      main.appendChild(c);
+      if(atBottom) f.scrollTop = f.scrollHeight;
+    });
   }
 
   // ---- точки восстановления ----

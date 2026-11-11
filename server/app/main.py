@@ -1181,3 +1181,5 @@ def health():
 
 from . import admin as _admin   # noqa: E402  (панель администратора; модуль использует функции выше)
 app.include_router(_admin.router)
+from . import agents as _agents   # noqa: E402  (задачи для ИИ: Claude и Codex через задачи GitHub)
+app.include_router(_agents.router)

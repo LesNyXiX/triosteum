@@ -147,6 +147,57 @@ ok(await a.locator('#admW').isVisible(), 'F9 открывает панель');
 await a.keyboard.press('Escape'); await a.waitForTimeout(300);
 await shot(a, '7-header-button');
 
+console.log('Задачи для ИИ');
+await a.click('#admBtn'); await a.waitForTimeout(600);
+await tab(a, 'Задачи для ИИ'); await a.waitForTimeout(400);
+ok(await a.locator('.ag-steps li').count() === 4, 'без токена — инструкция подключения из 4 шагов');
+// дальше GitHub подменён в браузере: проверяем окно, а не сеть
+const AG = { tasks: [], msgs: {}, sent: [] };
+await a.route(/\/api\/admin\/agents(\/.*)?$/, async (route) => {
+  const req = route.request(), u = new URL(req.url()), m = u.pathname.match(/agents(?:\/(\d+))?(?:\/(messages|state))?$/);
+  const body = req.postData() ? JSON.parse(req.postData()) : null, json = (st, d) => route.fulfill({ status: st, contentType: 'application/json', body: JSON.stringify(d) });
+  if (req.method() === 'GET' && !m[1]) return json(200, { configured: true, repo: 'LesNyXiX/triosteum', tasks: AG.tasks });
+  if (req.method() === 'POST' && !m[1]) {
+    AG.sent.push(body); const n = AG.tasks.length + 7;
+    const t = { number: n, title: body.text.split('\n')[0], state: 'open', url: 'https://github.com/x/y/issues/' + n, comments: 0, created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+    AG.tasks.unshift(t);
+    AG.msgs[n] = [{ id: 'i', who: 'owner', to: ['claude', 'codex'].filter((k) => body[k]), text: body.text, at: t.created_at, edited: t.created_at, url: t.url }];
+    return json(201, t);
+  }
+  const n = +m[1], t = AG.tasks.find((x) => x.number === n);
+  if (m[2] === 'messages') { AG.sent.push(body); AG.msgs[n].push({ id: Math.random(), who: 'owner', to: ['claude', 'codex'].filter((k) => body[k]), text: body.text, at: new Date().toISOString() }); return json(201, { ok: true }); }
+  if (m[2] === 'state') { t.state = body.open ? 'open' : 'closed'; return json(200, t); }
+  return json(200, { ...t, messages: AG.msgs[n], prs: AG.msgs[n].some((x) => /pull\/41/.test(x.text)) ? [{ number: 41, url: 'https://github.com/x/y/pull/41' }] : [] });
+});
+await tab(a, 'Обзор'); await tab(a, 'Задачи для ИИ'); await a.waitForTimeout(400);
+ok(await a.locator('.ag-comp textarea').isVisible(), 'с токеном — поле новой задачи');
+ok((await a.getAttribute('.ag-chip.claude', 'aria-pressed')) === 'true' && (await a.getAttribute('.ag-chip.codex', 'aria-pressed')) === 'true', 'по умолчанию задача обоим');
+await a.click('.ag-comp button:has-text("Отправить")'); await a.waitForTimeout(200);
+ok(AG.sent.length === 0, 'пустую задачу не отправляет');
+await a.fill('.ag-comp textarea', 'Добавь фильтр по поставщику\nи тест к нему');
+await a.keyboard.press('Control+Enter'); await a.waitForTimeout(900);
+ok(AG.sent[0] && AG.sent[0].claude === true && AG.sent[0].codex === true && /поставщику/.test(AG.sent[0].text), 'Ctrl+Enter отправил задачу обоим');
+ok(await a.locator('.ag-it.on:has-text("Добавь фильтр по поставщику")').count() === 1, 'задача появилась в списке и открыта');
+ok(/Claude и Codex/.test(await a.textContent('.ag-msg.owner .ag-tob')), 'в ленте видно, кому отправлено');
+ok(await a.locator('.ag-wait').isVisible(), 'пока нет ответа — «Ждём ответ»');
+// пришли ответы ботов
+AG.msgs[7].push({ id: 2, who: 'claude', to: [], text: '**Готово.** Сделал PR: https://github.com/x/y/pull/41\n```\nnpm test — ок\n```', at: new Date().toISOString() });
+AG.msgs[7].push({ id: 3, who: 'codex', to: [], text: 'Взял в работу <img src=x onerror="window.__xss=1">', at: new Date().toISOString() });
+await a.click('.ag-it:has-text("Добавь фильтр")'); await a.waitForTimeout(700);
+ok(await a.locator('.ag-msg.claude b:has-text("Готово.")').count() === 1 && await a.locator('.ag-msg.claude pre').count() === 1, 'ответ Claude: жирный текст и блок кода');
+ok(await a.locator('.ag-msg.codex').count() === 1 && !(await a.evaluate(() => window.__xss)), 'ответ Codex показан, HTML из ответа не выполняется');
+ok(await a.locator('.ag-pr:has-text("PR #41")').count() === 1, 'ссылка на PR из ответа — вверху');
+await a.click('.ag-chip.codex'); await a.click('.ag-chip.claude');
+await a.fill('.ag-main .ag-comp textarea', 'Codex, добавь ещё проверку');
+await a.click('.ag-main .ag-comp button:has-text("Отправить")'); await a.waitForTimeout(700);
+ok(AG.sent[1] && AG.sent[1].codex === true && AG.sent[1].claude === false, 'уточнение ушло только Codex');
+ok(await a.locator('.ag-msg.owner:has-text("Codex, добавь ещё проверку")').count() === 1 && (await a.inputValue('.ag-main .ag-comp textarea')) === '', 'уточнение в ленте, поле очищено');
+await a.click('.ag-head button:has-text("Закрыть задачу")'); await a.waitForTimeout(700);
+ok(await a.locator('.ag-it.closed').count() === 1, 'задачу можно закрыть');
+await shot(a, '8-agents');
+await a.unroute(/\/api\/admin\/agents(\/.*)?$/);
+await a.keyboard.press('Escape'); await a.waitForTimeout(300);
+
 console.log('Не администратор панель не видит');
 ok(!(await o.locator('#admBtn').isVisible()), 'у Оли в шапке нет кнопки панели');
 await o.click('#setBtn'); await o.waitForTimeout(400);
@@ -157,6 +208,7 @@ ok(await o.locator('#admW').count() === 0, 'чужая клавиша панел
 await o.click('#projBtn'); await o.waitForTimeout(300);
 ok(await o.locator('text=Панель администратора…').count() === 0, 'в меню Оли нет панели');
 ok((await api(o, 'GET', '/admin/overview')).status === 403, 'API панели для Оли — 403');
+ok((await api(o, 'GET', '/admin/agents')).status === 403, 'задачи для ИИ для Оли — 403');
 
 ok(errs.length === 0, 'нет ошибок JavaScript' + (errs.length ? ': ' + errs.join(' | ') : ''));
 void sid;
