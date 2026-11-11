@@ -16,7 +16,9 @@
     return gone;
   }
   function verSave(label, auto, cb){
-    cb = cb || function(){}; var db = bkDb(), space = curId(), graph = verGraph();
+    var callback=cb||function(){},settled=false;
+    cb=function(ok,msg){if(settled)return;settled=true;callback(ok,msg);};
+    var db = bkDb(), space = curId(), graph = verGraph();
     if(!db){ cb(false, 'IndexedDB недоступна — версия не сохранена'); return; }
     var record = { id:verPrefix(space) + Date.now().toString(36) + '-' + (++VERS.seq) + '-' + Math.random().toString(36).slice(2,7), space:space, t:Date.now(), label:String(label || 'Без подписи').slice(0,200), auto:!!auto, graph:graph };
     try{
@@ -60,7 +62,7 @@
     if(other(a)!==other(b))changes.push({text:'Изменены заметки, файлы или другие данные пространства'});
     return changes;
   }
-  function verClose(){ if(VERS.ui) VERS.ui.layer.hidden=true; if(VERS.back && document.contains(VERS.back)) VERS.back.focus(); }
+  function verClose(){ if(document.activeElement && document.activeElement.blur) document.activeElement.blur(); if(VERS.ui) VERS.ui.layer.hidden=true; if(VERS.back && document.contains(VERS.back)) VERS.back.focus(); }
   function verOpen(focus){
     VERS.back=document.activeElement;VERS.view=curId();
     if(!VERS.ui){
@@ -120,17 +122,17 @@
       });
     });
   }
-  function verBefore(reason,fn,self,args){
+  function verBefore(reason,fn,self,args,optional){
     if(VERS.pending){toast('Подождите сохранения версии');return;}
     if(!bkDb()){toast('Автоверсия недоступна: IndexedDB не работает');return fn.apply(self,args);}
-    VERS.pending=true;var space=curId();
-    verSave(reason,true,function(ok,msg){VERS.pending=false;if(!ok){toast(msg);return;}if(curId()!==space){toast('Пространство изменилось; повторите действие');return;}fn.apply(self,args);});
+    VERS.pending=true;var space=curId(),before=JSON.stringify(verGraph());
+    verSave(reason,true,function(ok,msg){VERS.pending=false;if(curId()!==space||(!optional&&JSON.stringify(verGraph())!==before)){toast('Схема изменилась; повторите действие');return;}if(!ok){toast(msg+(optional?' — импорт продолжен без автоверсии':''));if(!optional)return;}fn.apply(self,args);});
   }
   (function(){
     VERS.base[curId()]=JSON.stringify(G);
     var graph=setGraph;setGraph=function(){var r=graph.apply(this,arguments);if(VERS.base[curId()]===undefined)VERS.base[curId()]=JSON.stringify(G);if(VERS.ui)VERS.ui.layer.hidden=true;return r;};
     var apply=applyArc;applyArc=function(){if(!ARC.res)return;var res=ARC.res,self=this,args=arguments;return verBefore('Перед применением схемы ИИ',function(){if(ARC.res!==res){toast('Предложение ИИ изменилось; повторите применение');return;}return apply.apply(self,args);},this,arguments);};
-    var file=importFile;importFile=function(){return verBefore('Перед импортом',file,this,arguments);};
+    var file=importFile;importFile=function(){return verBefore('Перед импортом',file,this,arguments,true);};
     setInterval(function(){if(!running && !CMP.busy && !VERS.pending && VERS.base[curId()]!==JSON.stringify(G))verSave('Автоматическая версия',true,function(ok,msg){if(!ok)toast(msg);});},30*60*1000);
     document.addEventListener('keydown',function(e){if((e.ctrlKey||e.metaKey)&&e.altKey&&!e.repeat&&(e.code==='KeyS'||e.key.toLowerCase()==='s')){e.preventDefault();verOpen(true);}});
     var commands=cmdCommands;cmdCommands=function(){return commands().concat([{sec:'space',label:'Сохранить версию схемы',icon:'file',kb:'Ctrl+Alt+S',act:function(){verOpen(true);},k:'снимок версия сохранить'}, {sec:'space',label:'Версии схемы',icon:'undo',act:verOpen,k:'история откат сравнение'}]);};
