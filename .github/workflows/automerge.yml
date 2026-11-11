@@ -70,12 +70,15 @@ jobs:
               if (state.has_unresolved_findings) {
                 // Codex считает «нерешёнными» и старые обсуждения, которые исправлены, но не отмечены resolved
                 // (отметить их можно только через GraphQL). Засчитываем замечание закрытым, если оно сделано
-                // к прежнему коммиту и на него ответил владелец или соавтор; замечание к последнему коммиту блокирует.
+                // к прежнему коммиту и последний ответ владельца или соавтора в обсуждении — явное «Исправлено в <коммит>»;
+                // вопрос или «пока не исправлено» замечание не закрывает. Замечание к последнему коммиту блокирует.
                 const rc = await github.paginate(github.rest.pulls.listReviewComments, { owner, repo, pull_number: number });
                 const TRUST = ['OWNER', 'MEMBER', 'COLLABORATOR'];
+                const FIXED = /^\s*Исправлено\s+в\s+`?[0-9a-f]{7,40}\b/i;
                 const open = rc.filter((c) => c.user.login === CODEX && !c.in_reply_to_id).filter((c) => {
                   if (c.original_commit_id === sha || c.commit_id === sha && c.original_commit_id === c.commit_id) return true;
-                  return !rc.some((r) => r.in_reply_to_id === c.id && TRUST.includes(r.author_association) && r.user.type !== 'Bot');
+                  const last = rc.filter((r) => r.in_reply_to_id === c.id && TRUST.includes(r.author_association) && r.user.type !== 'Bot').pop();
+                  return !(last && FIXED.test(last.body));
                 });
                 if (open.length) { why('у Codex есть нерешённые замечания: ' + open.length); continue; }
                 core.info(`#${number}: старые замечания Codex отвечены, новых к последнему коммиту нет`);
