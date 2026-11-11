@@ -337,12 +337,19 @@
     b.appendChild(h('p', { text:'Пока переключатель включён, помощник блока, архитектор, конструктор, бэкенд и ИИ офиса работают через выбранный ИИ. Выключите — вернётся прежний. После закрытия вкладки переключатель выключается.' }));
   }
   // Infinitum: ничего настраивать не нужно — ИИ на сервере организации; администратор выбирает модель под капотом
+  // честно о том, куда уходят запросы: обещание «не покидают сервер» — только если модель и правда на нём
+  function clInfWhere(){
+    var ai = (window.TRIOSTEUM_BOOT && window.TRIOSTEUM_BOOT.ai) || {};
+    if(!clInfReady()) return '';
+    return ai.local === false ? ' Запросы обрабатывает внешний сервис: ' + (ai.where || 'облачная модель') + ' — не отправляйте туда то, что нельзя передавать за пределы организации.'
+                              : ' Модель стоит на сервере организации — запросы не уходят сторонним сервисам.';
+  }
   function clPanelInfinitum(b){
     var ready = clInfReady();
     b.appendChild(h('div', { 'class':'clp-inf' }, [
       h('div', { 'class':'clp-inf-mark', 'aria-hidden':'true', html:'<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7.5 8.5c-2.2 0-4 1.6-4 3.5s1.8 3.5 4 3.5c3.5 0 5.5-7 9-7 2.2 0 4 1.6 4 3.5s-1.8 3.5-4 3.5c-3.5 0-5.5-7-9-7z"/></svg>' }),
       h('div', null, [ h('b', { text:'Infinitum — собственный ИИ Triosteum' }),
-        h('span', { text:'Знает Triosteum: блоки, среды, схемы, документы. Работает на сервере вашей организации — без ключей и установки, данные не уходят сторонним сервисам.' }) ]) ]));
+        h('span', { text:'Знает Triosteum: блоки, среды, схемы, документы. Работает через сервер вашей организации — без ключей и установки.' + clInfWhere() }) ]) ]));
     if(!ready){
       if(!CL.status) b.appendChild(h('div', { 'class':'clp-st', text:clNeedText() }));   // иначе это же сообщение покажет общий статус ниже
       if(SERVER && SERVER.admin) b.appendChild(h('p', { html:'Как включить (вы администратор): в файле <code>.env</code> сервера задайте <code>AI_PROVIDER=openai</code>, <code>AI_MODEL=qwen2.5:1.5b</code> и <code>COMPOSE_PROFILES=ai</code>, обновите сервер и скачайте модель — команды в инструкции к серверу.' }));

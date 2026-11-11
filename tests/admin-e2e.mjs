@@ -192,6 +192,15 @@ await a.fill('.ag-main .ag-comp textarea', 'Codex, добавь ещё пров�
 await a.click('.ag-main .ag-comp button:has-text("Отправить")'); await a.waitForTimeout(700);
 ok(AG.sent[1] && AG.sent[1].codex === true && AG.sent[1].claude === false, 'уточнение ушло только Codex');
 ok(await a.locator('.ag-msg.owner:has-text("Codex, добавь ещё проверку")').count() === 1 && (await a.inputValue('.ag-main .ag-comp textarea')) === '', 'уточнение в ленте, поле очищено');
+// фоновое обновление ленты (раз в 15 с) не теряет черновик и выбранного адресата
+await a.fill('.ag-main .ag-comp textarea', 'черновик для Codex');
+ok((await a.getAttribute('.ag-main .ag-chip.codex', 'aria-pressed')) === 'true' && (await a.getAttribute('.ag-main .ag-chip.claude', 'aria-pressed')) === 'false', 'после отправки адресат (только Codex) сохранился');
+await a.click('.ag-main .ag-chip.codex'); await a.click('.ag-main .ag-chip.codex');          // переключатель снова в фокусе, а не поле
+AG.msgs[7].push({ id: 4, who: 'claude', to: [], text: 'пришло во время черновика', at: new Date().toISOString() });
+await a.waitForTimeout(16500);
+ok(await a.locator('.ag-msg:has-text("пришло во время черновика")').count() === 1, 'лента обновилась сама');
+ok((await a.inputValue('.ag-main .ag-comp textarea')) === 'черновик для Codex' && (await a.getAttribute('.ag-main .ag-chip.codex', 'aria-pressed')) === 'true' && (await a.getAttribute('.ag-main .ag-chip.claude', 'aria-pressed')) === 'false', 'после обновления черновик и адресат Codex на месте');
+await a.fill('.ag-main .ag-comp textarea', '');
 await a.click('.ag-head button:has-text("Закрыть задачу")'); await a.waitForTimeout(700);
 ok(await a.locator('.ag-it.closed').count() === 1, 'задачу можно закрыть');
 await shot(a, '8-agents');

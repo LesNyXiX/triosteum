@@ -7,8 +7,10 @@
   echo     — заглушка для проверок: повторяет начало запроса
   (пусто)  — ИИ выключен
 """
+import ipaddress
 import json
 import os
+from urllib.parse import urlsplit
 from dataclasses import dataclass, field
 from typing import Iterator
 
@@ -34,6 +36,8 @@ def estimate_tokens(text: str) -> int:
 class Provider:
     name = "off"
     model = ""
+    local = True        # запросы не покидают сервер организации
+    where = ""          # кто обрабатывает запросы, если не сервер организации (для честной подписи в интерфейсе)
 
     def stream(self, system: str, prompt: str, max_tokens: int, result: Result) -> Iterator[str]:
         raise NotImplementedError
@@ -98,6 +102,19 @@ class AIError(Exception):
     pass
 
 
+def _is_local_host(host: str) -> bool:
+    """Модель на этом же сервере или во внутренней сети: имя контейнера (ollama), localhost, частные адреса."""
+    if not host:
+        return False
+    if "." not in host or host == "localhost" or host.endswith(".local") or host.endswith(".internal"):
+        return True
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return ip.is_private or ip.is_loopback
+
+
 def from_env() -> Provider | None:
     kind = (os.environ.get("AI_PROVIDER") or "").strip().lower()
     if kind == "echo":
@@ -108,6 +125,9 @@ def from_env() -> Provider | None:
         p = OpenAICompatible(base, os.environ.get("AI_MODEL") or "qwen2.5-coder:7b", os.environ.get("AI_API_KEY", ""),
                              timeout=float(os.environ.get("AI_TIMEOUT") or 300))
         p.name = "openai"
+        host = (urlsplit(base).hostname or "").lower()
+        p.local = _is_local_host(host)
+        p.where = "" if p.local else host
         return p
     if kind == "yandex":
         key, folder = os.environ.get("YANDEX_API_KEY"), os.environ.get("YANDEX_FOLDER_ID")
@@ -118,5 +138,6 @@ def from_env() -> Provider | None:
         p = OpenAICompatible(os.environ.get("AI_BASE_URL") or "https://llm.api.cloud.yandex.net/v1",
                              f"gpt://{folder}/{model}/latest", key, headers={"OpenAI-Project": folder})
         p.name = "yandex"
+        p.local, p.where = False, "YandexGPT (Yandex Cloud)"
         return p
     return None

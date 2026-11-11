@@ -77,7 +77,7 @@ def _who(login: str, owner: str) -> str:
     return "owner" if login.lower() == owner.lower() else "other"
 
 
-_MENTION = re.compile(r"(?<!\S)@(claude|codex)\b[:,]?\s*", re.I)
+_MENTION = re.compile(r"(?<!\S)@(claude|codex)\b[:,]?[ \t]*", re.I)
 _HIDDEN = re.compile(r"<!--.*?-->", re.S)
 
 
@@ -120,7 +120,7 @@ def _own_task(issue: dict) -> dict:
 
 def _plain(text: str) -> str:
     """Текст владельца без его собственных обращений @claude/@codex: адресатов задаёт окно, а не случайное слово в тексте."""
-    return re.sub(r"[ \t]{2,}", " ", _MENTION.sub("", text)).strip() if _MENTION.search(text) else text.strip()
+    return _MENTION.sub("", text).strip()     # убирается только обращение и пробел после него — отступы и код не трогаем
 
 
 def _need_target(claude: bool, codex: bool):

@@ -235,7 +235,8 @@ def index(request: Request):
     boot = {"user": {"id": w.user_id, "email": w.email, "name": w.name, "is_admin": w.is_admin},
             "org": {"id": w.org_id, "name": w.org_name},
             "role": w.role, "cur": prefs.get("cur"), "prefs": prefs, "spaces": spaces,
-            "ai": {"enabled": AI is not None, "name": infinitum.NAME, "provider": AI.name if AI else None, "model": AI.model if AI else None},
+            "ai": {"enabled": AI is not None, "name": infinitum.NAME, "provider": AI.name if AI else None, "model": AI.model if AI else None,
+                   "local": bool(AI.local) if AI else None, "where": AI.where if AI else None},
             "runner": {"enabled": RUNNER_ON}, "mail": {"enabled": mail.configured()}}
     if w.is_admin:
         boot["instance"] = {"registration": inst("registration"), "access": inst("access")}
@@ -1025,6 +1026,7 @@ def ai_status(w: Who = Depends(need)):
         used = month_tokens(c)
         budget = c.execute(text("SELECT ai_budget_tokens FROM organizations WHERE id = :o"), {"o": w.org_id}).scalar_one()
     return {"enabled": AI is not None, "name": infinitum.NAME, "provider": AI.name if AI else None, "model": AI.model if AI else None,
+            "local": bool(AI.local) if AI else None, "where": AI.where if AI else None,
             "used_tokens": int(used), "budget_tokens": int(budget)}
 
 

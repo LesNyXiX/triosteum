@@ -500,11 +500,14 @@
   }
   // quiet — без «Загружаем…»; poll — фоновое обновление: не трогаем ленту, пока владелец в поле ввода
   function agOpen(main, num, quiet, poll){
-    var keep = quiet && main.querySelector('.ag-comp textarea'), draft = keep ? keep.value : '';
-    if(poll && keep && document.activeElement === keep) return;
+    var keep0 = main.querySelector('.ag-comp textarea');
+    if(poll && keep0 && document.activeElement === keep0) return;
     if(!quiet){ main.innerHTML = ''; main.appendChild(h('p', { 'class':'adm-empty', text:'Загружаем переписку…' })); }
     SERVER.api('GET', '/admin/agents/' + num).then(function(r){
       if(ADM.agTask !== num) return;
+      // черновик и адресатов берём прямо перед заменой формы: владелец мог начать печатать, пока шёл запрос
+      var keep = quiet && main.querySelector('.ag-comp textarea'), draft = keep ? keep.value : '', tgBox = quiet && main.querySelector('.ag-comp .ag-to'), tgNow = tgBox && tgBox.get ? tgBox.get() : null;
+      if(poll && keep && document.activeElement === keep) return;
       if(r.status !== 200){ if(!quiet){ main.innerHTML = ''; main.appendChild(h('p', { 'class':'adm-empty', text:admErr(r) })); } return; }
       var d = r.data, feed = main.querySelector('.ag-feed'), atBottom = !feed || feed.scrollHeight - feed.scrollTop - feed.clientHeight < 40;
       main.innerHTML = '';
@@ -525,7 +528,7 @@
       var waiting = d.state === 'open' && d.messages.length && d.messages[d.messages.length - 1].who === 'owner';
       if(waiting) f.appendChild(h('p', { 'class':'ag-wait', text:'Ждём ответ — обычно около минуты. Лента обновляется сама.' }));
       main.appendChild(f);
-      var c = agComposer('Ответить или уточнить задачу…', { claude:true, codex:false }, function(t, tg){
+      var c = agComposer('Ответить или уточнить задачу…', tgNow || { claude:true, codex:false }, function(t, tg){
         return SERVER.api('POST', '/admin/agents/' + num + '/messages', { text:t, claude:tg.claude, codex:tg.codex }).then(function(x){
           if(x.status !== 201){ toast(admErr(x)); return false; }
           setTimeout(function(){ agOpen(main, num, true); }, 0);      // после того как поле очистится

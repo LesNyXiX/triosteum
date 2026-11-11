@@ -143,6 +143,9 @@ def test_mentions_in_text_do_not_call_extra_agent(boss, gh):
     assert boss.post("/api/admin/agents", json={"text": "@claude @codex", "claude": True}).status_code == 422
     n2 = boss.post("/api/admin/agents", json={"text": "@claude шаг 1\n\nшаг 2", "claude": True, "codex": False}).json()["number"]
     assert gh.issues[n2]["body"].startswith("@claude шаг 1\n\nшаг 2")             # переносы строк сохранены
+    code = "@codex поправь:\n\ndef f():\n    if x:\n        return \"a  b\"\n"
+    n3 = boss.post("/api/admin/agents", json={"text": code, "claude": False, "codex": True}).json()["number"]
+    assert gh.comments[n3][0]["body"] == "@codex поправь:\n\ndef f():\n    if x:\n        return \"a  b\""   # отступы и пробелы в коде целы
 
 
 def test_follow_up_to_both_shown_once(boss, gh):
