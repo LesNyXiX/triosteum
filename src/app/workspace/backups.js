@@ -19,7 +19,7 @@
     var db = bkDb(); if(!db) return cb([]);
     try {
       var out = [], rq = db.transaction('snaps', 'readonly').objectStore('snaps').openCursor();
-      rq.onsuccess = function(){ var c = rq.result; if(c){ var v = c.value; out.push({ id:v.id, t:v.t, reason:v.reason, size:v.size, spaces:v.spaces }); c.continue(); } else cb(out.sort(function(a, b){ return b.t - a.t; })); };
+      rq.onsuccess = function(){ var c = rq.result; if(c){ var v = c.value; if(String(v.id).indexOf('ver:') !== 0) out.push({ id:v.id, t:v.t, reason:v.reason, size:v.size, spaces:v.spaces }); c.continue(); } else cb(out.sort(function(a, b){ return b.t - a.t; })); };
       rq.onerror = function(){ cb([]); };
     } catch(e){ cb([]); }
   }

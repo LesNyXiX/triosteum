@@ -108,7 +108,7 @@
     if(!isDocs()) p.appendChild(section('Язык программирования', lg));
 
     var sws = h('div', { 'class':'swatches' });
-    var langC = COLORS[n.lang];
+    var langC = colorsOf({ lang:n.lang });   // и для блоков другой среды (документ на кодовой доске)
     sws.appendChild(h('button', { type:'button', 'class':'swb lang' + (!n.colors ? ' on' : ''), title:'Цвета языка', 'aria-label':'Цвета языка',
       style:'background:' + grad(langC), on:{ click:function(){ n.colors = null; refreshNode(n); renderPop(); } } }));
     PALETTES.forEach(function(pc){

@@ -1,0 +1,13 @@
+const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
+const source=fs.readFileSync(path.join(__dirname,'../src/app/workspace/versions.js'),'utf8');
+const api=new Function(source.slice(0,source.indexOf('  function verClose'))+'\nreturn {verLineDiff,verOldIds,verDiff};')();
+assert.deepEqual(api.verLineDiff('a\nb\nc','a\nx\nc'),[{type:'same',text:'a'},{type:'del',text:'b'},{type:'add',text:'x'},{type:'same',text:'c'}]);
+assert.equal(api.verLineDiff('a\n'.repeat(3000),'b')[0].type,'info');
+const list=Array.from({length:50},(_,i)=>({id:'m'+i,t:i,auto:false}));list.push({id:'new',t:99,auto:true});
+assert.deepEqual(api.verOldIds(list,'new'),['m0']);
+list.push({id:'old-auto',t:1,auto:true});assert.deepEqual(api.verOldIds(list,'new'),['old-auto','m0']);
+const graph={nodes:[{id:'a',name:'A',codes:{cpp:'old'},x:0}],edges:[{id:'e',from:'a',to:'a'}],notes:[]};
+const next=JSON.parse(JSON.stringify(graph));next.nodes[0].name='B';next.nodes[0].codes.cpp='new';next.edges=[];
+const changes=api.verDiff(graph,next);assert(changes.some(c=>/Переименован/.test(c.text)));assert(changes.some(c=>c.lines?.some(l=>l.type==='add'&&l.text==='new')));assert(changes.some(c=>/Удалена связь/.test(c.text)));
+assert.equal(api.verDiff(graph,graph).length,0);
+console.log('Версии: LCS, ограничение больших файлов, сохранение нового снимка и сравнение графов — прошли');

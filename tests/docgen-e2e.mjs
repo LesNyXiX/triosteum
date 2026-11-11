@@ -1,0 +1,42 @@
+import {chromium} from 'playwright';
+import {createServer} from 'node:http';
+import {readFileSync} from 'node:fs';
+const html=readFileSync(new URL('../docs/index.html',import.meta.url));
+const srv=createServer((q,r)=>{r.writeHead(200,{'content-type':'text/html; charset=utf-8'});r.end(html);});await new Promise(ok=>srv.listen(0,'127.0.0.1',ok));
+const browser=await chromium.launch();let failed=0;const check=(ok,name)=>{console.log((ok?'  ✓ ':'  ✗ ')+name);if(!ok)failed++;};
+try{
+  const ctx=await browser.newContext({viewport:{width:1400,height:900}});
+  await ctx.addInitScript(()=>{
+    if(window.top!==window)return;
+    const node=(id,name,x)=>({id,name,kind:'block',lang:'cpp',x,y:180,desc:'Описание '+name,codes:{cpp:'int run(){ return 1; }'}});
+    const g={nodes:[node('c','Финиш',760),node('b','Расчёт',430),node('a','Источник <img src=x onerror=alert(1)>',100)],edges:[{id:'e1',from:'a',to:'b',taps:[]},{id:'e2',from:'b',to:'c',taps:[]}],notes:[{id:'t1',text:'Примечание',attach:'b',x:430,y:200}],seq:10,cam:{x:0,y:0,k:1}};
+    localStorage.setItem('triosteum.projects',JSON.stringify({cur:'p1',list:[{id:'p1',name:'Схема отчёта',env:'code',t:Date.now()}]}));localStorage.setItem('triosteum.proj.p1',JSON.stringify(g));localStorage.setItem('triosteum.profile','{"name":"Автор","org":"Тест"}');localStorage.setItem('triosteum.tour','{"done":true}');
+  });
+  const page=await ctx.newPage(),errors=[];page.on('pageerror',e=>{if(!/sandboxed/.test(e.message))errors.push(e.message);});await page.goto('http://127.0.0.1:'+srv.address().port);await page.locator('.node').first().waitFor();
+  await page.locator('#topRun').click();await page.waitForFunction(()=>document.querySelector('#runSum').textContent.includes('успешно: 3'));
+  await page.locator('#runClose').click();
+  await page.keyboard.press('Control+k');await page.locator('#cmdQ').fill('Описание схемы');await page.keyboard.press('Enter');
+  const dialog=page.getByRole('dialog',{name:'Описание схемы'});await dialog.waitFor();const preview=page.frameLocator('iframe[title="Предпросмотр описания схемы"]');await preview.locator('.dg-block').first().waitFor();
+  check(await preview.locator('.dg-block').count()===3,'документ содержит три блока');
+  check((await preview.locator('.dg-block h3').allTextContents()).join('|').match(/Источник.*Расчёт.*Финиш/),'блоки идут в порядке исполнения, а не массива');
+  check(await preview.locator('tbody tr').count()===2,'в таблице две связи');check(await preview.locator('svg rect').count()===3,'SVG содержит три прямоугольника');
+  check(await preview.locator('img,script').count()===0,'название блока экранировано и не превращается в HTML');
+  check((await preview.locator('body').innerText()).includes('Автор: Автор')&&(await preview.locator('body').innerText()).includes('Примечание'),'профиль и заметка включены');
+  check((await preview.locator('.dg-block').first().innerText()).includes('Последний запуск: успешно'),'статус последнего запуска включён');
+  check(!(await page.getByRole('button',{name:'Дописать пояснения ИИ'}).isVisible()),'без подключения ИИ документ работает автономно');
+  const readDownload=async(name)=>{const [dl]=await Promise.all([page.waitForEvent('download'),page.getByRole('button',{name,exact:true}).click()]);const s=await dl.createReadStream();let text='';for await(const part of s)text+=part;return text;};
+  const h=await readDownload('Скачать HTML'),md=await readDownload('Скачать Markdown');
+  check(h.includes('<style>')&&h.includes('<svg')&&!h.includes('<script'),'HTML самодостаточен и не содержит сценариев');
+  check(md.includes('## Поток данных')&&md.includes('### 1.')&&md.includes('int run()'),'Markdown содержит поток и код');
+  await preview.locator('body').evaluate(()=>{window.print=()=>{document.body.dataset.printed='yes';};});await page.getByRole('button',{name:'Печать / PDF',exact:true}).click();
+  check(await preview.locator('body').getAttribute('data-printed')==='yes'&&await preview.locator('details[open]').count()===3,'печать раскрывает код и вызывает диалог печати документа');
+  await page.getByRole('button',{name:'Скачать HTML'}).focus();await page.keyboard.press('Delete');await page.keyboard.press('ArrowDown');
+  check(await page.locator('.node').count()===3,'клавиши окна не удаляют блоки');
+  await page.setViewportSize({width:390,height:844});const b=await dialog.boundingBox();check(b.x>=0&&b.x+b.width<=391,'окно помещается на телефоне');
+  await page.keyboard.press('Escape');check(!(await dialog.isVisible()),'Escape закрывает окно');check(errors.length===0,'нет ошибок JavaScript: '+errors.join('; '));
+  const aiPage=await ctx.newPage();await aiPage.addInitScript(()=>{window.claude={use:async name=>name==='sample'?async()=>({text:'[{"id":"a","text":"Объяснение <img src=x onerror=alert(1)>"}]'}):null};});
+  await aiPage.goto('http://127.0.0.1:'+srv.address().port);await aiPage.locator('.node').first().waitFor();await aiPage.waitForTimeout(150);await aiPage.keyboard.press('Control+k');await aiPage.locator('#cmdQ').fill('Описание схемы');await aiPage.keyboard.press('Enter');await aiPage.getByRole('button',{name:'Дописать пояснения ИИ',exact:true}).click();
+  const aiPreview=aiPage.frameLocator('iframe[title="Предпросмотр описания схемы"]');await aiPreview.locator('.dg-ai').waitFor();
+  check((await aiPreview.locator('.dg-ai').innerText()).includes('Объяснение')&&await aiPreview.locator('img').count()===0,'подключённый ИИ добавляет пояснения безопасным текстом');await ctx.close();
+}finally{await browser.close();await new Promise(ok=>srv.close(ok));}
+console.log(failed?'Ошибок: '+failed:'Всё прошло');process.exitCode=failed?1:0;

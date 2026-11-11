@@ -482,6 +482,73 @@ def put_space(space_id: str, body: SpaceIn, request: Request, w: Who = Depends(n
     return JSONResponse({"rev": r["rev"], "updated_at": r["updated_at"].isoformat()}, status_code=201)
 
 
+class ScheduleClaim(BaseModel):
+    slot: int = Field(ge=0, le=2**62)
+    token: str = Field(default="", max_length=32, pattern=r"^[A-Za-z0-9_-]*$")
+
+
+class ScheduleDone(ScheduleClaim):
+    last: int | None = Field(default=None, ge=0, le=2**62)   # время запуска по часам клиента
+
+
+def _space_sched_last(c, org_id, space_id) -> int:
+    """schedule.last из сохранённого пространства: до какого времени сроки уже выполнены."""
+    v = c.execute(text("""SELECT content->'schedule'->'last' FROM spaces
+                          WHERE org_id = :o AND id = :id AND deleted_at IS NULL"""), {"o": org_id, "id": space_id}).scalar()
+    return int(v) if isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0 else 0
+
+
+@app.post("/api/spaces/{space_id}/schedule-claim")
+def schedule_claim(space_id: str, body: ScheduleClaim, w: Who = Depends(need_writer)):
+    """Захват срока запуска по расписанию: из всех открытых клиентов запускает только первый.
+
+    Срок захватывается, если он новее захваченного раньше и новее отметки schedule.last в сохранённом
+    пространстве (клиент мог открыть пространство из кеша со старой отметкой); захваты чаще раза
+    в 30 секунд отклоняются (у клиентов в разных часовых поясах один и тот же срок — разные числа).
+    Повтор того же срока с тем же token (метка вкладки) подтверждается: ответ мог потеряться в сети.
+    Тот же срок, захваченный больше 10 минут назад, можно захватить заново, только если о его запуске
+    так и не пришла отметка (schedule-done): вкладка закрылась раньше — иначе расписание остановилось бы.
+    При отказе возвращается последний захваченный срок, выполнен ли он и время последнего запуска (last):
+    клиент с устаревшим пространством сдвигает по нему свою отметку и не просит прошедшие сроки."""
+    check_id(space_id)
+    with tx(w.org_id) as c:
+        space_last = _space_sched_last(c, w.org_id, space_id)
+        r = None
+        if body.slot > space_last:
+            r = c.execute(text("""INSERT INTO schedule_claims (org_id, space_id, slot, claimed_by, token) VALUES (:o, :id, :slot, :u, :t)
+                                  ON CONFLICT (org_id, space_id) DO UPDATE
+                                    SET slot = EXCLUDED.slot, claimed_by = EXCLUDED.claimed_by, token = EXCLUDED.token,
+                                        claimed_at = CASE WHEN schedule_claims.slot = EXCLUDED.slot AND schedule_claims.token = EXCLUDED.token
+                                                          THEN schedule_claims.claimed_at ELSE now() END,
+                                        done_at = CASE WHEN schedule_claims.slot = EXCLUDED.slot THEN schedule_claims.done_at END,
+                                        last_run = CASE WHEN schedule_claims.slot = EXCLUDED.slot THEN schedule_claims.last_run END
+                                    WHERE (schedule_claims.slot < EXCLUDED.slot
+                                           AND schedule_claims.claimed_at < now() - interval '30 seconds')
+                                       OR (schedule_claims.slot = EXCLUDED.slot AND schedule_claims.done_at IS NULL
+                                           AND ((EXCLUDED.token <> '' AND schedule_claims.token = EXCLUDED.token)
+                                                OR schedule_claims.claimed_at < now() - interval '10 minutes'))
+                                  RETURNING slot"""),
+                          {"o": w.org_id, "id": space_id, "slot": body.slot, "u": w.user_id, "t": body.token}).first()
+        if r is not None:
+            return {"ok": True}
+        cur = c.execute(text("SELECT slot, done_at IS NOT NULL, last_run FROM schedule_claims WHERE org_id = :o AND space_id = :id"),
+                        {"o": w.org_id, "id": space_id}).first()
+    last = max(space_last, (cur[2] or 0) if cur else 0)
+    return {"ok": False, "slot": cur[0] if cur else None, "done": bool(cur and cur[1]), "last": last or None}
+
+
+@app.post("/api/spaces/{space_id}/schedule-done")
+def schedule_done(space_id: str, body: ScheduleDone, w: Who = Depends(need_writer)):
+    """Отметка «срок запущен» от вкладки, которая его захватила: после неё срок заново не выдаётся.
+    Повтор отметки (ответ потерялся) безопасен: время первой отметки не меняется."""
+    check_id(space_id)
+    with tx(w.org_id) as c:
+        n = c.execute(text("""UPDATE schedule_claims SET done_at = coalesce(done_at, now()), last_run = coalesce(last_run, :last)
+                              WHERE org_id = :o AND space_id = :id AND slot = :slot AND token = :t AND :t <> ''"""),
+                      {"o": w.org_id, "id": space_id, "slot": body.slot, "t": body.token, "last": body.last}).rowcount
+    return {"ok": bool(n)}
+
+
 @app.patch("/api/spaces/{space_id}")
 def patch_space(space_id: str, body: SpacePatch, w: Who = Depends(need_writer)):
     check_id(space_id)
@@ -857,6 +924,8 @@ class RunIn(BaseModel):
     code: str = Field(max_length=500_000)
     input: Any = None
     mode: str = Field(default="block", pattern="^(block|script)$")
+    vars: dict[str, Any] | None = None       # переменные пространства для triosteum.var()
+    secrets: dict[str, str] | None = None    # секреты, названные в коде, для triosteum.secret()
 
 
 def _run_local(job: dict) -> dict:
@@ -865,7 +934,7 @@ def _run_local(job: dict) -> dict:
     if runner_dir not in _sys.path:
         _sys.path.insert(0, runner_dir)
     import sandbox  # type: ignore
-    return sandbox.run(job["code"], job["input"], job["mode"])
+    return sandbox.run(job["code"], job["input"], job["mode"], job.get("vars"), job.get("secrets"))
 
 
 @app.post("/api/run/python")
@@ -878,7 +947,9 @@ def run_python(body: RunIn, w: Who = Depends(need)):
         raise HTTPException(429, "Слишком много запусков — подождите минуту")
     if len(json.dumps(body.input, ensure_ascii=False, default=str)) > 1_000_000:
         raise HTTPException(413, "Входные данные слишком большие")
-    job = {"code": body.code, "input": body.input, "mode": body.mode}
+    if len(json.dumps([body.vars, body.secrets], ensure_ascii=False, default=str)) > 200_000:
+        raise HTTPException(413, "Слишком много переменных")
+    job = {"code": body.code, "input": body.input, "mode": body.mode, "vars": body.vars or {}, "secrets": body.secrets or {}}
     if RUNNER_URL:
         try:
             r = httpx.post(RUNNER_URL + "/run", json=job, headers={"X-Runner-Token": RUNNER_TOKEN}, timeout=90)
