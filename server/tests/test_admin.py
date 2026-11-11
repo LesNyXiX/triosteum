@@ -196,3 +196,31 @@ def test_undo_restores_actual_previous_state(client, boss):
     assert boss.post(f"/api/admin/users/{uid}/disable").status_code == 200
     assert boss.post(f"/api/admin/actions/{last_action(boss)['id']}/undo").status_code == 200
     assert new_client(client).post("/api/auth/login", json={"email": email, "password": "password123"}).status_code == 401
+
+
+def test_restore_point_brings_back_purged_org(client, boss, admin):
+    """Организацию удалили навсегда после точки: восстановление возвращает её вместе с оставшимся участником и пространствами."""
+    a = new_client(client)
+    register(a, org="Цех Навсегда", name="Аня")
+    me = a.get("/api/me").json()
+    org, a_id = me["org"]["id"], me["user"]["id"]
+    assert a.put("/api/spaces/pg1", json={"name": "Линия", "content": {"k": 7}, "base_rev": 0}).status_code == 201
+    inv = boss.post("/api/admin/invites", json={"kind": "member", "org_id": org, "role": "editor"})
+    b_mail = mail()
+    b = new_client(client)
+    j = b.post("/api/auth/join", json={"token": inv.json()["path"].split("t=", 1)[1], "email": b_mail,
+                                        "password": "password123", "name": "Боря", "pd_consent": True})
+    assert j.status_code == 200, j.text
+    b_id = b.get("/api/me").json()["user"]["id"]
+    p = boss.post("/api/admin/points", json={"label": "С цехом"}).json()
+    # после точки: Борю убрали из организации, Аню удалили навсегда — организация ушла вместе с ней
+    admin.execute("DELETE FROM memberships WHERE org_id = %s AND user_id = %s", (org, b_id))
+    assert boss.delete(f"/api/admin/users/{a_id}").status_code == 200
+    assert boss.delete(f"/api/admin/users/{a_id}/purge").json()["orgs_removed"] == 1
+    r = boss.post(f"/api/admin/points/{p['id']}/restore")
+    assert r.status_code == 200, r.text
+    b2 = new_client(client)
+    assert b2.post("/api/auth/login", json={"email": b_mail, "password": "password123"}).status_code == 200
+    me_b = b2.get("/api/me").json()
+    assert me_b["org"]["id"] == org and me_b["org"]["name"] == "Цех Навсегда"
+    assert b2.get("/api/spaces/pg1").json()["content"] == {"k": 7}

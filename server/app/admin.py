@@ -218,7 +218,8 @@ def _snapshot_data() -> tuple[dict, dict]:
                  for r in c.execute(text("SELECT id, disabled, deleted_at, is_admin FROM users")).mappings()]
         mem = [{"org": str(r["org_id"]), "user": str(r["user_id"]), "role": r["role"]}
                for r in c.execute(text("SELECT org_id, user_id, role FROM memberships")).mappings()]
-        orgs = [{"id": str(o["id"]), "name": o["name"]} for o in _orgs(c)]
+        orgs = [{"id": str(r["id"]), "name": r["name"], "inn": r["inn"], "plan": r["plan"], "ai_budget_tokens": r["ai_budget_tokens"]}
+                for r in c.execute(text("SELECT id, name, inn, plan, ai_budget_tokens FROM organizations ORDER BY created_at")).mappings()]
         # действующие значения всех настроек, в том числе ещё не менявшихся (значения по умолчанию)
         settings = {**INST_DEFAULTS, **{k: v for k, v in c.execute(text("SELECT key, value FROM instance_settings")).all()}}
     spaces, size = [], 0
@@ -252,7 +253,8 @@ def _make_point(w: Who, label: str, note: str | None, kind: str) -> int:
 def _apply_point(w: Who, data: dict, label: str) -> None:
     """Вернуть сервер к точке: настройки, пользователи, участники, пространства. Себя администратор не отключает."""
     snap_users = {u["id"]: u for u in data.get("users", [])}
-    snap_orgs = {o["id"] for o in data.get("orgs", [])}
+    org_info = {o["id"]: o for o in data.get("orgs", [])}
+    snap_orgs = set(org_info)
     mem_by_org: dict[str, dict[str, str]] = {}
     for m in data.get("memberships", []):
         mem_by_org.setdefault(m["org"], {})[m["user"]] = m["role"]
@@ -279,7 +281,19 @@ def _apply_point(w: Who, data: dict, label: str) -> None:
                       {"d": su["disabled"], "x": su["deleted_at"], "a": su["is_admin"], "u": uid})
             if su["disabled"] or su["deleted_at"]:
                 kicked.add(uid)
-        for oid in snap_orgs:
+        live_now = {str(r[0]) for r in c.execute(text("SELECT id FROM organizations")).all()}
+        for oid in snap_orgs - live_now:
+            # организацию удалили навсегда после точки: возвращаем её, если остался кто-то из её участников
+            # (иначе вернуть её некому — пропускаем, а не падаем на внешнем ключе)
+            if not any(uid in existing for uid in mem_by_org.get(oid, {})):
+                continue
+            o = org_info[oid]
+            c.execute(text("""INSERT INTO organizations (id, name, inn, plan, ai_budget_tokens)
+                              VALUES (CAST(:o AS uuid), :n, :i, coalesce(:p, 'trial'), coalesce(:b, 2000000))"""),
+                      {"o": oid, "n": o.get("name") or "Организация", "i": o.get("inn"), "p": o.get("plan"),
+                       "b": o.get("ai_budget_tokens")})
+            live_now.add(oid)
+        for oid in snap_orgs & live_now:
             want = mem_by_org.get(oid, {})
             cur = {str(r[0]): r[1] for r in c.execute(text("SELECT user_id, role FROM memberships WHERE org_id = CAST(:o AS uuid)"),
                                                      {"o": oid}).all()}
