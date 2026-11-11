@@ -50,7 +50,7 @@
       d.classList.toggle('n-off', !!n.off);
       d.classList.toggle('n-pin', !!n.pin);
       var marks = [];
-      if(n.off) marks.push(['off', '⏸', 'Блок выключен: при запуске пропускается']);
+      if(n.off) marks.push(['off', 'выкл', 'Блок выключен: при запуске пропускается']);
       if(n.pin) marks.push(['pin', '📌', 'Результат закреплён' + (n.pin.t ? ' ' + new Date(n.pin.t).toLocaleString('ru-RU') : '') + ': блок не выполняется']);
       if(n.retry) marks.push(['retry', '↻' + n.retry, 'Повторять при ошибке: ' + n.retry]);
       if(n.cont) marks.push(['cont', '⤳', 'Продолжать схему при ошибке']);
