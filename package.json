@@ -31,6 +31,7 @@
     "test:arc": "node tests/arc-ai-e2e.mjs",
     "test:groups": "node tests/groups-e2e.mjs",
     "test:runhist": "node tests/run-history-e2e.mjs",
+    "test:dataflow": "node tests/data-flow-e2e.mjs",
     "test:whatsnew": "node tests/whats-new-e2e.mjs"
   },
   "devDependencies": {
