@@ -6,7 +6,9 @@
   }
   function pluginCodeFor(p, lang){
     if(p.my) return p.codes[lang] !== undefined ? p.codes[lang] : (lang === p.lang ? tplFor(lang, p.name) : null);
-    return p.lang === lang ? p.code : null;
+    if(p.lang !== lang) return null;
+    if(p.org && (p.code === null || p.code === undefined)) return tplFor(lang, p.name);
+    return p.code;
   }
   function hubTpl(lang, name){
     if(lang === 'python') return '# Связующая точка Triosteum: ' + name + '\n' +
@@ -29,6 +31,7 @@
   function nodeOriginal(n, lang){
     lang = lang || n.lang;
     if(n.kind === 'hub' && !n.pluginId) return hubTpl(lang, n.name);
+    if(n.orig && n.orig[lang] !== undefined && n.orig[lang] !== null) return n.orig[lang];
     var v = n.family && VARIANTS[n.family] && VARIANTS[n.family][lang];
     if(v) return v;
     var p = n.pluginId && pluginById(n.pluginId);
@@ -60,7 +63,7 @@
     var n = docNode(), p = docPlugin();
     if(n) return nodeCode(n);
     if(p && p.my) return pluginCodeFor(p, p.lang);
-    if(p) return S.codes['p:' + p.id] !== undefined ? S.codes['p:' + p.id] : p.code;
+    if(p) return S.codes['p:' + p.id] !== undefined ? S.codes['p:' + p.id] : (p.org ? pluginCodeFor(p, p.lang) : p.code);
     return cur().tpl;
   }
   var saveCodeTimer = null;

@@ -97,7 +97,7 @@
     if(!AI.api || ARC.busy) return;
     if(!q){ toast('Опишите задачу для ИИ'); return; }
     ARC.busy = true; ARC.chars = 0; ARC.res = null; ARC.err = null; renderArc();
-    var catalog = arcCatalog(PLUGINS.concat(myVis()), q).map(function(p){ return '- ' + p.id + ' | ' + langById(p.lang).name + ' | ' + p.name + ' — ' + (p.desc || ''); }).join('\n');
+    var catalog = arcCatalog(PLUGINS.concat(myVis(), orgVis()), q).map(function(p){ return '- ' + p.id + ' | ' + langById(p.lang).name + ' | ' + p.name + ' — ' + (p.desc || ''); }).join('\n');
     var fmts = LANGS.map(function(l){ return '#### ' + l.name + ' (lang="' + l.id + '")\n' + FENCE + langTag(l.id) + '\n' + l.tpl.replace(/\s+$/, '') + '\n' + FENCE; }).join('\n');
     var ctxBoard = !ARC.fresh && G.nodes.length ? 'На доске уже есть блоки (новые ставятся рядом, связывать с ними нельзя): ' + G.nodes.map(function(n){ return n.name; }).join(', ') : '';
     ARC.xhits = xFind(q);
@@ -288,7 +288,7 @@
         var np = { id:'my-' + Date.now().toString(36) + i, my:true, name:bk.name, lang:bk.lang, desc:bk.desc, family:null, codes:{}, ai:true };
         np.codes[bk.lang] = bk.code; MY.unshift(np); pid = np.id; nNew++;
       } else { var p = pluginById(pid); fam = p && p.family || null; }
-      var n = { id:newId('n'), name:bk.name, lang:bk.lang, x:0, y:0, codes:{}, pluginId:pid, family:fam, desc:desc, colors:null };
+      var n = orgSnapshot({ id:newId('n'), name:bk.name, lang:bk.lang, x:0, y:0, codes:{}, pluginId:pid, family:fam, desc:desc, colors:null }, pluginById(pid));
       G.nodes.push(n); map[bk.key] = n.id; made.push(n);
     });
     r.links.forEach(function(l){

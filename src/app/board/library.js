@@ -32,7 +32,7 @@
   function libIco(c, sz){ return '<svg viewBox="0 0 24 24" width="' + (sz || 16) + '" height="' + (sz || 16) + '" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + c.ic + '</svg>'; }
   if(!S.libCat) S.libCat = 'all';
   if(!S.libLang) S.libLang = 'all';
-  function libAll(){ return myVis().concat(PLUGINS); }
+  function libAll(){ return myVis().concat(orgVis(), PLUGINS); }
   function libMatch(p, q){ return !q || (p.name + ' ' + (p.desc || '') + ' ' + libCatName(p) + ' ' + ((langById(p.lang) || {}).name || '')).toLowerCase().indexOf(q) >= 0; }
   function libLangOk(p){ return S.libLang === 'all' || p.lang === S.libLang; }
   // слева — разделы с количеством, сверху — языки
@@ -44,6 +44,7 @@
     var mine = base.filter(function(p){ return p.my && libLangOk(p); }).length;
     var rows = [{ id:'all', name:'Все разделы', n:base.filter(libLangOk).length, color:'var(--red)', ic:'<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>' }];
     if(myVis().length) rows.push({ id:'my', name:'Мои', n:mine, color:'var(--red)', ic:'<path d="M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.4 6.7 19.4l1.2-6L3.4 9.3l6-.7z"/>' });
+    if(orgVis().length) rows.push({ id:'org', name:'Компания', n:base.filter(function(p){ return p.org && libLangOk(p); }).length, color:'#0D9488', ic:'<path d="M3 21V8l6-4v17M9 21V10l6-3v14M15 21V12l6-3v12M3 21h18"/>' });
     LIB_CATS.forEach(function(c){ var n = base.filter(function(p){ return libLangOk(p) && libCatOf(p) === c.id; }).length; if(n) rows.push({ id:c.id, name:c.name, n:n, color:c.color, ic:c.ic }); });
     if(S.libCat !== 'all' && !rows.some(function(r){ return r.id === S.libCat; })) S.libCat = 'all';
     rows.forEach(function(r){
@@ -72,6 +73,7 @@
     card.querySelector('.pc-ic').title = cat.name;
     var h3 = card.querySelector('h3'); h3.textContent = p.name;
     if(p.my){ var m = document.createElement('span'); m.className = 'mine'; m.textContent = 'мой'; h3.appendChild(m); }
+    if(p.org){ var mo = document.createElement('span'); mo.className = 'mine org-mine'; mo.textContent = 'компании'; mo.title = 'Из библиотеки компании' + (p.byName ? ' · поделился ' + p.byName : ''); h3.appendChild(mo); }
     var badge = card.querySelector('.lbadge');
     badge.textContent = shortName(l); badge.style.borderColor = c[0];
     card.querySelector('p').textContent = p.desc || 'Ваш плагин';
@@ -85,15 +87,16 @@
     code.setAttribute('aria-label', ENV.word.libOpen + ' «' + p.name + '»');
     open.addEventListener('click', function(){ openOnBoard(p.id); });
     code.addEventListener('click', function(){ openPlugin(p.id); });
+    var ob = orgCardButton(p); if(ob) card.querySelector('.pf > span:last-child').insertBefore(ob, code);
     return card;
   }
   function renderList(){
     if(el.lib.hidden){ LIB_DIRTY = true; return; }
     var q = S.q.trim().toLowerCase();
-    var items = libAll().filter(function(p){ return libLangOk(p) && libMatch(p, q) && (S.libCat === 'all' || (S.libCat === 'my' ? p.my : libCatOf(p) === S.libCat)); });
+    var items = libAll().filter(function(p){ return libLangOk(p) && libMatch(p, q) && (S.libCat === 'all' || (S.libCat === 'my' ? p.my : S.libCat === 'org' ? p.org : libCatOf(p) === S.libCat)); });
     el.plist.innerHTML = '';
     var head = $('libHint');
-    if(head) head.textContent = S.libCat === 'all' ? (q ? 'Найдено: ' + items.length : 'Всего: ' + items.length + ' · выберите раздел слева') : (S.libCat === 'my' ? 'Мои' : libCat(S.libCat).name) + ' · ' + items.length;
+    if(head) head.textContent = S.libCat === 'all' ? (q ? 'Найдено: ' + items.length : 'Всего: ' + items.length + ' · выберите раздел слева') : (S.libCat === 'my' ? 'Мои' : S.libCat === 'org' ? 'Библиотека компании' : libCat(S.libCat).name) + ' · ' + items.length;
     if(!items.length){
       el.plist.appendChild(h('div', { 'class':'empty', text:'Ничего не найдено. Попробуйте другое слово, другой раздел или создайте свой плагин.' }));
       return;
@@ -145,3 +148,50 @@
     });
     libEl.addEventListener('keydown', function(e){ if(e.key === 'Escape'){ S.lib = false; render(); el.bLib.focus(); } });
   })();
+
+  /* ---------- библиотека компании: поделиться своим плагином с сотрудниками и убрать его ---------- */
+  function orgCanShare(){ return !!(SERVER && (SERVER.role === 'owner' || SERVER.role === 'editor')); }
+  function orgMine(p){ return !!(SERVER && SERVER.user && (p.by === SERVER.user.id || SERVER.role === 'owner')); }
+  function orgShared(p){ return ORG.filter(function(o){ return o.src === p.id && SERVER.user && o.by === SERVER.user.id; })[0] || null; }
+  function orgCardButton(p){
+    if(!orgCanShare()) return null;
+    if(p.my){
+      var was = orgShared(p);
+      var b = h('button', { type:'button', 'class':'btn sm org-share', text:was ? 'Обновить в компании' : 'В компанию',
+        title:was ? 'Заменить плагин в библиотеке компании этой версией' : 'Поделиться с компанией: плагин появится в библиотеке у всех сотрудников организации' });
+      b.addEventListener('click', function(){ orgShare(p, b); });
+      return b;
+    }
+    if(p.org && orgMine(p)){
+      var rm = h('button', { type:'button', 'class':'btn sm ghost org-remove', text:'Убрать', title:'Убрать из библиотеки компании' });
+      var armed = 0;
+      rm.addEventListener('click', function(){
+        if(Date.now() - armed > 4000){ armed = Date.now(); rm.textContent = 'Точно?'; toast('Нажмите ещё раз: «' + p.name + '» пропадёт из библиотеки у всех сотрудников'); return; }
+        rm.disabled = true;
+        SERVER.api('DELETE', '/org/items/' + p.orgItem).then(function(r){
+          rm.disabled = false;
+          if(r.status !== 200){ toast((r.data && r.data.detail) || 'Не получилось убрать'); return; }
+          ORG = ORG.filter(function(o){ return o.orgItem !== p.orgItem; });
+          toast('«' + p.name + '» убран из библиотеки компании'); renderChips(); renderList();
+        });
+      });
+      return rm;
+    }
+    return null;
+  }
+  function orgShare(p, btn){
+    if(btn) btn.disabled = true;
+    var data = JSON.parse(JSON.stringify(p)); data.codes = data.codes || {};
+    if(data.codes[p.lang] === undefined) data.codes[p.lang] = pluginCodeFor(p, p.lang);
+    SERVER.api('POST', '/org/items', { kind:'plugin', src:p.id, data:data }).then(function(r){
+      if(btn) btn.disabled = false;
+      if(r.status !== 201){ toast((r.data && r.data.detail) || 'Не получилось поделиться'); return; }
+      orgRefresh().then(function(){ toast('«' + p.name + '» теперь в библиотеке компании — его видят все сотрудники организации'); });
+    });
+  }
+  // при каждом открытии библиотеки подтягиваем свежую библиотеку компании: коллеги могли чем-то поделиться
+  function orgRefresh(){
+    if(!SERVER) return Promise.resolve();
+    return SERVER.api('GET', '/org/items?kind=plugin').then(function(r){ if(r.status === 200){ orgFromItems(r.data.items); renderChips(); renderList(); } }, function(){});
+  }
+  if(SERVER) new MutationObserver(function(){ if(!el.lib.hidden) orgRefresh(); }).observe(el.lib, { attributes:true, attributeFilter:['hidden'] });

@@ -10,6 +10,7 @@
     "test": "node tests/merge.test.cjs && node tests/formulas.test.cjs && node tests/foreign.test.cjs && node tests/lang-corpus.test.cjs && node tests/highlight.test.cjs && node tests/plugins.test.cjs && node tests/vars-server.test.cjs && node tests/smoke.mjs",
     "serve:mock": "node tests/mock-server.mjs",
     "test:admin": "node tests/admin-e2e.mjs",
+    "test:orglib": "node tests/orglib-e2e.mjs",
     "test:server": "node tests/server-e2e.mjs",
     "test:envs": "node tests/envs-e2e.mjs",
     "test:office": "node tests/office-map-e2e.mjs",

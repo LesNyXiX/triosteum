@@ -84,7 +84,7 @@
       ofItems().forEach(function(f){ if(f.type !== 'folder') rows.push({ sec:'files', label:f.name, sub:FT[f.type].name, swatch:FT[f.type].color, act:function(){ ofOpen(f.id); }, k:filePreview(f) }); });
     }
     PROJ.list.forEach(function(p){ if(p.id !== PROJ.cur) rows.push({ sec:'spaces', label:p.name, sub:ENVS[p.env || 'code'].name, icon:'folder', act:function(){ switchProj(p.id); } }); });
-    if(q) PLUGINS.concat(myVis()).forEach(function(p){ var l = langById(p.lang); rows.push({ sec:'plugins', label:p.name, sub:libCatName(p) + ' · ' + (l ? shortName(l) : ''), d:p.desc, swatch:grad(COLORS[p.lang] || ['#888', '#666']), act:function(){ toCanvas(); openOnBoard(p.id); }, k:(p.desc || '') + ' ' + (p.family || '') }); });
+    if(q) PLUGINS.concat(myVis(), orgVis()).forEach(function(p){ var l = langById(p.lang); rows.push({ sec:'plugins', label:p.name, sub:libCatName(p) + ' · ' + (l ? shortName(l) : ''), d:p.desc, swatch:grad(COLORS[p.lang] || ['#888', '#666']), act:function(){ toCanvas(); openOnBoard(p.id); }, k:(p.desc || '') + ' ' + (p.family || '') }); });
     rows.forEach(function(r){ r.group = secName(r.sec); });
     if(!q){
       // недавние — наверху

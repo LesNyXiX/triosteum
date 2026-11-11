@@ -74,7 +74,7 @@
   nodeCode = function(n){ if(n && n.xref){ var c = xrefCode(n); if(c !== null && c !== undefined) return c; } return _xNodeCode(n); };
   function xMakeNode(it, x, y){
     var g = xSpaceGraph(it.sp), src = it.kind === 'node' ? (g.nodes || []).filter(function(z){ return z.id === it.id; })[0] : null;
-    var lang = it.lang || (src && src.lang), n = { id:newId('n'), name:it.name, lang:lang, x:Math.round(x), y:Math.round(y), codes:{}, pluginId:src ? src.pluginId || null : null, family:src ? src.family || null : null,
+    var lang = it.lang || (src && src.lang), n = { id:newId('n'), name:it.name, lang:lang, x:Math.round(x), y:Math.round(y), codes:{}, pluginId:src ? src.pluginId || null : null, orig:src && src.orig ? src.orig : undefined, family:src ? src.family || null : null,
       desc:'↗ из «' + it.spName + '» · ' + it.envName + (src && src.desc ? ' — ' + src.desc : ''), colors:src ? colorsOf(src) : (COLORS[lang] || foreignColors(lang) || null), env:it.env,
       xref:it.kind === 'file' ? { sp:it.sp, file:it.id, spName:it.spName, env:it.env } : { sp:it.sp, node:it.id, spName:it.spName, env:it.env } };
     if(src && src.w) n.w = src.w; if(src && src.h) n.h = src.h;
