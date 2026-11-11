@@ -52,6 +52,11 @@ await cmd('переключить на «Боевой»');
 check(await page.$eval('#topRun', (b) => b.classList.contains('prof-prod')), 'у кнопки запуска — метка «боевой»');
 log = await run();
 check(/Профиль переменных: «Боевой»/.test(log) && /✓ результат: 7\b/.test(log), 'в «Боевом» → 7');
+// редактор: вывод «Запустить код» (stdout и текст ошибки) тоже скрывает секрет
+await page.dblclick('#runErrs .rb-err-h:has-text("Падает")'); await page.waitForTimeout(600);
+await page.click('#runBtn'); await page.waitForTimeout(800);
+const edOut = await page.textContent('#out');
+check(/••••••/.test(edOut) && !/tok-secret-12345/.test(edOut), 'вывод редактора: секрет в тексте ошибки скрыт');
 console.log('Хранение');
 await page.reload(); await page.waitForTimeout(1000);
 check(await page.$eval('#topRun', (b) => b.classList.contains('prof-prod')), 'профиль и переменные — после перезагрузки на месте');
