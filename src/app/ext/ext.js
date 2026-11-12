@@ -454,7 +454,7 @@
   }
   function extOpenPanel(x){ return extStart(x).then(function(){ extPanel(x, true); }, function(err){ toast('«' + x.def.name + '»: ' + err.message); }); }
   function extCommands(){
-    var C = [ { sec:'ext', label:'Мастерская расширений', d:'Собрать своё расширение: команды, панель, код — и пробный запуск', icon:'edit', act:function(){ openWorkshop(); }, k:'мастерская расширение создать написать код ext' } ];
+    var C = [ { sec:'ext', label:'Мастерская компании', d:'Расширения, плагины и среды компании: новое расширение, история версий, откат, журнал', icon:'edit', act:function(){ openWorkshop(); }, k:'мастерская расширений расширение создать написать код история откат журнал доработки ext' } ];
     if(!SERVER) return C;
     C.push({ sec:'ext', label:'Расширения компании', d:'Включить или выключить расширения вашей организации', icon:'plug', act:openExtMgr, k:'расширения плагины компании ext' });
     EXT.list.filter(extOn).forEach(function(x){
@@ -478,7 +478,7 @@
     var back = h('div', { 'class':'cenv-back ext-back', role:'dialog', 'aria-modal':'true', 'aria-label':'Расширения компании' });
     var list = h('div', { 'class':'ext-list' });
     var close = h('button', { type:'button', 'class':'btn', text:'Закрыть' });
-    var shop = h('button', { type:'button', 'class':'btn ghost', text:'Мастерская расширений' });
+    var shop = h('button', { type:'button', 'class':'btn ghost', text:'Мастерская компании' });
     shop.addEventListener('click', function(){ shut(); openWorkshop(); });
     back.appendChild(h('div', { 'class':'cenv ext-mgr' }, [
       h('header', { 'class':'cenv-h' }, [ h('h2', { text:'Расширения компании' }),
@@ -534,7 +534,7 @@
     function draw(focusId){
       list.textContent = '';
       setTimeout(function(){ var f = focusId && list.querySelector('[data-ext="' + focusId + '"] .ext-acts button'); (f || close).focus(); }, 0);
-      if(!EXT.list.length){ list.appendChild(h('p', { 'class':'ext-empty', text:'В компании пока нет расширений. Собрать своё можно в мастерской расширений.' })); return; }
+      if(!EXT.list.length){ list.appendChild(h('p', { 'class':'ext-empty', text:'В компании пока нет расширений. Собрать своё можно в мастерской компании.' })); return; }
       EXT.list.forEach(function(x){ list.appendChild(card(x)); });
     }
     draw();

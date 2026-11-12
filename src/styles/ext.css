@@ -62,3 +62,19 @@
   .xw-log .l-error{color:var(--red-soft)}
   .xw-log .l-warn{color:#FBBF24}
   @media (max-width:760px){ .xw-body{grid-template-columns:1fr} .xw-side{border-right:0;border-bottom:1px solid var(--line)} .xw-back.with-pane{padding-right:12px} .xw-cmd{grid-template-columns:1fr 1fr auto} }
+  /* мастерская компании: доработки, история, журнал */
+  .xw-item.off span{opacity:.6;text-decoration:line-through}
+  .xw-journal-b{margin-top:12px;align-self:flex-start}
+  .xw-journal-b.on{border-color:var(--line2);background:var(--line)}
+  .xw-item-h{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+  .xw-item-h h3{margin:0;font-size:18px}
+  .xw-item-h .ext-state{margin-left:0}
+  .xw-hist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .xw-hist li{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:8px 12px;border-top:1px solid var(--line);font-size:13px}
+  .xw-hist li:first-child{border-top:0}
+  .xw-when{color:var(--dim);min-width:150px;font-variant-numeric:tabular-nums}
+  .xw-what{flex:1;min-width:180px}
+  .xw-what s{color:var(--dim)}
+  .xw-who{color:var(--muted)}
+  .xw-cur{font-size:12px;padding:2px 8px;border-radius:99px;border:1px solid color-mix(in srgb,#4ADE80 45%,transparent);color:#4ADE80}
+  .xw-main h3{margin:0}

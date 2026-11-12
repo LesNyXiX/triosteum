@@ -47,6 +47,19 @@
     [ /storage\.(get|set)\s*\(/, 'storage' ],
     [ /ui\.(openPanel|closePanel)\s*\(|document\.body/, 'panel' ]
   ];
+  var XW_KINDS = [ { id:'ext', many:'Расширения компании', one:'Расширение' }, { id:'plugin', many:'Плагины компании', one:'Плагин' }, { id:'env', many:'Среды компании', one:'Среда' } ];
+  var XW_ACT = { publish:'опубликовано', update:'обновлено', rollback:'возвращена прежняя версия', disable:'выключено для всех', enable:'включено для всех', remove:'убрано из компании' };
+  function xwWhen(t){ try { return new Date(t).toLocaleString('ru-RU', { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }); } catch(e){ return String(t || ''); } }
+  // управлять доработкой: расширением — владелец, плагином и средой — автор или владелец
+  function xwCanManage(it){
+    if(!SERVER || !SERVER.user || SERVER.role === 'viewer') return false;
+    if(it.kind === 'ext') return SERVER.role === 'owner';
+    return SERVER.role === 'owner' || it.by === SERVER.user.id;
+  }
+  function xwLoadItems(){
+    if(!SERVER) return Promise.resolve();
+    return SERVER.api('GET', '/org/items?all=1').then(function(r){ if(r.status === 200) XW.items = r.data.items; }, function(){});
+  }
   function xwNeeds(code){ return XW_USES.filter(function(u){ return u[0].test(code || ''); }).map(function(u){ return u[1]; }); }
   function xwCmdIds(code){
     var re = /triosteum\.command\(\s*['"]([a-z0-9_-]{1,30})['"]/g, m, out = [];
@@ -96,13 +109,13 @@
   function openWorkshop(startId){
     if($('xw')) return;
     xwScan();
-    var back = h('div', { id:'xw', 'class':'cenv-back xw-back', role:'dialog', 'aria-modal':'true', 'aria-label':'Мастерская расширений' });
-    var side = h('nav', { 'class':'xw-side', 'aria-label':'Черновики и расширения' });
+    var back = h('div', { id:'xw', 'class':'cenv-back xw-back', role:'dialog', 'aria-modal':'true', 'aria-label':'Мастерская компании' });
+    var side = h('nav', { 'class':'xw-side', 'aria-label':'Черновики и доработки компании' });
     var main = h('div', { 'class':'xw-main' });
     var closeB = h('button', { type:'button', 'class':'btn', text:'Закрыть' });
     back.appendChild(h('div', { 'class':'cenv xw' }, [
-      h('header', { 'class':'cenv-h' }, [ h('h2', { text:'Мастерская расширений' }),
-        h('p', { text:'Своя программа для вашей компании: команды в Ctrl+K и боковая панель. Пробуйте здесь же — в песочнице, как у сотрудников.' + (xwCanPublish() ? '' : ' Опубликовать в компанию может владелец организации.') }) ]),
+      h('header', { 'class':'cenv-h' }, [ h('h2', { text:'Мастерская компании' }),
+        h('p', { text:'Всё, что ваша компания достроила в Triosteum: расширения, плагины, свои среды — с историей версий, откатом и журналом. Новое расширение пробуйте здесь же, в песочнице, как у сотрудников.' + (xwCanPublish() ? '' : ' Опубликовать расширение в компанию может владелец организации.') }) ]),
       h('div', { 'class':'xw-body' }, [ side, main ]),
       h('footer', { 'class':'cenv-f' }, [ closeB ]) ]));
     function shut(){ xwStopRun(); back.remove(); document.body.classList.remove('xw-open'); document.removeEventListener('keydown', onEsc, true); }
@@ -126,26 +139,141 @@
         b.addEventListener('click', function(){ edit(d.id); });
         side.appendChild(b);
       });
-      var pub = EXT.list.filter(function(x){ return !XW.drafts[x.id]; });
-      if(pub.length){
-        side.appendChild(h('b', { 'class':'xw-sh', text:'В компании' }));
-        pub.forEach(function(x){
-          var b = h('button', { type:'button', 'class':'xw-item', 'data-pub':x.id }, [ h('span', { text:x.def.name }), h('small', { text:'версия ' + (x.def.ver || 1) }) ]);
-          b.title = xwCanPublish() ? 'Открыть для правки' : 'Открыть копию как черновик';
-          b.addEventListener('click', function(){
-            var d = JSON.parse(JSON.stringify(x.def)), own = xwCanPublish();
-            var nd = { id:own ? d.id : xwNewId(), name:own ? d.name : (d.name + ' (копия)').slice(0, 40), desc:d.desc || '', perms:d.perms || [], panel:d.panel || '',
-              commands:d.commands || [], code:d.code || '', at:Date.now() };
-            XW.drafts[nd.id] = nd; xwSaveDraft(nd); edit(nd.id);
+      // всё, что компания достроила: расширения, плагины, свои среды — с состоянием, историей и откатом
+      if(SERVER){
+        XW_KINDS.forEach(function(k){
+          var its = (XW.items || []).filter(function(it){ return it.kind === k.id; });
+          if(!its.length) return;
+          side.appendChild(h('b', { 'class':'xw-sh', text:k.many }));
+          its.forEach(function(it){
+            var b = h('button', { type:'button', 'class':'xw-item' + (XW.view === it.id ? ' on' : '') + (it.disabled ? ' off' : ''), 'aria-current':XW.view === it.id ? 'true' : 'false', 'data-item':it.id, 'data-kind':it.kind }, [
+              h('span', { text:it.name }), h('small', { text:it.disabled ? 'выключено для всех' : (it.kind === 'ext' ? 'версия ' + ((it.data && it.data.ver) || 1) : (it.by_name || '')) }) ]);
+            b.addEventListener('click', function(){ showItem(it.id); });
+            side.appendChild(b);
           });
-          side.appendChild(b);
         });
+        var jb = h('button', { type:'button', 'class':'btn sm xw-journal-b' + (XW.view === 'journal' ? ' on' : ''), text:'Журнал изменений' });
+        jb.addEventListener('click', showJournal);
+        side.appendChild(jb);
       }
+    }
+
+    function openExtDraft(it){
+      var d = JSON.parse(JSON.stringify(it.data)), own = xwCanPublish();
+      if(own && XW.drafts[d.id]){ edit(d.id); return; }
+      var nd = { id:own ? d.id : xwNewId(), name:own ? d.name : (d.name + ' (копия)').slice(0, 40), desc:d.desc || '', perms:d.perms || [], panel:d.panel || '',
+        commands:d.commands || [], code:d.code || '', at:Date.now() };
+      XW.drafts[nd.id] = nd; xwSaveDraft(nd); edit(nd.id);
+    }
+    // после изменения в мастерской — обновить то, чем пользуются сотрудники в этой вкладке
+    function afterChange(){
+      return Promise.all([ xwLoadItems(), extRefresh(), typeof orgRefresh === 'function' ? orgRefresh() : null, typeof cenvRefresh === 'function' ? cenvRefresh() : null ]);
+    }
+    function showItem(id){
+      xwStopRun();
+      var it = (XW.items || []).filter(function(x){ return x.id === id; })[0];
+      XW.cur = null; XW.view = id; drawSide(); main.textContent = '';
+      if(!it){ main.appendChild(h('p', { 'class':'xw-none', text:'Этого больше нет в компании.' })); return; }
+      var k = XW_KINDS.filter(function(x){ return x.id === it.kind; })[0], can = xwCanManage(it);
+      var err = h('p', { 'class':'cenv-err', role:'alert' });
+      main.appendChild(h('div', { 'class':'xw-item-h' }, [
+        h('h3', { text:it.name }),
+        h('span', { 'class':'ext-state' + (it.disabled ? ' ask' : ' on'), text:it.disabled ? 'выключено для всех' : 'работает у сотрудников' }) ]));
+      main.appendChild(h('p', { 'class':'ext-desc', text:k.one + (it.by_name ? ' · опубликовал ' + it.by_name : '') + ' · изменено ' + xwWhen(it.updated_at) }));
+      if(it.data && it.data.desc) main.appendChild(h('p', { 'class':'ext-desc', text:it.data.desc }));
+      var acts = h('div', { 'class':'ext-acts' });
+      if(it.kind === 'ext'){
+        var ed = h('button', { type:'button', 'class':'btn', text:xwCanPublish() ? 'Открыть в редакторе' : 'Открыть копию в редакторе' });
+        ed.addEventListener('click', function(){ openExtDraft(it); });
+        acts.appendChild(ed);
+      }
+      if(it.kind === 'env' && typeof ENVS !== 'undefined' && ENVS[it.src] && typeof openEnvBuilder === 'function' && cenvCanEdit(ENVS[it.src])){
+        var eb = h('button', { type:'button', 'class':'btn', text:'Настроить среду' });
+        eb.addEventListener('click', function(){ var e = ENVS[it.src]; shut(); openEnvBuilder(e); });
+        acts.appendChild(eb);
+      }
+      if(can && it.kind !== 'env'){
+        var tg = h('button', { type:'button', 'class':'btn', text:it.disabled ? 'Включить для всех' : 'Выключить для всех' });
+        tg.addEventListener('click', function(){
+          tg.disabled = true; err.textContent = '';
+          SERVER.api('PATCH', '/org/items/' + it.id, { disabled:!it.disabled }).then(function(r){
+            if(r.status !== 200){ tg.disabled = false; err.textContent = (r.data && r.data.detail) || 'Не получилось'; return; }
+            toast('«' + it.name + '» ' + (it.disabled ? 'снова работает у сотрудников' : 'выключено для всех'));
+            afterChange().then(function(){ showItem(it.id); var f = main.querySelector('.ext-acts button'); if(f) f.focus(); });
+          }, function(){ tg.disabled = false; err.textContent = 'Нет связи с сервером'; });
+        });
+        acts.appendChild(tg);
+      }
+      if(can){
+        var rm = h('button', { type:'button', 'class':'btn danger', text:'Убрать из компании' }), armed = 0;
+        rm.addEventListener('click', function(){
+          if(Date.now() - armed > 4000){ armed = Date.now(); rm.textContent = 'Точно убрать у всех?'; return; }
+          rm.disabled = true; err.textContent = '';
+          SERVER.api('DELETE', '/org/items/' + it.id).then(function(r){
+            rm.disabled = false;
+            if(r.status !== 200){ err.textContent = (r.data && r.data.detail) || 'Не получилось убрать'; return; }
+            toast('«' + it.name + '» убрано из компании');
+            XW.view = null;
+            afterChange().then(function(){ drawSide(); main.textContent = ''; main.appendChild(h('p', { 'class':'xw-none', text:'«' + it.name + '» убрано из компании. Запись осталась в журнале изменений.' })); var f = side.querySelector('button'); if(f) f.focus(); });
+          }, function(){ rm.disabled = false; err.textContent = 'Нет связи с сервером'; });
+        });
+        acts.appendChild(rm);
+      }
+      if(acts.childNodes.length) main.appendChild(acts);
+      main.appendChild(err);
+      main.appendChild(h('div', { 'class':'cenv-l', text:'История версий' }));
+      var hist = h('ol', { 'class':'xw-hist', 'aria-label':'История версий «' + it.name + '»' }, [ h('li', { 'class':'xw-none', text:'загружаю…' }) ]);
+      main.appendChild(hist);
+      SERVER.api('GET', '/org/items/' + it.id + '/versions').then(function(r){
+        hist.textContent = '';
+        if(r.status !== 200){ hist.appendChild(h('li', { 'class':'xw-none', text:(r.data && r.data.detail) || 'Не получилось загрузить историю' })); return; }
+        r.data.versions.forEach(function(v){
+          var row = h('li', { 'data-version':v.id }, [
+            h('span', { 'class':'xw-when', text:xwWhen(v.at) }),
+            h('span', { 'class':'xw-what', text:(XW_ACT[v.action] || v.action) + (v.ver ? ' · версия ' + v.ver : '') + (v.name !== it.name ? ' · «' + v.name + '»' : '') }),
+            h('span', { 'class':'xw-who', text:v.by_name || '' }) ]);
+          if(v.current) row.appendChild(h('span', { 'class':'xw-cur', text:'сейчас' }));
+          else if(v.can_restore && can){
+            var back = h('button', { type:'button', 'class':'btn sm', text:'Вернуть эту версию' }), at = 0;
+            back.addEventListener('click', function(){
+              if(Date.now() - at > 4000){ at = Date.now(); back.textContent = 'Точно вернуть?'; return; }
+              back.disabled = true; err.textContent = '';
+              SERVER.api('POST', '/org/items/' + it.id + '/rollback', { version:v.id }).then(function(rr){
+                if(rr.status !== 200){ back.disabled = false; err.textContent = (rr.data && rr.data.detail) || 'Не получилось вернуть'; return; }
+                toast('«' + rr.data.name + '»: возвращена версия от ' + xwWhen(v.at));
+                afterChange().then(function(){ showItem(it.id); var f = main.querySelector('.ext-acts button') || main.querySelector('h3'); if(f) f.focus(); });
+              }, function(){ back.disabled = false; err.textContent = 'Нет связи с сервером'; });
+            });
+            row.appendChild(back);
+          }
+          hist.appendChild(row);
+        });
+      }, function(){ hist.textContent = ''; hist.appendChild(h('li', { 'class':'xw-none', text:'Нет связи с сервером' })); });
+    }
+    function showJournal(){
+      xwStopRun();
+      XW.cur = null; XW.view = 'journal'; drawSide(); main.textContent = '';
+      main.appendChild(h('h3', { text:'Журнал изменений компании' }));
+      main.appendChild(h('p', { 'class':'ext-desc', text:'Кто, что и когда опубликовал, изменил, вернул, выключил или убрал. Последние 200 записей.' }));
+      var list = h('ol', { 'class':'xw-hist xw-journal', 'aria-label':'Журнал изменений' }, [ h('li', { 'class':'xw-none', text:'загружаю…' }) ]);
+      main.appendChild(list);
+      SERVER.api('GET', '/org/items/journal?limit=200').then(function(r){
+        list.textContent = '';
+        if(r.status !== 200){ list.appendChild(h('li', { 'class':'xw-none', text:'Не получилось загрузить журнал' })); return; }
+        if(!r.data.entries.length) list.appendChild(h('li', { 'class':'xw-none', text:'Пока пусто.' }));
+        r.data.entries.forEach(function(e){
+          var k = XW_KINDS.filter(function(x){ return x.id === e.kind; })[0];
+          list.appendChild(h('li', { 'data-action':e.action }, [
+            h('span', { 'class':'xw-when', text:xwWhen(e.at) }),
+            h('span', { 'class':'xw-what' }, [ h('span', { text:(XW_ACT[e.action] || e.action) + ' · ' + (k ? k.one.toLowerCase() : e.kind) + ' ' }), h(e.gone ? 's' : 'b', { text:'«' + e.name + '»' }) ]),
+            h('span', { 'class':'xw-who', text:e.by_name || '' }) ]));
+        });
+      }, function(){ list.textContent = ''; list.appendChild(h('li', { 'class':'xw-none', text:'Нет связи с сервером' })); });
     }
 
     function edit(id){
       xwStopRun();
-      XW.cur = id; var d = XW.drafts[id]; if(!d){ main.textContent = ''; drawSide(); return; }
+      XW.view = null; XW.cur = id; var d = XW.drafts[id]; if(!d){ main.textContent = ''; drawSide(); return; }
       drawSide();
       main.textContent = '';
       var big = false;
@@ -267,7 +395,7 @@
         SERVER.api('POST', '/org/items', { kind:'ext', src:d.id, data:xwDef(d) }).then(function(r){
           pubB.disabled = false; pubB.focus();
           if(r.status !== 201){ err.textContent = (r.data && r.data.detail) || 'Не получилось опубликовать'; return; }
-          extRefresh().then(function(){
+          Promise.all([ extRefresh(), xwLoadItems() ]).then(function(){
             pubB.textContent = 'Опубликовать новую версию';
             log('info', 'Опубликовано в компании, версия ' + r.data.data.ver + '. Сотрудники включают расширение в «Расширения компании» (Ctrl+K).');
             toast('«' + d.name + '» опубликовано, версия ' + r.data.data.ver);
@@ -302,7 +430,7 @@
     var first = startId && XW.drafts[startId] ? startId : (XW.cur && XW.drafts[XW.cur] ? XW.cur : Object.keys(XW.drafts)[0]);
     if(first) edit(first); else { drawSide(); main.appendChild(h('p', { 'class':'xw-none', text:'Создайте первое расширение — кнопка «+ Новое расширение» слева.' })); }
     setTimeout(function(){ var f = main.querySelector('input') || side.querySelector('button'); if(f) f.focus(); }, 30);
-    if(SERVER) extRefresh().then(function(){ if(document.contains(back) && !main.querySelector('input:focus, textarea:focus')) drawSide(); });
+    if(SERVER) xwLoadItems().then(function(){ if(document.contains(back) && !main.querySelector('input:focus, textarea:focus')) drawSide(); });
   }
   function xwPrompt(d, q){
     return [

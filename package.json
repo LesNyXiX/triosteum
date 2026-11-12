@@ -13,6 +13,7 @@
     "test:admin": "node tests/admin-e2e.mjs",
     "test:orgext": "node tests/orgext-e2e.mjs",
     "test:workshop": "node tests/workshop-e2e.mjs",
+    "test:orgshop": "node tests/orgshop-e2e.mjs",
     "test:orglib": "node tests/orglib-e2e.mjs",
     "test:orgenvs": "node tests/orgenvs-e2e.mjs",
     "test:server": "node tests/server-e2e.mjs",

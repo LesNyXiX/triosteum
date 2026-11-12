@@ -1,4 +1,4 @@
-// Мастерская расширений: черновик, проверки описания, подбор разрешений и команд по коду, пробный запуск в песочнице
+// Мастерская компании (расширения): черновик, проверки описания, подбор разрешений и команд по коду, пробный запуск в песочнице
 // с журналом, панель, публикация владельцем, копия у редактора, черновики переживают перезагрузку.
 // Нужен настоящий сервер на чистой базе с открытой регистрацией: REGISTRATION=open node tests/workshop-e2e.mjs
 import { chromium } from 'playwright';
@@ -32,7 +32,7 @@ const probs = (p) => p.textContent('.xw-probs').catch(() => '');
 console.log('Новое расширение в мастерской');
 const a = await page();
 await register(a, 'Завод Мастерская ' + T, 'Аня', `anya${T}@zavod.ru`);
-ok(await cmd(a, 'Мастерская расширений') === 1, 'мастерская есть в Ctrl+K');
+ok(await cmd(a, 'Мастерская компании') === 1, 'мастерская есть в Ctrl+K');
 ok(await a.locator('#xw').count() === 1 && /Создайте первое/.test(await a.textContent('.xw-main')), 'мастерская открылась, черновиков нет');
 await a.click('.xw-add'); await a.waitForTimeout(200);
 ok(/count/.test(await a.inputValue('.xw-code')) && await a.locator('.xw-cmd').count() === 1, 'черновик с готовым примером и командой');
@@ -117,7 +117,7 @@ const FENCE = '`'.repeat(3);
 let aiPrompt = '';
 await a.route('**/api/ai/complete', (route) => { aiPrompt = route.request().postDataJSON().prompt; route.fulfill({ status: 200, contentType: 'text/plain', body: 'Расширение отмечает выделенные блоки.\n' + FENCE + "js\ntriosteum.command('mark', async () => {\n  const s = await triosteum.board.selection();\n  for (const id of s.ids) await triosteum.board.note({ text: 'проверено', attach: id });\n});\n" + FENCE + '\n' }); });
 // хранилище пробного запуска сохраняется на сервере
-await cmd(a, 'Мастерская расширений');
+await cmd(a, 'Мастерская компании');
 await a.click('.xw-add'); await a.waitForTimeout(150);
 await a.fill('.xw-main input[aria-label="Название расширения"]', 'Хранилище');
 await a.fill('.xw-code', "triosteum.command('put', () => triosteum.storage.set('k', 42));\ntriosteum.command('get', () => triosteum.storage.get('k'));");
@@ -127,7 +127,7 @@ await a.click('.xw .ext-acts button:has-text("Пробный запуск")'); a
 await a.click('.xw-run button[data-cmd="put"]'); await waitLog(a, /Готово/);
 await a.keyboard.press('Escape'); await a.waitForTimeout(3000);
 await a.reload(); await a.waitForTimeout(1200);
-await cmd(a, 'Мастерская расширений');
+await cmd(a, 'Мастерская компании');
 await a.click('.xw-item[data-draft]:has-text("Хранилище")'); await a.waitForTimeout(150);
 await a.click('.xw .ext-acts button:has-text("Пробный запуск")'); await waitLog(a, /Запущено/);
 await a.click('.xw-run button[data-cmd="get"]');
@@ -138,14 +138,14 @@ await a.keyboard.press('Escape');
 // две вкладки: черновики из обеих на месте (вторая не затирает первую)
 const a2 = await a.context().newPage(); a2.on('pageerror', (e) => errs.push(e.message));
 await a2.goto(B + '/'); await a2.waitForTimeout(1200);
-await cmd(a, 'Мастерская расширений'); await a.click('.xw-add'); await a.waitForTimeout(150);
+await cmd(a, 'Мастерская компании'); await a.click('.xw-add'); await a.waitForTimeout(150);
 await a.fill('.xw-main input[aria-label="Название расширения"]', 'Из первой вкладки');
-await cmd(a2, 'Мастерская расширений'); await a2.click('.xw-add'); await a2.waitForTimeout(150);
+await cmd(a2, 'Мастерская компании'); await a2.click('.xw-add'); await a2.waitForTimeout(150);
 await a2.fill('.xw-main input[aria-label="Название расширения"]', 'Из второй вкладки');
 await a2.keyboard.press('Escape'); await a.keyboard.press('Escape'); await a.waitForTimeout(3000);
 await a2.close();
 await a.reload(); await a.waitForTimeout(1200);
-await cmd(a, 'Мастерская расширений');
+await cmd(a, 'Мастерская компании');
 ok(await a.locator('.xw-item[data-draft]:has-text("Из первой вкладки")').count() === 1 && await a.locator('.xw-item[data-draft]:has-text("Из второй вкладки")').count() === 1, 'черновики из двух вкладок оба на месте');
 for (const t of ['Из первой вкладки', 'Из второй вкладки']) {
   await a.click(`.xw-item[data-draft]:has-text("${t}")`); await a.waitForTimeout(100);
@@ -160,7 +160,7 @@ await a.click('.xw .ext-acts button:has-text("Удалить черновик")'
 await a.keyboard.press('Escape');
 
 // много больших черновиков: каждый — своей записью, все переживают перезагрузку
-await cmd(a, 'Мастерская расширений');
+await cmd(a, 'Мастерская компании');
 const big = '// ' + 'x'.repeat(220 * 1024) + '\ntriosteum.command("count", () => 1);';
 for (let i = 1; i <= 5; i++) {
   await a.click('.xw-add'); await a.waitForTimeout(150);
@@ -173,7 +173,7 @@ ok(/не сохраняется/.test(await a.textContent('.xw-probs')) && /бо
 await a.fill('.xw-code', big);
 await a.keyboard.press('Escape'); await a.waitForTimeout(3500);
 await a.reload(); await a.waitForTimeout(1200);
-await cmd(a, 'Мастерская расширений');
+await cmd(a, 'Мастерская компании');
 ok(await a.locator('.xw-item[data-draft]:has-text("Большой")').count() === 5, 'все пять больших черновиков на месте после перезагрузки');
 for (let i = 1; i <= 5; i++) {
   await a.click(`.xw-item[data-draft]:has-text("Большой ${i}")`); await a.waitForTimeout(100);
@@ -181,7 +181,7 @@ for (let i = 1; i <= 5; i++) {
 }
 await a.keyboard.press('Escape'); await a.waitForTimeout(2500);
 await a.reload(); await a.waitForTimeout(1200);
-await cmd(a, 'Мастерская расширений');
+await cmd(a, 'Мастерская компании');
 ok(await a.locator('.xw-item[data-draft]:has-text("Большой")').count() === 0, 'удалённые черновики не возвращаются');
 ok(await a.inputValue('.xw-main input[aria-label="Название расширения"]') === 'Счётчик', 'черновик сохранился после перезагрузки');
 await a.click('.xw-add'); await a.waitForTimeout(200);
@@ -203,10 +203,12 @@ const k = await page();
 await k.goto(B + inv.data.path); await k.waitForTimeout(500);
 await k.fill('#pw', 'password123'); if (await k.locator('#name').isVisible()) await k.fill('#name', 'Коля'); await k.check('#pd');
 await k.click('#go'); await k.waitForURL(B + '/'); await k.waitForTimeout(900);
-await cmd(k, 'Мастерская расширений');
+await cmd(k, 'Мастерская компании');
 ok(/может владелец/.test(await k.textContent('.xw .cenv-h')), 'редактору сказано, кто публикует');
-ok(await k.locator('.xw-item[data-pub]:has-text("Счётчик")').count() === 1, 'расширение компании в списке мастерской');
-await k.click('.xw-item[data-pub]'); await k.waitForTimeout(200);
+ok(await k.locator('.xw-item[data-kind="ext"]:has-text("Счётчик")').count() === 1, 'расширение компании в списке мастерской');
+await k.click('.xw-item[data-kind="ext"]'); await k.waitForTimeout(400);
+ok(await k.locator('.xw-main button:has-text("Выключить для всех")').count() === 0 && await k.locator('.xw-hist button:has-text("Вернуть")').count() === 0, 'редактор не выключает и не откатывает расширение');
+await k.click('.xw-main button:has-text("Открыть копию в редакторе")'); await k.waitForTimeout(200);
 ok(/копия/.test(await k.inputValue('.xw-main input[aria-label="Название расширения"]')), 'открывается копией-черновиком');
 ok(await k.locator('.xw .ext-acts button:has-text("Опубликовать")').isDisabled(), 'кнопка публикации у редактора выключена');
 await k.click('.xw .ext-acts button:has-text("Удалить черновик")'); await k.click('.xw .ext-acts button:has-text("Точно")'); await k.waitForTimeout(200);
