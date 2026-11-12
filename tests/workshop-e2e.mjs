@@ -116,6 +116,25 @@ await a.route(B + '/', async (route) => { const r = await route.fetch(); route.f
 const FENCE = '`'.repeat(3);
 let aiPrompt = '';
 await a.route('**/api/ai/complete', (route) => { aiPrompt = route.request().postDataJSON().prompt; route.fulfill({ status: 200, contentType: 'text/plain', body: 'Расширение отмечает выделенные блоки.\n' + FENCE + "js\ntriosteum.command('mark', async () => {\n  const s = await triosteum.board.selection();\n  for (const id of s.ids) await triosteum.board.note({ text: 'проверено', attach: id });\n});\n" + FENCE + '\n' }); });
+// хранилище пробного запуска сохраняется на сервере
+await cmd(a, 'Мастерская расширений');
+await a.click('.xw-add'); await a.waitForTimeout(150);
+await a.fill('.xw-main input[aria-label="Название расширения"]', 'Хранилище');
+await a.fill('.xw-code', "triosteum.command('put', () => triosteum.storage.set('k', 42));\ntriosteum.command('get', () => triosteum.storage.get('k'));");
+await a.click('button:has-text("Подобрать разрешения и команды по коду")'); await a.waitForTimeout(100);
+await a.locator('.xw-cmd').first().locator('button').click();
+await a.click('.xw .ext-acts button:has-text("Пробный запуск")'); await waitLog(a, /Запущено/);
+await a.click('.xw-run button[data-cmd="put"]'); await waitLog(a, /Готово/);
+await a.keyboard.press('Escape'); await a.waitForTimeout(3000);
+await a.reload(); await a.waitForTimeout(1200);
+await cmd(a, 'Мастерская расширений');
+await a.click('.xw-item[data-draft]:has-text("Хранилище")'); await a.waitForTimeout(150);
+await a.click('.xw .ext-acts button:has-text("Пробный запуск")'); await waitLog(a, /Запущено/);
+await a.click('.xw-run button[data-cmd="get"]');
+ok(/Готово: 42/.test(await waitLog(a, /Готово/)), 'хранилище пробного запуска пережило перезагрузку');
+await a.click('.xw .ext-acts button:has-text("Удалить черновик")'); await a.click('.xw .ext-acts button:has-text("Точно")');
+await a.keyboard.press('Escape');
+
 // много больших черновиков: каждый — своей записью, все переживают перезагрузку
 await cmd(a, 'Мастерская расширений');
 const big = '// ' + 'x'.repeat(220 * 1024) + '\ntriosteum.command("count", () => 1);';

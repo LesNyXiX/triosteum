@@ -259,7 +259,8 @@
     ids.forEach(function(id){ r.known.ids[id] = 1; });
   }
   function extKnows(r, id){ return !!(r.known && r.known.space === curId() && r.known.ids[id]); }
-  function extStoreKey(x){ return 'triosteum.extdata.' + (x.draft ? 'draft.' : '') + x.id; }
+  // имя настройки на сервере — только [A-Za-z0-9_.-]: id пробного запуска начинается с «~», его отбрасываем
+  function extStoreKey(x){ return 'triosteum.extdata.' + (x.draft ? 'draft.' : '') + String(x.id).replace(/[^a-z0-9]/g, ''); }
   function extStore(x){ var v = load(extStoreKey(x), {}); return v && typeof v === 'object' ? v : {}; }
   function extNodeOut(n){
     return { id:n.id, name:n.name || '', lang:n.lang, kind:n.kind || 'block', code:typeof nodeCode === 'function' ? String(nodeCode(n) || '') : String((n.codes || {})[n.lang] || ''),
