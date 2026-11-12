@@ -100,6 +100,7 @@
     "app/envs/graphics.js",
     "app/envs/custom.js",
     "app/ext/ext.js",
+    "app/ext/workshop.js",
     "app/envs/switch.js",
     "app/envs/ecosystem-screen.js",
     "app/office/shell.js",
