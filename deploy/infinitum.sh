@@ -85,7 +85,17 @@ for i in 1 2 3 4 5 6 7 8 9 10; do "${COMPOSE[@]}" exec -T ollama ollama list >/d
 
 # ---- 5. Проверка ----
 say "Проверяю, что Infinitum отвечает (первый ответ на процессоре — до минуты)"
-ANSWER=$("${COMPOSE[@]}" exec -T ollama ollama run "$MODEL" "Ответь одним словом по-русски: готово" 2>/dev/null | head -c 200 || true)
+# через HTTP API из контейнера сервера, а не `ollama run`: тот рисует в терминале спиннер управляющими
+# последовательностями, и SSH-сессия на некоторых клиентах обрывается. Заодно проверяем путь, которым ходит сам Triosteum.
+ASK='import json,sys,urllib.request as u
+r=u.urlopen(u.Request("http://ollama:11434/api/generate",data=json.dumps({"model":sys.argv[1],"prompt":"Ответь одним словом по-русски: готово","stream":False}).encode(),headers={"Content-Type":"application/json"}),timeout=240)
+print(json.load(r).get("response","").strip()[:200])'
+ANSWER=""
+for i in 1 2 3; do
+  ANSWER=$("${COMPOSE[@]}" exec -T api python -c "$ASK" "$MODEL" 2>/dev/null | tr -d '\r' | head -c 200 || true)
+  [ -n "$ANSWER" ] && break
+  sleep 5
+done
 if [ -n "$ANSWER" ]; then
   echo "  Модель ответила: ${ANSWER}"
   printf '\n\033[1;32m✓ Infinitum включён.\033[0m Обновите страницу Triosteum (Ctrl+F5): в шапке переключатель ИИ → «Infinitum».\n'
