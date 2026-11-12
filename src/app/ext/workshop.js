@@ -68,13 +68,75 @@
     if(!SERVER) return Promise.resolve();
     return SERVER.api('GET', '/org/items?all=1').then(function(r){ if(r.status === 200) XW.items = r.data.items; }, function(){});
   }
-  function xwNeeds(code){ return XW_USES.filter(function(u){ return u[0].test(code || ''); }).map(function(u){ return u[1]; }); }
+  // perms — уже выбранные: выделение доступно и с «читать доску», отдельное разрешение тогда не нужно
+  function xwNeeds(code, perms){
+    var need = XW_USES.filter(function(u){ return u[0].test(code || ''); }).map(function(u){ return u[1]; });
+    var has = perms || [];
+    if(has.indexOf('board.read') >= 0 || need.indexOf('board.read') >= 0) need = need.filter(function(p){ return p !== 'selection'; });
+    return need.filter(function(p, i){ return need.indexOf(p) === i; });
+  }
   function xwCmdIds(code){
     var re = /triosteum\.command\(\s*['"]([a-z0-9_-]{1,30})['"]/g, m, out = [];
     while((m = re.exec(code || ''))) if(out.indexOf(m[1]) < 0) out.push(m[1]);
     return out;
   }
   function xwNewId(){ var s = ''; while(s.length < 9) s += Math.random().toString(36).slice(2); return 'x' + s.replace(/[^a-z0-9]/g, '').slice(0, 9); }
+  // готовые примеры: с чего начать своё расширение
+  var XW_SAMPLES = [
+    { key:'summary', name:'Сводка доски', desc:'Сколько блоков каждого типа и сколько связей', perms:[ 'board.read' ],
+      commands:[ { id:'summary', label:'Сводка доски', where:[ 'palette' ] } ],
+      code:[
+        "// Сводка: сколько блоков каждого типа на доске",
+        "triosteum.command('summary', async () => {",
+        "  const b = await triosteum.board.get();",
+        "  const by = {};",
+        "  for (const n of b.nodes) by[n.lang] = (by[n.lang] || 0) + 1;",
+        "  const names = Object.fromEntries(b.langs.map((l) => [l.id, l.name]));",
+        "  const parts = Object.entries(by).map(([k, v]) => (names[k] || k) + ': ' + v);",
+        "  await triosteum.ui.toast('Блоков ' + b.nodes.length + ' (' + (parts.join(', ') || 'нет') + '), связей ' + b.edges.length);",
+        "});", '' ].join('\n') },
+    { key:'check', name:'Проверка блока', desc:'Отмечает заметкой, чего не хватает блоку: описания или связей', perms:[ 'board.read', 'board.write' ],
+      commands:[ { id:'check', label:'Проверить блок', where:[ 'block' ] } ],
+      code:[
+        "// Команда в меню блока (правая кнопка мыши): проверяет блок и оставляет заметку",
+        "triosteum.command('check', async ({ block }) => {",
+        "  const b = await triosteum.board.get();",
+        "  const n = b.nodes.find((x) => x.id === block);",
+        "  const issues = [];",
+        "  if (!n.desc) issues.push('нет описания');",
+        "  if (!b.edges.some((e) => e.from === n.id || e.to === n.id)) issues.push('нет связей');",
+        "  await triosteum.board.note({ text: issues.length ? 'Проверка: ' + issues.join(', ') : 'Проверка: всё в порядке', attach: n.id });",
+        "});", '' ].join('\n') },
+    { key:'catalog', name:'Справочник компании', desc:'Общий список для всей компании в боковой панели', perms:[ 'org.storage', 'panel' ], panel:'Справочник',
+      commands:[ { id:'open', label:'Открыть справочник', where:[ 'palette' ] } ],
+      code:[
+        "// Общий справочник компании: видят все, у кого расширение включено",
+        "async function draw() {",
+        "  const items = (await triosteum.org.get('items')) || [];",
+        "  document.body.innerHTML = '<h3>Справочник</h3><ul id=\"l\"></ul><input id=\"t\" placeholder=\"Новая запись\"> <button id=\"a\">Добавить</button>';",
+        "  const ul = document.getElementById('l');",
+        "  for (const it of items) { const li = document.createElement('li'); li.textContent = it; ul.appendChild(li); }",
+        "  document.getElementById('a').onclick = async () => {",
+        "    const v = document.getElementById('t').value.trim(); if (!v) return;",
+        "    await triosteum.org.set('items', items.concat([v])); draw();",
+        "  };",
+        "}",
+        "triosteum.command('open', async () => { await draw(); await triosteum.ui.openPanel(); });",
+        "draw();", '' ].join('\n') },
+    { key:'watch', name:'Подсказка при выделении', desc:'В фоне показывает описание выделенного блока', perms:[ 'board.read', 'background' ],
+      commands:[],
+      code:[
+        "// Работает в фоне: при выделении блока показывает его описание",
+        "triosteum.on('selection', async ({ ids }) => {",
+        "  if (ids.length !== 1) return;",
+        "  const b = await triosteum.board.get();",
+        "  const n = b.nodes.find((x) => x.id === ids[0]);",
+        "  if (n && n.desc) await triosteum.ui.toast(n.name + ': ' + n.desc);",
+        "});", '' ].join('\n') }
+  ];
+  function xwFromSample(sm){
+    return { id:xwNewId(), name:sm.name, desc:sm.desc, perms:sm.perms.slice(), panel:sm.panel || '', commands:JSON.parse(JSON.stringify(sm.commands)), code:sm.code, at:Date.now() };
+  }
   function xwNew(){ return { id:xwNewId(), name:'', desc:'', perms:['board.read'], panel:'', commands:[ { id:'count', label:'Сколько блоков на доске', desc:'' } ], code:XW_START, at:Date.now() }; }
   function xwBytes(v){ return new TextEncoder().encode(JSON.stringify(v)).length; }   // сервер считает байты UTF-8
   // false — черновик не сохранён (слишком большой)
@@ -137,7 +199,7 @@
       commands:cmds, code:e.code, imported:true, at:Date.now() };
   }
   function xwWarnings(d){
-    var w = [], need = xwNeeds(d.code);
+    var w = [], need = xwNeeds(d.code, d.perms);
     if(d.imported) w.push('Расширение загружено из файла — прочитайте код и разрешения, прежде чем запускать и публиковать');
     need.forEach(function(k){ if(d.perms.indexOf(k) < 0) w.push('Код вызывает то, для чего нужно разрешение «' + EXT_PERMS[k] + '»'); });
     var ids = xwCmdIds(d.code);
@@ -191,6 +253,15 @@
         });
       });
       side.appendChild(h('div', { 'class':'xw-io' }, [ imp, file ]));
+      var smSel = h('select', { 'class':'xw-where xw-sample', 'aria-label':'Начать с примера' }, [ h('option', { value:'', text:'Начать с примера…' }) ].concat(
+        XW_SAMPLES.map(function(sm){ return h('option', { value:sm.key, text:sm.name }); })));
+      smSel.addEventListener('change', function(){
+        var sm = XW_SAMPLES.filter(function(x){ return x.key === smSel.value; })[0]; smSel.value = '';
+        if(!sm) return;
+        var d = xwFromSample(sm); XW.drafts[d.id] = d; xwSaveDraft(d); edit(d.id);
+        toast('Черновик «' + sm.name + '» — попробуйте «Пробный запуск»');
+      });
+      side.appendChild(smSel);
       var ds = Object.keys(XW.drafts).map(function(k){ return XW.drafts[k]; }).sort(function(a, b){ return (b.at || 0) - (a.at || 0); });
       side.appendChild(h('b', { 'class':'xw-sh', text:'Черновики' }));
       if(!ds.length) side.appendChild(h('p', { 'class':'xw-none', text:'пока нет' }));

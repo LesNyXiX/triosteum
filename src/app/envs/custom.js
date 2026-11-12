@@ -43,6 +43,8 @@
       colors:colors, desc:d.desc || 'Своя среда компании', hint:'Соберите схему из блоков этой среды и нажмите «Запустить».', examples:[], lib:lib, demo:null });
     var e = ENVS[d.id];
     e.demo = null; e.demos = []; e.custom = true; e.orgItem = it.id; e.by = it.by; e.byName = it.by_name || ''; e.def = d;
+    // шаблон нового пространства: новое пространство среды начинается с этой доски
+    e.tpl = d.tpl || null;
     e.iconArt = { bg:[d.color, cenvShade(d.color)], art:function(){ return '<g transform="translate(14 14) scale(1.5)" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">' + ic + '</g>'; } };
   }
   function cenvLoad(items){
@@ -60,6 +62,13 @@
     }
   }
   cenvLoad(SERVER && window.TRIOSTEUM_BOOT && window.TRIOSTEUM_BOOT.org_items);
+  // копия шаблона среды для нового пространства (или null — пустая доска)
+  function envStarter(id){ var e = ENVS[id]; return e && e.tpl ? JSON.parse(JSON.stringify(e.tpl)) : null; }
+  // текущая доска как шаблон: блоки, связи, заметки и вид — без файлов
+  function cenvTplFromBoard(){
+    var g = JSON.parse(JSON.stringify({ nodes:G.nodes, edges:G.edges, notes:G.notes, seq:G.seq, cam:G.cam }));
+    return g;
+  }
   function cenvCanEdit(e){ return !!(SERVER && SERVER.user && (SERVER.role === 'owner' || (SERVER.role === 'editor' && (!e || e.by === SERVER.user.id)))); }
   function cenvRefresh(){
     if(!SERVER) return Promise.resolve();
@@ -95,6 +104,28 @@
       kinds.appendChild(box);
     });
     var step = h('input', { type:'checkbox' }); step.checked = !!d.step;
+    // шаблон нового пространства
+    var tplSt = h('span', { 'class':'cenv-tpl-st', role:'status' });
+    var tplTake = h('button', { type:'button', 'class':'btn sm', text:'Сделать шаблоном текущую доску' });
+    var tplDrop = h('button', { type:'button', 'class':'btn sm ghost', text:'Убрать шаблон' });
+    function tplDraw(){
+      var t = d.tpl;
+      tplSt.textContent = t ? 'Новые пространства начинаются с доски: блоков ' + (t.nodes || []).length + ', связей ' + (t.edges || []).length + ', заметок ' + (t.notes || []).length
+                            : 'Шаблона нет — новые пространства начинаются с пустой доски.';
+      tplDrop.hidden = !t;
+      var here = !!e && ENV.id === d.id;
+      tplTake.disabled = !here;
+      tplTake.title = here ? 'Блоки, связи и заметки открытого пространства станут началом каждого нового пространства этой среды'
+                           : (e ? 'Откройте пространство этой среды, соберите доску и вернитесь сюда' : 'Сначала создайте среду и соберите в ней доску');
+    }
+    tplTake.addEventListener('click', function(){
+      var t = cenvTplFromBoard();
+      if(!t.nodes.length && !t.notes.length){ err.textContent = 'Доска пустая — сначала соберите то, с чего должно начинаться пространство'; return; }
+      if(new TextEncoder().encode(JSON.stringify(t)).length > 256 * 1024){ err.textContent = 'Доска больше 256 КБ — для шаблона уберите часть блоков'; return; }
+      d.tpl = t; err.textContent = ''; tplDraw();
+    });
+    tplDrop.addEventListener('click', function(){ delete d.tpl; tplDraw(); });
+    tplDraw();
     var save = h('button', { type:'button', 'class':'btn primary', text:e ? 'Сохранить' : 'Создать среду' });
     var cancel = h('button', { type:'button', 'class':'btn', text:'Отмена' });
     var acts = [ cancel, save ];
@@ -130,6 +161,8 @@
         h('div', { 'class':'cenv-l' }, [ document.createTextNode('Типы блоков · '), count ]),
         kinds,
         h('label', { 'class':'cenv-op' }, [ step, h('span', { text:'Этапы согласования (подпись, регистрация) — как в «Финансах» и «Продажах»' }) ]),
+        h('div', { 'class':'cenv-l', text:'Шаблон нового пространства' }),
+        h('div', { 'class':'cenv-tpl' }, [ tplSt, h('div', { 'class':'ext-acts' }, [ tplTake, tplDrop ]) ]),
         err ]),
       h('footer', { 'class':'cenv-f' }, acts) ]));
     function close(){ back.remove(); }
@@ -145,7 +178,7 @@
         save.disabled = false;
         if(r.status !== 201){ err.textContent = (r.data && r.data.detail) || 'Не получилось сохранить'; return; }
         cenvRegister(r.data); ALLP = null; close();
-        if(e){ if(ENV.id === d.id) setEnv(d.id); toast('Среда «' + d.name + '» обновлена'); if(!$('eco').hidden) renderEco(); return; }
+        if(e){ if(ENV.id === d.id) setEnv(d.id); toast('Среда «' + d.name + '» обновлена' + (d.tpl ? ' — новые пространства начнутся с шаблона' : '')); if(!$('eco').hidden) renderEco(); return; }
         closeEco(); newProj(d.short || d.name, null, d.id);
         toast('Среда «' + d.name + '» создана — её видят все сотрудники вашей организации');
       });

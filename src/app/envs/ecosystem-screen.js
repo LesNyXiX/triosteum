@@ -9,7 +9,7 @@
     if(demo && ENVS[id] && ENVS[id].demo){ makeEnvDemo(id, typeof demo === 'number' ? demo - 1 : 0); return; }
     var list = envProjects(id);
     if(list.length){ if(list[0].id !== PROJ.cur) switchProj(list[0].id); else toast('Вы уже в среде «' + ENVS[id].name + '»'); }
-    else { newProj(envNewName(id), null, id); toast('Создано пространство в среде «' + ENVS[id].name + '»'); }
+    else { newProj(envNewName(id), envStarter(id), id); toast('Создано пространство в среде «' + ENVS[id].name + '»' + (ENVS[id].tpl ? ' — по шаблону' : '')); }
   }
   function openEco(){
     closeCtx(); hidePop(); renderEco(); $('eco').hidden = false;
@@ -29,7 +29,7 @@
         h('h3', null, [ h('button', { type:'button', 'class':'eco-open', text:e.name, title:'Открыть среду «' + e.name + '»' }) ]), h('p', { text:e.desc }),
         h('div', { 'class':'eco-meta', text:'Пространств: ' + n + ' · типов блоков: ' + e.langs.length + ' · в библиотеке: ' + e.plugins.length }),
         h('div', { 'class':'eco-acts' }, [
-          h('button', { type:'button', 'class':'btn', text:'Новое пространство', on:{ click:function(ev){ ev.stopPropagation(); closeEco(); newProj(envNewName(k), null, k); } } }),
+          h('button', { type:'button', 'class':'btn', text:'Новое пространство', on:{ click:function(ev){ ev.stopPropagation(); closeEco(); newProj(envNewName(k), envStarter(k), k); if(ENVS[k] && ENVS[k].tpl) toast('Пространство создано по шаблону среды «' + ENVS[k].name + '»'); } } }),
           k === 'docs' || e.demo || e.seed ? h('button', { type:'button', 'class':'btn', text:k === 'docs' ? 'Пример офиса' : (e.demos && e.demos.length > 1 ? 'Примеры ▾' : 'Пример'), on:{ click:function(ev){ ev.stopPropagation();
             if(e.demos && e.demos.length > 1){ var r = ev.currentTarget.getBoundingClientRect(); openMenuAt([{ head:'Примеры: ' + e.short.toLowerCase() }].concat(e.demos.map(function(d, i){ return { label:d.menu ? d.menu.charAt(0).toUpperCase() + d.menu.slice(1) : d.name, icon:'layout', act:function(){ goEnv(k, i + 1); } }; })), r.left, r.bottom + 4); return; }
             goEnv(k, true); } } }) : null,
