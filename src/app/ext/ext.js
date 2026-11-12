@@ -6,7 +6,8 @@
      оно не видит страницу Triosteum, её хранилище (ключи ИИ, пространства), куки и не ходит на сервер от имени
      пользователя. Политика безопасности внутри закрывает сеть (connect-src и прочее — 'none').
      С приложением расширение говорит только сообщениями: triosteum.board.get() → проверка разрешения → ответ.
-     Уход со своей страницы (единственный оставшийся способ что-то вынести) замечаем и расширение останавливаем. */
+     Переход расширения на другой адрес блокирует обёртка (см. extWrapper) ещё до запроса, а попытку — замечаем и
+     расширение останавливаем. */
   var EXT_PERMS = {
     'board.read':'читать блоки, связи и заметки открытого пространства',
     'board.write':'добавлять и менять блоки, связи и заметки (всё отменяется Ctrl+Z)',
@@ -15,7 +16,7 @@
     'panel':'показывать свою боковую панель'
   };
   var EXT_DENY = 'Расширению недоступны: интернет, сервер от вашего имени, другие пространства, ваши ключи и пароли.';
-  var EXT_CSP = "default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; form-action 'none'";
+  var EXT_CSP = "default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; form-action 'none'; webrtc 'block'";
   var EXT_STORE_MAX = 256 * 1024;
   var EXT = { list:[], run:{}, pref:load('triosteum.ext', {}) || {}, seq:0 };
 
@@ -77,9 +78,32 @@
     'button{font:inherit;color:inherit;background:var(--line,#333);border:1px solid var(--line2,#444);border-radius:8px;padding:6px 10px;cursor:pointer}' +
     'input,textarea,select{font:inherit;color:inherit;background:var(--bg,#111);border:1px solid var(--line2,#444);border-radius:8px;padding:6px 8px}' +
     'a{color:var(--red-soft,#f87171)}.muted{color:var(--muted,#aaa)}';
-  function extSrcdoc(){
+  function extInnerDoc(){
     return '<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="' + EXT_CSP + '">' +
-      '<style>' + EXT_BASE_CSS + '</style><script>(' + extSdk.toString() + ')();<\/script></head><body></body></html>';
+      '<meta http-equiv="x-dns-prefetch-control" content="off"><style>' + EXT_BASE_CSS + '</style><script>(' + extSdk.toString() + ')();<\/script></head><body></body></html>';
+  }
+  /* Обёртка. Свой адрес iframe может сменить сам (location.href = 'https://…?данные') — ни sandbox, ни CSP самого
+     расширения это не запрещают, а событие load приходит уже после запроса. Поэтому расширение живёт во вложенном
+     iframe внутри обёртки с CSP frame-src 'none': любой переход вложенного кадра на сетевой адрес браузер блокирует
+     ДО запроса (проверяется политика родителя — обёртки). Обёртка только пересылает сообщения и сообщает о попытке
+     перехода. Вложенный кадр не может ни писать в обёртку, ни сменить её адрес (sandbox без allow-same-origin). */
+  function extWrapper(){
+    var e = window.parent, f = document.createElement('iframe'), n = 0;
+    f.setAttribute('sandbox', 'allow-scripts');
+    f.setAttribute('referrerpolicy', 'no-referrer');
+    f.srcdoc = INNER;
+    f.addEventListener('load', function(){ n++; e.postMessage(n === 1 ? { tsx:1, wrapReady:1 } : { tsx:1, navigated:1 }, '*'); });
+    window.addEventListener('message', function(ev){
+      if(ev.source === e){ if(f.contentWindow) f.contentWindow.postMessage(ev.data, '*'); }
+      else if(ev.source === f.contentWindow){ var d = ev.data; if(d && (d.wrapReady || d.navigated)) return; e.postMessage(d, '*'); }
+    });
+    document.body.appendChild(f);
+  }
+  function extSrcdoc(){
+    var inner = JSON.stringify(extInnerDoc()).replace(/<\//g, '<\\/');
+    var css = 'html,body{margin:0;height:100%;overflow:hidden;background:transparent}iframe{display:block;border:0;width:100%;height:100%}';
+    return '<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="' + EXT_CSP + '; frame-src \'none\'">' +
+      '<style>' + css + '</style></head><body><script>var INNER = ' + inner + ';(' + extWrapper.toString() + ')();<\/script></body></html>';
   }
   function extTheme(){
     var cs = getComputedStyle(document.documentElement), o = {};
@@ -135,14 +159,14 @@
       r.timer = setTimeout(function(){ rej(new Error('расширение не запустилось за 10 секунд')); extStop(x.id); }, 10000);
     });
     r.ready.catch(function(){});
-    fr.addEventListener('load', function(){
-      r.loads++;
-      if(r.loads === 1){ extPost(r, { init:x.def.code, theme:extTheme() }); return; }
-      // второй load — расширение ушло со своей страницы: останавливаем
+    r.navigated = function(){
+      // попытка перехода (сам переход заблокирован обёрткой до запроса) — расширение останавливаем
       extLog(r, 'error', 'Расширение попыталось перейти на другую страницу и остановлено');
       toast('Расширение «' + name + '» пыталось перейти на другую страницу — остановлено');
       extStop(x.id, 'пыталось перейти на другую страницу — остановлено');
-    });
+    };
+    // обёртку не может сменить никто, кроме Triosteum; второй load — что-то пошло не так, останавливаем
+    fr.addEventListener('load', function(){ if(++r.loads > 1) r.navigated(); });
     fr.srcdoc = extSrcdoc();
     extHostEl().appendChild(pane);
     return r.ready;
@@ -167,6 +191,8 @@
   window.addEventListener('message', function(e){
     var d = e.data; if(!d || d.tsx !== 1) return;
     var r = extRunOf(e.source); if(!r) return;
+    if(d.wrapReady){ extPost(r, { init:r.x.def.code, theme:extTheme() }); return; }
+    if(d.navigated){ r.navigated(); return; }
     if(d.ready){ clearTimeout(r.timer); r.ok(); return; }
     if(d.log){ extLog(r, String(d.log), d.text); return; }
     if(d.done){ var cb = r.runs[d.done]; if(cb){ delete r.runs[d.done]; cb(d); } return; }
