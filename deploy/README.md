@@ -22,7 +22,7 @@ sudo bash deploy/install.sh --domain triosteum.example.ru --email admin@example.
 
 Почта, ИИ и лимиты настраиваются в `.env` (описание — в `.env.example` и `server/README.md`).
 
-Если зеркало образов недоступно, в `.env` можно указать другие адреса образов: `POSTGRES_IMAGE`, `PYTHON_IMAGE`, `CADDY_IMAGE`, `OLLAMA_IMAGE`.
+Если зеркало образов недоступно, в `.env` можно указать другие адреса образов: `POSTGRES_IMAGE`, `PYTHON_IMAGE`, `NODE_IMAGE` (сборка сайта), `CADDY_IMAGE`, `OLLAMA_IMAGE`.
 
 **Infinitum — собственный ИИ Triosteum.** Включается одной командой на сервере:
 

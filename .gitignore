@@ -7,3 +7,5 @@ tests/out/
 __pycache__/
 .pytest_cache/
 package-lock.json
+# собранный сайт: собирается автоматически (GitHub Pages — .github/workflows/pages.yml, сервер — server/Dockerfile)
+docs/index.html
