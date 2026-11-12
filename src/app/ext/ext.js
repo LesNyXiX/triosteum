@@ -141,18 +141,20 @@
       // второй load — расширение ушло со своей страницы: останавливаем
       extLog(r, 'error', 'Расширение попыталось перейти на другую страницу и остановлено');
       toast('Расширение «' + name + '» пыталось перейти на другую страницу — остановлено');
-      extStop(x.id);
+      extStop(x.id, 'пыталось перейти на другую страницу — остановлено');
     });
     fr.srcdoc = extSrcdoc();
     extHostEl().appendChild(pane);
     return r.ready;
   }
-  function extStop(id){
+  // why — почему остановлено: это же увидит пользователь вместо ответа выполнявшейся команды
+  function extStop(id, why){
     var r = EXT.run[id]; if(!r) return;
     delete EXT.run[id];
     clearTimeout(r.timer);
-    try { r.fail(new Error('расширение остановлено')); } catch(e){}
-    Object.keys(r.runs).forEach(function(k){ try { r.runs[k]({ err:'расширение остановлено' }); } catch(e){} });
+    why = why || 'расширение остановлено';
+    try { r.fail(new Error(why)); } catch(e){}
+    Object.keys(r.runs).forEach(function(k){ try { r.runs[k]({ err:why }); } catch(e){} });
     r.pane.remove();
   }
   function extPost(r, o){ o.tsx = 1; try { r.fr.contentWindow.postMessage(o, '*'); } catch(e){} }
@@ -182,20 +184,37 @@
   function extApi(r, m, a){
     var def = r.x.def, perms = def.perms || [];
     var need = function(p){ if(perms.indexOf(p) < 0) throw new Error('нет разрешения «' + p + '» — добавьте его в описание расширения'); };
-    var write = function(){
+    // id блоков повторяются в разных пространствах: менять по id можно только то, что расширение узнало
+    // в открытом сейчас пространстве (из board.get/selection или создав само)
+    var write = function(ids){
       need('board.write');
       if(SERVER && SERVER.role === 'viewer') throw new Error('у вас доступ только для просмотра — доску менять нельзя');
+      (ids || []).forEach(function(id){
+        if(!extKnows(r, id)) throw new Error(r.known && r.known.space !== curId() ? 'пространство сменилось — прочитайте доску заново (board.get)'
+          : 'элемент «' + id + '» расширению не известен — получите его через board.get или board.selection');
+      });
     };
+    // команда привязана к пространству, в котором её запустили: после переключения — останавливаем расширение целиком
+    if(r.active && r.cmdSpace && r.cmdSpace !== curId() && /^board\./.test(m)){
+      setTimeout(function(){ toast('«' + def.name + '»: пространство сменилось во время команды — расширение остановлено'); extStop(r.x.id, 'пространство сменилось во время команды — расширение остановлено'); }, 0);
+      throw new Error('пространство сменилось во время команды');
+    }
     switch(m){
-      case 'board.get': need('board.read'); return extBoard();
-      case 'board.selection':
+      case 'board.get': {
+        need('board.read');
+        var bd = extBoard();
+        extKnow(r, bd.nodes.concat(bd.edges, bd.notes).map(function(x){ return x.id; }), true);
+        return bd;
+      }
+      case 'board.selection': {
         if(perms.indexOf('selection') < 0) need('board.read');
-        return extSelection();
-      case 'board.add': write(); return extAdd(r, a);
-      case 'board.update': write(); return extUpdate(a, perms.indexOf('board.read') >= 0);
-      case 'board.remove': write(); return extRemove(a);
-      case 'board.connect': write(); return extConnect(a);
-      case 'board.note': write(); return extNote(a);
+        var sl = extSelection(); extKnow(r, sl.ids); return sl;
+      }
+      case 'board.add': { write(); var an = extAdd(r, a); extKnow(r, [ an.id ]); return an; }
+      case 'board.update': write([ String(a.id) ]); return extUpdate(a, perms.indexOf('board.read') >= 0);
+      case 'board.remove': write([ String(a.id) ]); return extRemove(a);
+      case 'board.connect': { write([ String(a.from), String(a.to) ]); var ce = extConnect(a); extKnow(r, [ ce.id ]); return ce; }
+      case 'board.note': { write(a.attach ? [ String(a.attach) ] : []); var nt = extNote(a); extKnow(r, [ nt.id ]); return nt; }
       case 'ui.toast': toast('«' + def.name + '»: ' + String(a.text || '').slice(0, 200)); return true;
       case 'ui.panel': need('panel'); extPanel(r.x, a.open !== false); return true;
       case 'storage.get': need('storage'); return extStore(r.x)[String(a.k)] === undefined ? null : extStore(r.x)[String(a.k)];
@@ -209,6 +228,11 @@
     }
     throw new Error('неизвестный вызов «' + m + '»');
   }
+  function extKnow(r, ids, reset){
+    if(reset || !r.known || r.known.space !== curId()) r.known = { space:curId(), ids:{} };
+    ids.forEach(function(id){ r.known.ids[id] = 1; });
+  }
+  function extKnows(r, id){ return !!(r.known && r.known.space === curId() && r.known.ids[id]); }
   function extStoreKey(x){ return 'triosteum.extdata.' + (x.draft ? 'draft.' : '') + x.id; }
   function extStore(x){ var v = load(extStoreKey(x), {}); return v && typeof v === 'object' ? v : {}; }
   function extNodeOut(n){
@@ -257,11 +281,15 @@
     if(extNum(p.x) !== null) n.x = extNum(p.x);
     if(extNum(p.y) !== null) n.y = extNum(p.y);
     saveGraph(); renderGraph();
+    // блок открыт в редакторе — показываем новый код, иначе следующее нажатие клавиши вернуло бы старый
+    if((p.code !== undefined || p.name !== undefined) && extEditing(n)) try { loadDoc(); } catch(e){}
     return canRead ? extNodeOut(n) : { id:n.id };
   }
+  function extEditing(n){ return !el.editor.hidden && typeof docNode === 'function' && docNode() === n; }
   function extRemove(a){
     var id = String(a.id || '');
     if(nodeById(id)){
+      if(extEditing(nodeById(id))) try { backToCanvas(); } catch(e){}
       G.nodes = G.nodes.filter(function(n){ return n.id !== id; });
       G.edges = G.edges.filter(function(e){ return e.from !== id && e.to !== id; });
       G.notes = G.notes.filter(function(t){ return t.attach !== id; });
@@ -320,7 +348,9 @@
     var name = x.def.name, slow = setTimeout(function(){ toast('«' + name + '»: выполняется…'); }, 800);
     return extStart(x).then(function(){
       var r = EXT.run[x.id]; if(!r) throw new Error('расширение остановлено');
-      var rid = 'r' + (++EXT.seq), release = extHold();
+      var rid = 'r' + (++EXT.seq), hold = extHold();
+      r.active = (r.active || 0) + 1; r.cmdSpace = curId();
+      var release = function(){ hold(); r.active = Math.max(0, (r.active || 1) - 1); };
       return new Promise(function(res, rej){
         var to = setTimeout(function(){ delete r.runs[rid]; release(); rej(new Error('команда не ответила за минуту')); }, 60000);
         r.runs[rid] = function(d){ clearTimeout(to); release(); if(d.err) rej(new Error(d.err)); else res(d.v); };

@@ -17,15 +17,15 @@ async function register(p, org, name, email) {
   await p.fill('#org', org); await p.fill('#name', name); await p.fill('#email', email); await p.fill('#pw', 'password123'); await p.check('#pd');
   await p.click('#go'); await p.waitForURL(B + '/'); await p.waitForTimeout(900);
 }
-async function palette(p, q) {
-  await p.keyboard.press('Escape');
+async function palette(p, q, keep) {
+  if (keep) await p.evaluate(() => document.activeElement && document.activeElement.blur()); else await p.keyboard.press('Escape');
   await p.keyboard.press('Control+k'); await p.waitForTimeout(200);
   await p.fill('#cmdQ', q); await p.waitForTimeout(250);
   return p.locator('#cmdList .cmdk-i', { hasText: q });
 }
 async function has(p, q) { const n = await (await palette(p, q)).count(); await p.keyboard.press('Escape'); return n; }
-async function cmd(p, q) {
-  const it = await palette(p, q);
+async function cmd(p, q, keep) {
+  const it = await palette(p, q, keep);
   if (!(await it.count())) { await p.keyboard.press('Escape'); return 0; }
   await it.first().click(); await p.waitForTimeout(200);
   return 1;
@@ -58,6 +58,17 @@ triosteum.command('probe', async () => {
 triosteum.command('panel', async () => { document.body.innerHTML = '<h3 id="hi">Привет из панели</h3>'; await triosteum.ui.openPanel(); });
 triosteum.command('boom', () => { throw new Error('сломалось нарочно'); });
 triosteum.command('nav', () => { location.href = 'about:blank'; });
+triosteum.command('mk', async () => { await triosteum.board.add({ name: 'Для редактора', lang: 'python', code: 'print(1)' }); });
+triosteum.command('recode', async () => {
+  const b = await triosteum.board.get();
+  const n = b.nodes.find((x) => x.name === 'Для редактора');
+  await triosteum.board.update(n.id, { code: 'print("из расширения")' });
+});
+triosteum.command('switchy', async () => {
+  const n = await triosteum.board.add({ name: 'До переключения' });
+  await new Promise((r) => setTimeout(r, 1500));
+  await triosteum.board.update(n.id, { name: 'Испорчено' });
+});
 triosteum.command('slow', async () => {
   await triosteum.board.add({ name: 'Медленный 1' });
   await new Promise((r) => setTimeout(r, 700));
@@ -69,12 +80,15 @@ const WRITER = { id: 'xpisatel', name: 'Писатель', perms: ['board.write'
   code: `triosteum.command('peek', async () => {
   const n = await triosteum.board.add({ name: 'Свой блок', code: 'x = 1' });
   const u = await triosteum.board.update(n.id, {});
-  await triosteum.ui.toast('ключи: ' + Object.keys(u).join(','));
+  let guess = 'пусто';
+  try { await triosteum.board.update(n.id.replace(/\\d+/, (d) => String(d - 1)), { name: 'взлом' }); guess = 'получилось'; } catch (e) { guess = e.message; }
+  await triosteum.ui.toast('ключи: ' + Object.keys(u).join(',') + ' | ' + guess);
 });` };
 const EXT = {
   id: 'xproverka', name: 'Проверка схемы', desc: 'Тестовое расширение', perms: ['board.read', 'board.write', 'panel'], panel: 'Проверка',
   commands: [{ id: 'count', label: 'Посчитать и добавить' }, { id: 'probe', label: 'Проверить песочницу' }, { id: 'panel', label: 'Показать панель' },
-    { id: 'boom', label: 'Упасть' }, { id: 'nav', label: 'Уйти со страницы' }, { id: 'slow', label: 'Медленно' }],
+    { id: 'boom', label: 'Упасть' }, { id: 'nav', label: 'Уйти со страницы' }, { id: 'slow', label: 'Медленно' },
+    { id: 'mk', label: 'Блок для редактора' }, { id: 'recode', label: 'Переписать код' }, { id: 'switchy', label: 'Долгая правка' }],
   code: CODE,
 };
 
@@ -140,6 +154,24 @@ ok(await k.locator('.ext-pane').count() === 0, 'расширение остан�
 await cmd(k, 'Проверка схемы: Посчитать');
 ok(/было \d+/.test(await toastAfter(k, 4000)), 'при следующем вызове расширение запускается заново');
 
+console.log('Открытый редактор и смена пространства');
+await cmd(k, 'Проверка схемы: Блок для редактора'); await k.waitForTimeout(800);
+await k.click('#nodes .node:has-text("Для редактора")'); await k.waitForTimeout(300);
+await k.keyboard.press('Enter'); await k.waitForTimeout(500);
+ok((await k.inputValue('#code')).trim() === 'print(1)', 'блок открыт в редакторе');
+await cmd(k, 'Проверка схемы: Переписать код', true); await k.waitForTimeout(1000);
+ok((await k.inputValue('#code')).trim() === 'print("из расширения")', 'редактор показывает код, который записало расширение');
+await k.locator('#code').press('End'); await k.keyboard.type('  # ок'); await k.waitForTimeout(500);
+ok(/из расширения.*# ок/.test(await k.inputValue('#code')), 'правка в редакторе не возвращает старый код');
+await k.keyboard.press('Escape');
+await k.evaluate(() => { const b = document.querySelector('#editor .back, #backBtn'); if (b) b.click(); }); await k.waitForTimeout(400);
+await cmd(k, 'Проверка схемы: Долгая правка'); await k.waitForTimeout(300);
+await cmd(k, 'Создать пространство'); await k.waitForTimeout(400);
+let tsw = '';
+for (let i = 0; i < 30; i++) { const t = await k.textContent('#toast'); if (!tsw.endsWith(t)) tsw += ' || ' + t; await k.waitForTimeout(100); }
+ok(/пространство сменилось/.test(tsw + await k.textContent('#toast')), 'смена пространства во время команды останавливает расширение');
+ok(await k.locator('#nodes .node:has-text("Испорчено")').count() === 0, 'в новом пространстве ничего не испорчено');
+
 console.log('Только запись — без чтения');
 await api(a, 'POST', '/org/items', { kind: 'ext', src: WRITER.id, data: WRITER });
 await cmd(k, 'Расширения компании'); await k.waitForTimeout(800);
@@ -147,7 +179,9 @@ await k.locator('.ext-card[data-ext="xpisatel"] button:has-text("Включит�
 await k.locator('.ext-card[data-ext="xpisatel"] button:has-text("Разрешить и включить")').click(); await k.waitForTimeout(200);
 await k.keyboard.press('Escape');
 await cmd(k, 'Писатель: Подсмотреть');
-ok(/ключи: id$/.test(await toastAfter(k)), 'без «читать доску» правка блока возвращает только id');
+const tw = await toastAfter(k);
+ok(/ключи: id \|/.test(tw), 'без «читать доску» правка блока возвращает только id');
+ok(/не известен/.test(tw), 'чужой блок по угаданному id изменить нельзя: ' + tw);
 
 console.log('Новая версия с новыми разрешениями');
 const v2 = await api(a, 'POST', '/org/items', { kind: 'ext', src: EXT.id, data: { ...EXT, perms: [...EXT.perms, 'storage'] } });
