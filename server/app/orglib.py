@@ -2,6 +2,8 @@
 
 Плагины: сотрудник делится своим плагином с компанией, и он появляется в библиотеке у всех её сотрудников.
 Среды: своя среда компании, собранная из типов блоков отраслевых сред (название, цвет, значок, блоки, шаблоны).
+Расширения: код компании, который работает у сотрудников в песочнице (iframe без доступа к приложению и сети)
+и добавляет свои команды и панель. Публикует только владелец организации; каждый сотрудник включает сам.
 Другие организации эти плагины не видят (построчная защита по org_id, как у пространств).
 Добавлять и обновлять могут владелец и редакторы; убрать — автор или владелец организации.
 """
@@ -17,11 +19,16 @@ from .main import Who, audit, need, need_writer
 
 router = APIRouter(prefix="/api/org/items")
 
-KINDS = {"plugin", "env"}
+KINDS = {"plugin", "env", "ext"}
 ENV_ID = re.compile(r"^u[a-z]{5,11}$")          # свои среды — с «u», чтобы не совпасть со встроенными
 KIND_ID = re.compile(r"^[a-z0-9_-]{1,40}$")
 COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")
 THEMES = {"burgundy", "emerald", "graphite", "midnight"}
+EXT_ID = re.compile(r"^x[a-z0-9]{5,15}$")
+CMD_ID = re.compile(r"^[a-z0-9_-]{1,30}$")
+# что расширение может попросить; всё остальное (сеть, сервер, другие пространства) ему недоступно в принципе
+EXT_PERMS = ("board.read", "board.write", "selection", "storage", "panel")
+EXT_CODE_MAX = 256 * 1024
 MAX_BYTES = 512 * 1024
 # поля плагина, которые хранятся в библиотеке; остальное (личные пометки) отбрасывается
 PLUGIN_FIELDS = ("name", "lang", "desc", "family", "codes", "params", "tpl", "io")
@@ -84,6 +91,44 @@ def clean_env(d: dict, src: str) -> dict:
     return out
 
 
+def clean_ext(d: dict, src: str, prev: dict | None) -> dict:
+    xid = str(d.get("id") or "")
+    if not EXT_ID.match(xid) or xid != src:
+        raise HTTPException(422, "Неверный идентификатор расширения")
+    name = str(d.get("name") or "").strip()
+    if not 1 <= len(name) <= 40:
+        raise HTTPException(422, "Название расширения — от 1 до 40 символов")
+    code = d.get("code")
+    if not isinstance(code, str) or not code.strip():
+        raise HTTPException(422, "У расширения нет кода")
+    if len(code.encode()) > EXT_CODE_MAX:
+        raise HTTPException(413, "Код расширения больше 256 КБ")
+    perms = d.get("perms") or []
+    if not isinstance(perms, list) or not all(isinstance(p, str) and p in EXT_PERMS for p in perms):
+        raise HTTPException(422, "Неизвестное разрешение расширения")
+    cmds = d.get("commands") or []
+    if not isinstance(cmds, list) or len(cmds) > 20:
+        raise HTTPException(422, "Команд у расширения — не больше 20")
+    out_cmds, seen = [], set()
+    for c in cmds:
+        if not isinstance(c, dict):
+            raise HTTPException(422, "Команда расширения в неверном формате")
+        cid, label = str(c.get("id") or ""), str(c.get("label") or "").strip()
+        if not CMD_ID.match(cid) or cid in seen or not 1 <= len(label) <= 60:
+            raise HTTPException(422, "У каждой команды нужен свой id (a-z, 0-9, -, _) и название до 60 символов")
+        seen.add(cid)
+        out_cmds.append({"id": cid, "label": label, "desc": str(c.get("desc") or "").strip()[:120]})
+    order = [p for p in EXT_PERMS if p in perms]
+    if not out_cmds and "panel" not in order:
+        raise HTTPException(422, "Расширению нужна хотя бы одна команда или панель")
+    out = {"id": xid, "name": name, "desc": str(d.get("desc") or "").strip()[:300], "ic": str(d.get("ic") or "plug")[:30],
+           "perms": order, "commands": out_cmds, "code": code,
+           "ver": int((prev or {}).get("ver") or 0) + 1}
+    if "panel" in order:
+        out["panel"] = str(d.get("panel") or name).strip()[:40] or name
+    return out
+
+
 @router.get("")
 def get_items(kind: str | None = None, w: Who = Depends(need)):
     with tx(w.org_id) as c:
@@ -95,14 +140,22 @@ def share_item(body: ItemIn, request: Request, w: Who = Depends(need_writer)):
     """Поделиться с компанией. Повторный вызов с тем же src обновляет уже опубликованное."""
     if body.kind not in KINDS:
         raise HTTPException(422, "Неизвестный вид")
-    data = clean_env(body.data, body.src) if body.kind == "env" else clean_plugin(body.data)
-    raw = json.dumps(data, ensure_ascii=False)
-    if len(raw.encode()) > MAX_BYTES:
-        raise HTTPException(413, "Плагин слишком большой для библиотеки (больше 512 КБ)")
+    if body.kind == "ext" and w.role != "owner":
+        # код расширения запускается у коллег — публикует только владелец организации
+        raise HTTPException(403, "Расширения для компании публикует владелец организации")
     with tx(w.org_id) as c:
-        cur = c.execute(text("""SELECT id, created_by FROM org_items
+        cur = c.execute(text("""SELECT id, created_by, data FROM org_items
                                 WHERE kind = :k AND src = :s AND deleted_at IS NULL FOR UPDATE"""),
                         {"k": body.kind, "s": body.src}).mappings().first()
+        if body.kind == "env":
+            data = clean_env(body.data, body.src)
+        elif body.kind == "ext":
+            data = clean_ext(body.data, body.src, cur["data"] if cur else None)
+        else:
+            data = clean_plugin(body.data)
+        raw = json.dumps(data, ensure_ascii=False)
+        if len(raw.encode()) > MAX_BYTES:
+            raise HTTPException(413, "Слишком большой для библиотеки (больше 512 КБ)")
         if cur and str(cur["created_by"]) != w.user_id and w.role != "owner":
             raise HTTPException(403, ("Эту среду создал" if body.kind == "env" else "Этот плагин в библиотеке опубликовал")
                                 + " другой сотрудник — изменить может он или владелец организации")

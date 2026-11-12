@@ -116,3 +116,39 @@ def test_env_delete_guard(client):
     assert [x["env"] for x in client.get("/api/spaces").json() if x["name"] == "Из браузера"] == ["code"]
     assert client.put("/api/spaces/otk3", json={"name": "ОТК", "env": "ulabotk", "content": {}, "base_rev": 0}).status_code == 422
     assert client.put("/api/spaces/otk2", json={"name": "ОТК", "env": "ulabotk", "content": {}, "base_rev": 0}).status_code == 422
+
+
+EXT = {"id": "xkachestvo", "name": "Контроль качества", "desc": "Проверяет схему", "perms": ["board.read", "board.write", "net"],
+       "commands": [{"id": "check", "label": "Проверить схему"}], "code": "triosteum.command('check', () => 1)"}
+
+
+def test_ext_owner_only_and_validation(client):
+    register(client, org="Завод Расширения")
+    ed = member(client, client)
+    ok = {**EXT, "perms": ["board.read", "board.write"]}
+    # код расширения запускается у коллег — редактор опубликовать не может
+    r = ed.post("/api/org/items", json={"kind": "ext", "src": "xkachestvo", "data": ok})
+    assert r.status_code == 403 and "владелец" in r.json()["detail"]
+    # неизвестное разрешение (например, «сеть») не принимается
+    assert client.post("/api/org/items", json={"kind": "ext", "src": "xkachestvo", "data": EXT}).status_code == 422
+    for bad in ({**ok, "id": "kachestvo"}, {**ok, "code": " "}, {**ok, "commands": [], "perms": ["board.read"]},
+                {**ok, "commands": [{"id": "a"}, {"id": "a", "label": "x"}]}, {**ok, "code": "x" * (256 * 1024 + 1)}):
+        r = client.post("/api/org/items", json={"kind": "ext", "src": bad.get("id") or "xkachestvo", "data": bad})
+        assert r.status_code in (413, 422), (bad.get("id"), r.text)
+    r = client.post("/api/org/items", json={"kind": "ext", "src": "xkachestvo", "data": {**ok, "perms": ["board.write", "board.read", "board.read"], "extra": 1}})
+    assert r.status_code == 201, r.text
+    d = r.json()["data"]
+    assert d["perms"] == ["board.read", "board.write"] and d["ver"] == 1 and "extra" not in d and "panel" not in d
+    # новая версия — номер растёт; панель получает название
+    d2 = client.post("/api/org/items", json={"kind": "ext", "src": "xkachestvo", "data": {**ok, "perms": ["panel"], "commands": []}}).json()["data"]
+    assert d2["ver"] == 2 and d2["panel"] == "Контроль качества"
+    # коллеги видят расширение; редактор не уберёт, владелец — может
+    items = ed.get("/api/org/items?kind=ext").json()["items"]
+    assert [x["name"] for x in items] == ["Контроль качества"]
+    assert ed.delete(f"/api/org/items/{items[0]['id']}").status_code == 403
+    assert client.delete(f"/api/org/items/{items[0]['id']}").status_code == 200
+    # чужая организация расширений компании не видит
+    stranger = new_client(client)
+    register(stranger, org="Чужой завод 2")
+    client.post("/api/org/items", json={"kind": "ext", "src": "xkachestvo", "data": ok})
+    assert stranger.get("/api/org/items?kind=ext").json()["items"] == []

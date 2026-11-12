@@ -26,7 +26,8 @@
     { id:'onboard', name:'На доске', icon:'node' },
     { id:'files', name:'Файлы', icon:'file' },
     { id:'spaces', name:'Пространства', icon:'folder' },
-    { id:'plugins', name:'Плагины', icon:'lib' }
+    { id:'plugins', name:'Плагины', icon:'lib' },
+    { id:'ext', name:'Расширения', icon:'plug' }
   ];
   var cmdSec = 'all';
   function secName(id){ var x = CMD_SECS.filter(function(s){ return s.id === id; })[0]; return x ? x.name : id; }
@@ -65,6 +66,7 @@
       { sec:'help', label:'Горячие клавиши', d:'Все сочетания клавиш', icon:'keys', kb:'?', act:function(){ showTip($('bKeys'), 6000); }, k:'клавиши сочетания' },
       { sec:'help', label:'Тур по Triosteum', d:'Короткое знакомство за минуту', icon:'map', act:function(){ setTimeout(tourStart, 120); }, k:'обучение помощь подсказки знакомство' }
     ]);
+    if(typeof extCommands === 'function') C = C.concat(extCommands());
     return C.filter(Boolean);
   }
   function cmdAll(q){

