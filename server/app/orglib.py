@@ -1,10 +1,12 @@
 """Библиотека организации: то, что сотрудники «наращивают» в Triosteum для своей компании.
 
-Сейчас — плагины: сотрудник делится своим плагином с компанией, и он появляется в библиотеке у всех её сотрудников.
+Плагины: сотрудник делится своим плагином с компанией, и он появляется в библиотеке у всех её сотрудников.
+Среды: своя среда компании, собранная из типов блоков отраслевых сред (название, цвет, значок, блоки, шаблоны).
 Другие организации эти плагины не видят (построчная защита по org_id, как у пространств).
 Добавлять и обновлять могут владелец и редакторы; убрать — автор или владелец организации.
 """
 import json
+import re
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -15,7 +17,11 @@ from .main import Who, audit, need, need_writer
 
 router = APIRouter(prefix="/api/org/items")
 
-KINDS = {"plugin"}
+KINDS = {"plugin", "env"}
+ENV_ID = re.compile(r"^u[a-z]{5,11}$")          # свои среды — с «u», чтобы не совпасть со встроенными
+KIND_ID = re.compile(r"^[a-z0-9_-]{1,40}$")
+COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")
+THEMES = {"burgundy", "emerald", "graphite", "midnight"}
 MAX_BYTES = 512 * 1024
 # поля плагина, которые хранятся в библиотеке; остальное (личные пометки) отбрасывается
 PLUGIN_FIELDS = ("name", "lang", "desc", "family", "codes", "params", "tpl", "io")
@@ -57,6 +63,27 @@ def clean_plugin(d: dict) -> dict:
     return out
 
 
+def clean_env(d: dict, src: str) -> dict:
+    eid = str(d.get("id") or "")
+    if not ENV_ID.match(eid) or eid != src:
+        raise HTTPException(422, "Неверный идентификатор среды")
+    name = str(d.get("name") or "").strip()
+    if not 1 <= len(name) <= 40:
+        raise HTTPException(422, "Название среды — от 1 до 40 символов")
+    short = str(d.get("short") or name).strip()[:20] or name[:20]
+    kinds = d.get("kinds")
+    if not isinstance(kinds, list) or not 1 <= len(kinds) <= 60 or not all(isinstance(k, str) and KIND_ID.match(k) for k in kinds):
+        raise HTTPException(422, "Выберите хотя бы один тип блоков среды")
+    color = str(d.get("color") or "")
+    if not COLOR.match(color):
+        raise HTTPException(422, "Неверный цвет среды")
+    out = {"id": eid, "name": name, "short": short, "color": color, "kinds": list(dict.fromkeys(kinds)),
+           "ic": str(d.get("ic") or "box")[:30], "desc": str(d.get("desc") or "").strip()[:300], "step": bool(d.get("step"))}
+    if d.get("theme") in THEMES:
+        out["theme"] = d["theme"]
+    return out
+
+
 @router.get("")
 def get_items(kind: str | None = None, w: Who = Depends(need)):
     with tx(w.org_id) as c:
@@ -68,7 +95,7 @@ def share_item(body: ItemIn, request: Request, w: Who = Depends(need_writer)):
     """Поделиться с компанией. Повторный вызов с тем же src обновляет уже опубликованное."""
     if body.kind not in KINDS:
         raise HTTPException(422, "Неизвестный вид")
-    data = clean_plugin(body.data)
+    data = clean_env(body.data, body.src) if body.kind == "env" else clean_plugin(body.data)
     raw = json.dumps(data, ensure_ascii=False)
     if len(raw.encode()) > MAX_BYTES:
         raise HTTPException(413, "Плагин слишком большой для библиотеки (больше 512 КБ)")
@@ -77,7 +104,8 @@ def share_item(body: ItemIn, request: Request, w: Who = Depends(need_writer)):
                                 WHERE kind = :k AND src = :s AND deleted_at IS NULL FOR UPDATE"""),
                         {"k": body.kind, "s": body.src}).mappings().first()
         if cur and str(cur["created_by"]) != w.user_id and w.role != "owner":
-            raise HTTPException(403, "Этот плагин в библиотеке опубликовал другой сотрудник — обновить его может он или владелец")
+            raise HTTPException(403, ("Эту среду создал" if body.kind == "env" else "Этот плагин в библиотеке опубликовал")
+                                + " другой сотрудник — изменить может он или владелец организации")
         if cur:
             c.execute(text("""UPDATE org_items SET name = :n, data = CAST(:d AS jsonb), updated_by = :u, updated_at = now()
                               WHERE id = :id"""), {"n": data["name"], "d": raw, "u": w.user_id, "id": cur["id"]})
@@ -96,7 +124,7 @@ def share_item(body: ItemIn, request: Request, w: Who = Depends(need_writer)):
 def remove_item(item_id: str, request: Request, w: Who = Depends(need_writer)):
     with tx(w.org_id) as c:
         try:
-            r = c.execute(text("SELECT id, name, created_by FROM org_items WHERE id = CAST(:i AS uuid) AND deleted_at IS NULL FOR UPDATE"),
+            r = c.execute(text("SELECT id, kind, src, name, created_by FROM org_items WHERE id = CAST(:i AS uuid) AND deleted_at IS NULL FOR UPDATE"),
                           {"i": item_id}).mappings().first()
         except Exception:
             r = None
@@ -104,6 +132,12 @@ def remove_item(item_id: str, request: Request, w: Who = Depends(need_writer)):
             raise HTTPException(404, "В библиотеке компании такого нет")
         if str(r["created_by"]) != w.user_id and w.role != "owner":
             raise HTTPException(403, "Убрать из библиотеки может автор или владелец организации")
+        if r["kind"] == "env":
+            # среду с пространствами не удаляем; блокировка общая с созданием пространства (main.env_guard)
+            c.execute(text("SELECT pg_advisory_xact_lock(hashtext('triosteum-env:' || :o || ':' || :e))"), {"o": w.org_id, "e": r["src"]})
+            n = c.execute(text("SELECT count(*) FROM spaces WHERE env = :e AND deleted_at IS NULL"), {"e": r["src"]}).scalar_one()
+            if n:
+                raise HTTPException(409, f"В среде есть пространства ({n}). Сначала удалите или перенесите их — потом удалите среду.")
         c.execute(text("UPDATE org_items SET deleted_at = now(), updated_by = :u WHERE id = :i"), {"u": w.user_id, "i": r["id"]})
         audit(c, w.org_id, w.user_id, "orglib.remove", request, "org_item", item_id, {"name": r["name"]})
     return {"ok": True}

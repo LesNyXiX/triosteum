@@ -97,6 +97,7 @@
     "app/envs/industry.js",
     "app/envs/industry-deep.js",
     "app/envs/graphics.js",
+    "app/envs/custom.js",
     "app/envs/switch.js",
     "app/envs/ecosystem-screen.js",
     "app/office/shell.js",

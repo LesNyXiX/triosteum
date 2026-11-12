@@ -172,3 +172,7 @@ Codex — через своё приложение GitHub (комментари�
 | GET | `/api/org/items?kind=plugin` | все сотрудники | `{items:[{id, kind, src, name, data, by, by_name, updated_at}]}` |
 | POST | `/api/org/items` | владелец, редактор | `{kind:"plugin", src, data}` — поделиться; тот же `src` — обновить (только автор или владелец), 201 |
 | DELETE | `/api/org/items/{id}` | автор, владелец | убрать из библиотеки |
+
+Свои среды компании — тот же API с `kind:"env"`: `src` и `data.id` — идентификатор среды `u[a-z]{5,11}`,
+`data`: `{id, name, short, color:"#rrggbb", ic, desc, kinds:[типы блоков отраслевых сред], step, theme?}`.
+Пространства в такой среде — обычные пространства с `env` = идентификатор среды.

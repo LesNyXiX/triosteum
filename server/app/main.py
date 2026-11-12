@@ -517,11 +517,36 @@ def _announce(w: Who, space_id: str, rev: int, updated_at, content: dict, reques
                                          "uid": w.user_id, "content": content}, except_sid=request.headers.get("x-live-sid"))
 
 
+CUSTOM_ENV = re.compile(r"^u[a-z]{5,11}$")
+
+
+def env_exists(c, org_id: str, env: str | None) -> bool:
+    """Своя среда компании (u…): есть ли она в библиотеке. Берёт ту же блокировку, что и удаление среды
+    (orglib.remove_item), — запись пространства в среду и удаление среды не проскочат друг мимо друга.
+    Встроенные среды не проверяются."""
+    if not env or not CUSTOM_ENV.match(env):
+        return True
+    c.execute(text("SELECT pg_advisory_xact_lock(hashtext('triosteum-env:' || :o || ':' || :e))"), {"o": org_id, "e": env})
+    return bool(c.execute(text("SELECT 1 FROM org_items WHERE kind = 'env' AND src = :e AND deleted_at IS NULL"), {"e": env}).first())
+
+
+def env_guard(c, org_id: str, env: str | None) -> None:
+    """Запись пространства в свою среду (создание, сохранение, смена среды) — только пока среда есть."""
+    if not env_exists(c, org_id, env):
+        raise HTTPException(422, "Такой среды в вашей организации нет — возможно, её удалили")
+
+
+def env_or_code(c, org_id: str, env: str) -> str:
+    """Перенос и восстановление: пространство из удалённой своей среды попадает в «Разработку», а не теряется."""
+    return env if env_exists(c, org_id, env) else "code"
+
+
 @app.put("/api/spaces/{space_id}")
 def put_space(space_id: str, body: SpaceIn, request: Request, w: Who = Depends(need_writer)):
     check_id(space_id)
     content_json = json.dumps(body.content, ensure_ascii=False)
     with tx(w.org_id) as c:
+        env_guard(c, w.org_id, body.env)
         # сохраняем, только если никто не успел сохранить раньше нас (номер правки совпадает)
         r = c.execute(text("""UPDATE spaces SET name = :n, env = :e, content = CAST(:c AS jsonb), rev = rev + 1,
                                      updated_by = :u, updated_at = now()
@@ -541,6 +566,7 @@ def put_space(space_id: str, body: SpaceIn, request: Request, w: Who = Depends(n
             return JSONResponse(space_out(live), status_code=409)
         if body.base_rev != 0:
             raise HTTPException(404, "Пространство удалено")
+        env_guard(c, w.org_id, body.env)
         # новое пространство (или повторное создание удалённого с тем же id)
         r = c.execute(text("""INSERT INTO spaces (org_id, id, name, env, content, rev, created_by, updated_by)
                               VALUES (:o, :id, :n, :e, CAST(:c AS jsonb), 1, :u, :u)
@@ -626,6 +652,7 @@ def schedule_done(space_id: str, body: ScheduleDone, w: Who = Depends(need_write
 def patch_space(space_id: str, body: SpacePatch, w: Who = Depends(need_writer)):
     check_id(space_id)
     with tx(w.org_id) as c:
+        env_guard(c, w.org_id, body.env)
         n = c.execute(text("""UPDATE spaces SET name = coalesce(:n, name), env = coalesce(:e, env)
                               WHERE id = :id AND deleted_at IS NULL"""),
                       {"n": body.name, "e": body.env, "id": space_id}).rowcount
@@ -1162,7 +1189,7 @@ def import_local(body: ImportIn, request: Request, w: Who = Depends(need_writer)
             content_json = json.dumps(s.content, ensure_ascii=False)
             c.execute(text("""INSERT INTO spaces (org_id, id, name, env, content, rev, created_by, updated_by)
                               VALUES (:o, :id, :n, :e, CAST(:c AS jsonb), 1, :u, :u)"""),
-                      {"o": w.org_id, "id": sid, "n": s.name, "e": s.env, "c": content_json, "u": w.user_id})
+                      {"o": w.org_id, "id": sid, "n": s.name, "e": env_or_code(c, w.org_id, s.env), "c": content_json, "u": w.user_id})
             snapshot(c, w, sid, 1, content_json, label="Перенесено из браузера")
             n += 1
         for name, value in body.prefs.items():

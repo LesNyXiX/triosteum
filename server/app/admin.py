@@ -15,7 +15,7 @@ from sqlalchemy import text
 
 from .db import tx
 from .live import hub
-from .main import EMAIL, INST_DEFAULTS, ROLES, Who, _inst, access_open, inst, inst_set, need
+from .main import EMAIL, INST_DEFAULTS, ROLES, Who, _inst, access_open, env_or_code, inst, inst_set, need
 from .security import new_token, token_hash
 
 router = APIRouter(prefix="/api/admin")
@@ -331,7 +331,7 @@ def _apply_point(w: Who, data: dict, label: str) -> None:
                 if r is None:
                     c.execute(text("""INSERT INTO spaces (org_id, id, name, env, content, rev, created_by, updated_by, deleted_at)
                                       VALUES (CAST(:o AS uuid), :id, :n, :e, CAST(:c AS jsonb), 1, :u, :u, CAST(:x AS timestamptz))"""),
-                              {"o": oid, "id": sid, "n": s["name"], "e": s["env"], "c": cj, "u": w.user_id, "x": s["deleted_at"]})
+                              {"o": oid, "id": sid, "n": s["name"], "e": env_or_code(c, oid, s["env"]), "c": cj, "u": w.user_id, "x": s["deleted_at"]})
                     continue
                 same = (json.loads(r["c"]) == s["content"] and r["name"] == s["name"] and r["env"] == s["env"]
                         and bool(r["deleted_at"]) == bool(s["deleted_at"]))
@@ -345,7 +345,7 @@ def _apply_point(w: Who, data: dict, label: str) -> None:
                 nr = c.execute(text("""UPDATE spaces SET name = :n, env = :e, content = CAST(:c AS jsonb), rev = rev + 1,
                                               updated_by = :u, updated_at = now(), deleted_at = CAST(:x AS timestamptz)
                                        WHERE id = :id RETURNING rev, updated_at"""),
-                               {"n": s["name"], "e": s["env"], "c": cj, "u": w.user_id, "x": s["deleted_at"], "id": sid}).mappings().first()
+                               {"n": s["name"], "e": env_or_code(c, oid, s["env"]), "c": cj, "u": w.user_id, "x": s["deleted_at"], "id": sid}).mappings().first()
                 if not s["deleted_at"]:
                     announce.append((sid, nr["rev"], nr["updated_at"], s["content"]))
             for sid, r in cur.items():

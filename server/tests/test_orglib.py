@@ -65,3 +65,54 @@ def test_bad_items_rejected(client):
     assert client.post("/api/org/items", json={"kind": "plugin", "src": "x", "data": {"lang": "python"}}).status_code == 422
     big = {**PLUGIN, "codes": {"python": "x" * (600 * 1024)}}
     assert client.post("/api/org/items", json={"kind": "plugin", "src": "x", "data": big}).status_code == 413
+
+
+ENV = {"id": "ulabotk", "name": "Лаборатория ОТК", "short": "ОТК", "color": "#0D9488", "ic": "lab",
+       "kinds": ["oee", "defects", "pareto"], "desc": "Контроль качества", "step": True, "theme": "graphite", "junk": 1}
+
+
+def test_custom_env(client):
+    register(client, org="Завод Среды")
+    colleague = member(client, client)
+    r = client.post("/api/org/items", json={"kind": "env", "src": "ulabotk", "data": ENV})
+    assert r.status_code == 201, r.text
+    d = r.json()["data"]
+    assert d["name"] == "Лаборатория ОТК" and d["kinds"] == ["oee", "defects", "pareto"] and "junk" not in d
+    assert [x["data"]["id"] for x in colleague.get("/api/org/items?kind=env").json()["items"]] == ["ulabotk"]
+    assert colleague.get("/api/org/items?kind=plugin").json()["items"] == []
+    # пространство в своей среде создаётся как обычное
+    assert colleague.put("/api/spaces/otk1", json={"name": "ОТК", "env": "ulabotk", "content": {}, "base_rev": 0}).status_code == 201
+    # чужой редактор не меняет, автор меняет
+    assert colleague.post("/api/org/items", json={"kind": "env", "src": "ulabotk", "data": {**ENV, "name": "Чужое"}}).status_code == 403
+    assert client.post("/api/org/items", json={"kind": "env", "src": "ulabotk", "data": {**ENV, "name": "ОТК и лаборатория"}}).status_code == 201
+    stranger = new_client(client)
+    register(stranger, org="Чужой завод среды")
+    assert stranger.get("/api/org/items?kind=env").json()["items"] == []
+
+
+def test_custom_env_validation(client):
+    register(client, org="Завод Проверки сред")
+    bad = [({**ENV, "id": "wh"}, "wh"), ({**ENV, "id": "ulabotk"}, "uother"), ({**ENV, "kinds": []}, "ulabotk"),
+           ({**ENV, "kinds": ["bad kind!"]}, "ulabotk"), ({**ENV, "color": "red"}, "ulabotk"), ({**ENV, "name": ""}, "ulabotk")]
+    for data, src in bad:
+        assert client.post("/api/org/items", json={"kind": "env", "src": src, "data": data}).status_code == 422, data
+
+
+def test_env_delete_guard(client):
+    """Удалить среду с пространствами нельзя и прямым запросом; пространство в несуществующей среде не создаётся."""
+    register(client, org="Завод Удаление сред")
+    assert client.put("/api/spaces/nx1", json={"name": "X", "env": "unothere", "content": {}, "base_rev": 0}).status_code == 422
+    it = client.post("/api/org/items", json={"kind": "env", "src": "ulabotk", "data": ENV}).json()
+    assert client.put("/api/spaces/otk2", json={"name": "ОТК", "env": "ulabotk", "content": {}, "base_rev": 0}).status_code == 201
+    r = client.delete(f"/api/org/items/{it['id']}")
+    assert r.status_code == 409 and "пространства (1)" in r.json()["detail"]
+    assert client.delete("/api/spaces/otk2").status_code == 200
+    assert client.delete(f"/api/org/items/{it['id']}").status_code == 200
+    # среды больше нет — пространство в ней не создать, не вернуть и не перенести в неё
+    assert client.put("/api/spaces/other1", json={"name": "Другое", "env": "code", "content": {}, "base_rev": 0}).status_code == 201
+    assert client.patch("/api/spaces/other1", json={"env": "ulabotk"}).status_code == 422
+    imp = client.post("/api/import", json={"spaces": [{"id": "imp1", "name": "Из браузера", "env": "ulabotk", "content": {}}], "prefs": {}})
+    assert imp.status_code == 200, imp.text
+    assert [x["env"] for x in client.get("/api/spaces").json() if x["name"] == "Из браузера"] == ["code"]
+    assert client.put("/api/spaces/otk3", json={"name": "ОТК", "env": "ulabotk", "content": {}, "base_rev": 0}).status_code == 422
+    assert client.put("/api/spaces/otk2", json={"name": "ОТК", "env": "ulabotk", "content": {}, "base_rev": 0}).status_code == 422

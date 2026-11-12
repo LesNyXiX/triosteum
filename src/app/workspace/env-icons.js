@@ -4,7 +4,7 @@
   var ENV_IC_N = 0;
   // lite — без фильтра-тени внутри картинки (для дока: значки там меняют размер на каждом кадре)
   function envIconSvg(k, lite){
-    var u = 'ei' + (++ENV_IC_N) + '_', D = ENV_ICON_ART[k] || ENV_ICON_ART._other;
+    var u = 'ei' + (++ENV_IC_N) + '_', D = ENV_ICON_ART[k] || (ENVS[k] && ENVS[k].iconArt) || ENV_ICON_ART._other;   // свои среды компании несут значок с собой
     var bg = D.bg;
     return '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>' +
       '<linearGradient id="' + u + 'bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + bg[0] + '"/><stop offset="1" stop-color="' + bg[1] + '"/></linearGradient>' +
