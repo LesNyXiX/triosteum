@@ -129,7 +129,10 @@ ok(await k.locator('#nodes .node').count() === before + 2, 'расширение
 ok(await k.locator('#nodes .node:has-text("Из расширения")').count() === 1, 'с нужным названием');
 await k.keyboard.press('Control+z'); await k.waitForTimeout(500);
 ok(await k.locator('#nodes .node').count() === before, 'Ctrl+Z отменяет всё, что сделала команда');
-await cmd(k, 'Проверка схемы: Медленно'); await k.waitForTimeout(1500);
+await cmd(k, 'Проверка схемы: Медленно'); await k.waitForTimeout(300);
+await k.keyboard.press('Control+z'); await k.waitForTimeout(100);
+ok(/ещё выполняет команду/.test(await k.textContent('#toast')), 'во время команды Ctrl+Z ждёт её завершения');
+await k.waitForTimeout(1300);
 ok(await k.locator('#nodes .node').count() === before + 2, 'медленная команда добавила два блока с паузой');
 await k.keyboard.press('Control+z'); await k.waitForTimeout(500);
 ok(await k.locator('#nodes .node').count() === before, 'один Ctrl+Z отменяет всю медленную команду');

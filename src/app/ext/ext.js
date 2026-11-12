@@ -339,6 +339,10 @@
   EXT.hold = 0;
   var extCommit0 = commitHist;
   commitHist = function(){ if(EXT.hold > 0 && hist.last !== null) return; return extCommit0.apply(this, arguments); };
+  // пока команда выполняется, отмена и повтор ждут: иначе отменилось бы предыдущее действие вместе с половиной команды
+  var extUndo0 = undo, extRedo0 = redo;
+  undo = function(){ if(EXT.hold > 0){ toast('Подождите: расширение ещё выполняет команду — отменить можно будет после неё'); return; } return extUndo0.apply(this, arguments); };
+  redo = function(){ if(EXT.hold > 0){ toast('Подождите: расширение ещё выполняет команду'); return; } return extRedo0.apply(this, arguments); };
   function extHold(){ EXT.hold++; var done = false; return function(){ if(done) return; done = true; EXT.hold = Math.max(0, EXT.hold - 1); if(!EXT.hold){ flushSave(); extCommit0(); } }; }
   var extSaveGraph0 = saveGraph;
   saveGraph = function(){ var v = extSaveGraph0.apply(this, arguments); if(Object.keys(EXT.run).length) extChanged(); return v; };
