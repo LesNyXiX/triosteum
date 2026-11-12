@@ -2,8 +2,12 @@
      Расширение компании собирают прямо в Triosteum: описание, разрешения, команды, код.
      «Пробный запуск» — в той же песочнице, что и настоящие расширения, с журналом console.log и ошибок.
      ИИ пишет код по описанию; разрешения и команды подбираются по коду (их можно поправить).
-     Черновики живут на этом устройстве; публикует в компанию владелец организации. */
-  var XW = { drafts:load('triosteum.extdrafts', {}) || {}, cur:null, run:null };
+     Черновики — у пользователя (с сервером — в его учётной записи, без сервера — в браузере), каждый отдельной записью:
+     у настройки на сервере есть предел размера, и общий список всех черновиков в него бы не влез.
+     Публикует в компанию владелец организации. */
+  var XW_DRAFT_MAX = 900 * 1024;
+  var XW = { drafts:{}, cur:null, run:null };
+  (load('triosteum.extdraft-ids', []) || []).forEach(function(id){ var d = load('triosteum.extdraft.' + id, null); if(d && d.id === id) XW.drafts[id] = d; });
   var XW_API = [
     'triosteum.command(id, async () => { … })   — команда (id как в списке команд)',
     'await triosteum.board.get()                — { space, nodes:[{id,name,lang,code,desc,x,y}], edges:[{id,from,to}], notes, langs }',
@@ -15,7 +19,7 @@
     'await triosteum.board.note({ text, attach:blockId }) или note({ text, x, y })',
     'await triosteum.ui.toast("текст")          — уведомление',
     'await triosteum.ui.openPanel() / closePanel() — своя панель: рисуйте в document.body',
-    'await triosteum.storage.get(key) / set(key, value) — настройки на этом устройстве',
+    'await triosteum.storage.get(key) / set(key, value) — свои настройки (до 256 КБ, у каждого пользователя свои)',
     'triosteum.on("change", fn)                 — доска изменилась',
     'Сети нет: fetch и подобное закрыты. Изменения доски отменяются Ctrl+Z.'
   ].join('\n');
@@ -43,13 +47,20 @@
   }
   function xwNewId(){ var s = ''; while(s.length < 9) s += Math.random().toString(36).slice(2); return 'x' + s.replace(/[^a-z0-9]/g, '').slice(0, 9); }
   function xwNew(){ return { id:xwNewId(), name:'', desc:'', perms:['board.read'], panel:'', commands:[ { id:'count', label:'Сколько блоков на доске', desc:'' } ], code:XW_START, at:Date.now() }; }
-  function xwSaveDrafts(){ save('triosteum.extdrafts', XW.drafts); }
+  function xwSaveIds(){ save('triosteum.extdraft-ids', Object.keys(XW.drafts)); }
+  // false — черновик не сохранён (слишком большой)
+  function xwSaveDraft(d){
+    if(JSON.stringify(d).length > XW_DRAFT_MAX) return false;
+    save('triosteum.extdraft.' + d.id, d); xwSaveIds(); return true;
+  }
+  function xwDropDraft(id){ delete XW.drafts[id]; save('triosteum.extdraft.' + id, null); xwSaveIds(); }
   function xwCanPublish(){ return !!(SERVER && SERVER.role === 'owner'); }
   // ошибки в описании — до публикации и пробного запуска
   function xwProblems(d){
     var p = [];
     if(!d.name.trim()) p.push('Назовите расширение');
     if(!d.code.trim()) p.push('Напишите код');
+    else if(new TextEncoder().encode(d.code).length > 256 * 1024) p.push('Код больше 256 КБ — столько опубликовать нельзя');
     if(!d.commands.length && d.perms.indexOf('panel') < 0) p.push('Нужна хотя бы одна команда или панель');
     var seen = {};
     d.commands.forEach(function(c, i){
@@ -95,7 +106,7 @@
     function drawSide(){
       side.textContent = '';
       var add = h('button', { type:'button', 'class':'btn primary xw-add', text:'+ Новое расширение' });
-      add.addEventListener('click', function(){ var d = xwNew(); XW.drafts[d.id] = d; xwSaveDrafts(); edit(d.id); });
+      add.addEventListener('click', function(){ var d = xwNew(); XW.drafts[d.id] = d; xwSaveDraft(d); edit(d.id); });
       side.appendChild(add);
       var ds = Object.keys(XW.drafts).map(function(k){ return XW.drafts[k]; }).sort(function(a, b){ return (b.at || 0) - (a.at || 0); });
       side.appendChild(h('b', { 'class':'xw-sh', text:'Черновики' }));
@@ -116,7 +127,7 @@
             var d = JSON.parse(JSON.stringify(x.def)), own = xwCanPublish();
             var nd = { id:own ? d.id : xwNewId(), name:own ? d.name : (d.name + ' (копия)').slice(0, 40), desc:d.desc || '', perms:d.perms || [], panel:d.panel || '',
               commands:d.commands || [], code:d.code || '', at:Date.now() };
-            XW.drafts[nd.id] = nd; xwSaveDrafts(); edit(nd.id);
+            XW.drafts[nd.id] = nd; xwSaveDraft(nd); edit(nd.id);
           });
           side.appendChild(b);
         });
@@ -128,7 +139,8 @@
       XW.cur = id; var d = XW.drafts[id]; if(!d){ main.textContent = ''; drawSide(); return; }
       drawSide();
       main.textContent = '';
-      var touch = function(){ d.at = Date.now(); xwSaveDrafts(); check(); };
+      var big = false;
+      var touch = function(){ d.at = Date.now(); big = !xwSaveDraft(d); check(); };
       var name = h('input', { type:'text', maxlength:'40', value:d.name, placeholder:'например, «Проверка схемы»', 'aria-label':'Название расширения' });
       var desc = h('input', { type:'text', maxlength:'300', value:d.desc, placeholder:'что делает — коротко', 'aria-label':'Описание расширения' });
       name.addEventListener('input', function(){ d.name = name.value; touch(); var it = side.querySelector('[data-draft="' + d.id + '"] span'); if(it) it.textContent = d.name || 'Без названия'; });
@@ -201,6 +213,7 @@
       var probs = h('ul', { 'class':'xw-probs', role:'status' });
       function check(){
         probs.textContent = '';
+        if(big) probs.appendChild(h('li', { 'class':'bad', text:'Черновик больше 900 КБ и не сохраняется — сократите код' }));
         xwProblems(d).forEach(function(t){ probs.appendChild(h('li', { 'class':'bad', text:t })); });
         xwWarnings(d).forEach(function(t){ probs.appendChild(h('li', { 'class':'warn', text:t })); });
       }
@@ -255,7 +268,7 @@
       });
       delB.addEventListener('click', function(){
         if(Date.now() - armed > 4000){ armed = Date.now(); delB.textContent = 'Точно удалить черновик?'; return; }
-        xwStopRun(); delete XW.drafts[d.id]; xwSaveDrafts(); XW.cur = null; main.textContent = ''; drawSide();
+        xwStopRun(); xwDropDraft(d.id); XW.cur = null; main.textContent = ''; drawSide();
         main.appendChild(h('p', { 'class':'xw-none', text:extById(d.id) ? 'Черновик удалён. Опубликованное расширение осталось в компании — убрать его можно в «Расширения компании».' : 'Черновик удалён.' }));
       });
       main.appendChild(h('div', { 'class':'cenv-row' }, [ h('label', null, [ h('span', { text:'Название' }), name ]), h('label', null, [ h('span', { text:'Описание' }), desc ]) ]));

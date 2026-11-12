@@ -116,8 +116,30 @@ await a.route(B + '/', async (route) => { const r = await route.fetch(); route.f
 const FENCE = '`'.repeat(3);
 let aiPrompt = '';
 await a.route('**/api/ai/complete', (route) => { aiPrompt = route.request().postDataJSON().prompt; route.fulfill({ status: 200, contentType: 'text/plain', body: 'Расширение отмечает выделенные блоки.\n' + FENCE + "js\ntriosteum.command('mark', async () => {\n  const s = await triosteum.board.selection();\n  for (const id of s.ids) await triosteum.board.note({ text: 'проверено', attach: id });\n});\n" + FENCE + '\n' }); });
+// много больших черновиков: каждый — своей записью, все переживают перезагрузку
+await cmd(a, 'Мастерская расширений');
+const big = '// ' + 'x'.repeat(220 * 1024) + '\ntriosteum.command("count", () => 1);';
+for (let i = 1; i <= 5; i++) {
+  await a.click('.xw-add'); await a.waitForTimeout(150);
+  await a.fill('.xw-main input[aria-label="Название расширения"]', 'Большой ' + i);
+  await a.fill('.xw-code', big);
+}
+ok(!/не сохраняется/.test(await a.textContent('.xw-probs')), 'черновик 220 КБ сохраняется');
+await a.fill('.xw-code', big + big + big + big + big);
+ok(/не сохраняется/.test(await a.textContent('.xw-probs')) && /больше 256 КБ/.test(await a.textContent('.xw-probs')), 'слишком большой черновик — понятное предупреждение');
+await a.fill('.xw-code', big);
+await a.keyboard.press('Escape'); await a.waitForTimeout(3500);
 await a.reload(); await a.waitForTimeout(1200);
 await cmd(a, 'Мастерская расширений');
+ok(await a.locator('.xw-item[data-draft]:has-text("Большой")').count() === 5, 'все пять больших черновиков на месте после перезагрузки');
+for (let i = 1; i <= 5; i++) {
+  await a.click(`.xw-item[data-draft]:has-text("Большой ${i}")`); await a.waitForTimeout(100);
+  await a.click('.xw .ext-acts button:has-text("Удалить черновик")'); await a.click('.xw .ext-acts button:has-text("Точно")'); await a.waitForTimeout(100);
+}
+await a.keyboard.press('Escape'); await a.waitForTimeout(2500);
+await a.reload(); await a.waitForTimeout(1200);
+await cmd(a, 'Мастерская расширений');
+ok(await a.locator('.xw-item[data-draft]:has-text("Большой")').count() === 0, 'удалённые черновики не возвращаются');
 ok(await a.inputValue('.xw-main input[aria-label="Название расширения"]') === 'Счётчик', 'черновик сохранился после перезагрузки');
 await a.click('.xw-add'); await a.waitForTimeout(200);
 await a.fill('.xw-ai input', 'Отметить выделенные блоки заметкой «проверено»');
