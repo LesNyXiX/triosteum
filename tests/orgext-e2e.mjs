@@ -27,6 +27,7 @@ async function has(p, q) { const n = await (await palette(p, q)).count(); await 
 async function cmd(p, q, keep) {
   const it = await palette(p, q, keep);
   if (!(await it.count())) { await p.keyboard.press('Escape'); return 0; }
+  await p.evaluate(() => { document.getElementById('toast').textContent = ''; });   // ждём новое уведомление, а не прошлое
   await it.first().click(); await p.waitForTimeout(200);
   return 1;
 }
@@ -69,6 +70,10 @@ triosteum.command('switchy', async () => {
   await new Promise((r) => setTimeout(r, 1500));
   await triosteum.board.update(n.id, { name: 'Испорчено' });
 });
+triosteum.command('hang', async () => {
+  await new Promise((r) => setTimeout(r, 1500));
+  await triosteum.board.add({ name: 'Опоздавший' });
+});
 triosteum.command('slow', async () => {
   await triosteum.board.add({ name: 'Медленный 1' });
   await new Promise((r) => setTimeout(r, 700));
@@ -88,7 +93,7 @@ const EXT = {
   id: 'xproverka', name: 'Проверка схемы', desc: 'Тестовое расширение', perms: ['board.read', 'board.write', 'panel'], panel: 'Проверка',
   commands: [{ id: 'count', label: 'Посчитать и добавить' }, { id: 'probe', label: 'Проверить песочницу' }, { id: 'panel', label: 'Показать панель' },
     { id: 'boom', label: 'Упасть' }, { id: 'nav', label: 'Уйти со страницы' }, { id: 'slow', label: 'Медленно' },
-    { id: 'mk', label: 'Блок для редактора' }, { id: 'recode', label: 'Переписать код' }, { id: 'switchy', label: 'Долгая правка' }],
+    { id: 'mk', label: 'Блок для редактора' }, { id: 'recode', label: 'Переписать код' }, { id: 'switchy', label: 'Долгая правка' }, { id: 'hang', label: 'Зависнуть' }],
   code: CODE,
 };
 
@@ -174,6 +179,13 @@ let tsw = '';
 for (let i = 0; i < 30; i++) { const t = await k.textContent('#toast'); if (!tsw.endsWith(t)) tsw += ' || ' + t; await k.waitForTimeout(100); }
 ok(/пространство сменилось/.test(tsw + await k.textContent('#toast')), 'смена пространства во время команды останавливает расширение');
 ok(await k.locator('#nodes .node:has-text("Испорчено")').count() === 0, 'в новом пространстве ничего не испорчено');
+
+await k.evaluate(() => { window.__tsExtCmdTimeout = 600; });
+await cmd(k, 'Проверка схемы: Зависнуть');
+ok(/не ответила за минуту — расширение остановлено/.test(await toastAfter(k, 3000)), 'зависшая команда останавливает расширение');
+await k.waitForTimeout(1800);
+ok(await k.locator('#nodes .node:has-text("Опоздавший")').count() === 0, 'после остановки зависшая команда доску не меняет');
+await k.evaluate(() => { delete window.__tsExtCmdTimeout; });
 
 console.log('Только запись — без чтения');
 await api(a, 'POST', '/org/items', { kind: 'ext', src: WRITER.id, data: WRITER });

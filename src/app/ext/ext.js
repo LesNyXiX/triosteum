@@ -356,7 +356,8 @@
       r.active = (r.active || 0) + 1; r.cmdSpace = curId();
       var release = function(){ hold(); r.active = Math.max(0, (r.active || 1) - 1); };
       return new Promise(function(res, rej){
-        var to = setTimeout(function(){ delete r.runs[rid]; release(); rej(new Error('команда не ответила за минуту')); }, 60000);
+        // не ответила за минуту — останавливаем расширение целиком, чтобы зависшая команда не дописала доску потом
+        var to = setTimeout(function(){ extStop(x.id, 'команда не ответила за минуту — расширение остановлено'); }, +window.__tsExtCmdTimeout || 60000   /* в тестах — короче */);
         r.runs[rid] = function(d){ clearTimeout(to); release(); if(d.err) rej(new Error(d.err)); else res(d.v); };
         extPost(r, { cmd:cmd, run:rid, a:null });
       });
