@@ -49,8 +49,10 @@
     var live = {};
     (items || []).filter(function(it){ return it && it.kind === 'env'; }).forEach(function(it){ live[it.data && it.data.id] = 1; cenvRegister(it); });
     // убранные из библиотеки — убираем и из списка сред (кроме той, где пользователь сейчас)
-    Object.keys(ENVS).forEach(function(k){ if(ENVS[k].custom && !live[k] && ENV.id !== k) delete ENVS[k]; });
+    var gone = false;
+    Object.keys(ENVS).forEach(function(k){ if(ENVS[k].custom && !live[k] && ENV.id !== k){ delete ENVS[k]; gone = true; } });
     ALLP = null;
+    if(gone && typeof envDockRender === 'function') try { envDockRender(); } catch(e){}
     // автор изменил среду, в которой сотрудник сейчас работает: подхватываем новые блоки и библиотеку, доску не трогаем
     if(ENV && ENV.custom && ENVS[ENV.id] && ENVS[ENV.id] !== ENV){
       setEnv(ENV.id);
@@ -111,7 +113,9 @@
       function cenvDelete(){
         SERVER.api('DELETE', '/org/items/' + e.orgItem).then(function(r){
           if(r.status !== 200){ err.textContent = (r.data && r.data.detail) || 'Не получилось удалить'; return; }
-          close(); if(ENV.id !== d.id){ delete ENVS[d.id]; } toast('Среда «' + d.name + '» удалена'); if(typeof renderEco === 'function' && !$('eco').hidden) renderEco();
+          close(); if(ENV.id !== d.id){ delete ENVS[d.id]; } toast('Среда «' + d.name + '» удалена');
+          if(typeof envDockRender === 'function') try { envDockRender(); } catch(e2){}
+          if(typeof renderEco === 'function' && !$('eco').hidden) renderEco();
         });
       }
       acts.unshift(del);

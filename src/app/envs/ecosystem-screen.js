@@ -3,6 +3,7 @@
   function envNewName(k){ return k === 'docs' ? 'Документооборот' : (ENVS[k] && ENVS[k].newName) || 'Новое пространство'; }
   function goEnv(id, demo){
     closeEco();
+    if(!ENVS[id]){ toast('Этой среды больше нет — её удалили'); if(typeof envDockRender === 'function') envDockRender(); return; }
     if(demo && id === 'docs'){ makeDocsDemo(); return; }
     if(demo && ENVS[id] && ENVS[id].seed){ ENVS[id].seed(); return; }
     if(demo && ENVS[id] && ENVS[id].demo){ makeEnvDemo(id, typeof demo === 'number' ? demo - 1 : 0); return; }

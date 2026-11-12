@@ -86,12 +86,15 @@ await a.keyboard.press('Escape'); await a.waitForTimeout(200);
 for (const x of (await api(a, 'GET', '/spaces')).data.filter((q) => q.env === envId)) await api(a, 'DELETE', '/spaces/' + x.id);
 await a.reload(); await a.waitForTimeout(1200);          // пространства убраны мимо интерфейса — перечитываем страницу
 await eco(a);
+ok(await a.locator('#envDock .ed-i[aria-label^="Лаборатория ОТК"]').count() === 1, 'в доке сред есть кнопка своей среды');
 await a.click('.eco-card:has-text("Лаборатория ОТК и метрологии") button:has-text("Настроить")'); await a.waitForTimeout(400);
 await a.click('.cenv-del'); await a.waitForTimeout(500);
 ok((await a.textContent('.cenv-del')) === 'Точно?', 'пустую среду удаляет после подтверждения');
 await a.click('.cenv-del'); await a.waitForTimeout(1200);
 ok((await api(a, 'GET', '/org/items?kind=env')).data.items.length === 0, 'среда удалена из библиотеки компании');
 ok(await a.locator('.eco-card:has-text("Лаборатория ОТК")').count() === 0, 'и пропала с экрана сред');
+await a.keyboard.press('Escape'); await a.waitForTimeout(300);
+ok(await a.locator('#envDock .ed-i[aria-label^="Лаборатория ОТК"]').count() === 0, 'и из дока сред — кнопка не ведёт в удалённую среду');
 
 ok(errs.length === 0, 'нет ошибок JavaScript' + (errs.length ? ': ' + errs.join(' | ') : ''));
 await b.close();

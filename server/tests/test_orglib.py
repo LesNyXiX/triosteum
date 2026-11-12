@@ -108,6 +108,11 @@ def test_env_delete_guard(client):
     assert r.status_code == 409 and "пространства (1)" in r.json()["detail"]
     assert client.delete("/api/spaces/otk2").status_code == 200
     assert client.delete(f"/api/org/items/{it['id']}").status_code == 200
-    # среды больше нет — пространство в ней не создать и не вернуть
+    # среды больше нет — пространство в ней не создать, не вернуть и не перенести в неё
+    assert client.put("/api/spaces/other1", json={"name": "Другое", "env": "code", "content": {}, "base_rev": 0}).status_code == 201
+    assert client.patch("/api/spaces/other1", json={"env": "ulabotk"}).status_code == 422
+    imp = client.post("/api/import", json={"spaces": [{"id": "imp1", "name": "Из браузера", "env": "ulabotk", "content": {}}], "prefs": {}})
+    assert imp.status_code == 200, imp.text
+    assert [x["env"] for x in client.get("/api/spaces").json() if x["name"] == "Из браузера"] == ["code"]
     assert client.put("/api/spaces/otk3", json={"name": "ОТК", "env": "ulabotk", "content": {}, "base_rev": 0}).status_code == 422
     assert client.put("/api/spaces/otk2", json={"name": "ОТК", "env": "ulabotk", "content": {}, "base_rev": 0}).status_code == 422
