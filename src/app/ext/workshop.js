@@ -7,7 +7,15 @@
      Публикует в компанию владелец организации. */
   var XW_DRAFT_MAX = 900 * 1024;
   var XW = { drafts:{}, cur:null, run:null };
-  (load('triosteum.extdraft-ids', []) || []).forEach(function(id){ var d = load('triosteum.extdraft.' + id, null); if(d && d.id === id) XW.drafts[id] = d; });
+  // список черновиков — по самим записям, а не по отдельному индексу: индекс из другой вкладки мог бы затереть чужие черновики
+  function xwScan(){
+    var P = 'triosteum.extdraft.';
+    Store.keys(P).forEach(function(k){
+      var id = k.slice(P.length); if(XW.drafts[id]) return;
+      var d = load(k, null); if(d && d.id === id) XW.drafts[id] = d;
+    });
+  }
+  xwScan();
   var XW_API = [
     'triosteum.command(id, async () => { … })   — команда (id как в списке команд)',
     'await triosteum.board.get()                — { space, nodes:[{id,name,lang,code,desc,x,y}], edges:[{id,from,to}], notes, langs }',
@@ -47,13 +55,13 @@
   }
   function xwNewId(){ var s = ''; while(s.length < 9) s += Math.random().toString(36).slice(2); return 'x' + s.replace(/[^a-z0-9]/g, '').slice(0, 9); }
   function xwNew(){ return { id:xwNewId(), name:'', desc:'', perms:['board.read'], panel:'', commands:[ { id:'count', label:'Сколько блоков на доске', desc:'' } ], code:XW_START, at:Date.now() }; }
-  function xwSaveIds(){ save('triosteum.extdraft-ids', Object.keys(XW.drafts)); }
+  function xwBytes(v){ return new TextEncoder().encode(JSON.stringify(v)).length; }   // сервер считает байты UTF-8
   // false — черновик не сохранён (слишком большой)
   function xwSaveDraft(d){
-    if(JSON.stringify(d).length > XW_DRAFT_MAX) return false;
-    save('triosteum.extdraft.' + d.id, d); xwSaveIds(); return true;
+    if(xwBytes(d) > XW_DRAFT_MAX) return false;
+    save('triosteum.extdraft.' + d.id, d); return true;
   }
-  function xwDropDraft(id){ delete XW.drafts[id]; save('triosteum.extdraft.' + id, null); xwSaveIds(); }
+  function xwDropDraft(id){ delete XW.drafts[id]; save('triosteum.extdraft.' + id, null); }
   function xwCanPublish(){ return !!(SERVER && SERVER.role === 'owner'); }
   // ошибки в описании — до публикации и пробного запуска
   function xwProblems(d){
@@ -87,6 +95,7 @@
 
   function openWorkshop(startId){
     if($('xw')) return;
+    xwScan();
     var back = h('div', { id:'xw', 'class':'cenv-back xw-back', role:'dialog', 'aria-modal':'true', 'aria-label':'Мастерская расширений' });
     var side = h('nav', { 'class':'xw-side', 'aria-label':'Черновики и расширения' });
     var main = h('div', { 'class':'xw-main' });

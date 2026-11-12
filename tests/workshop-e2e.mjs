@@ -135,6 +135,30 @@ ok(/Готово: 42/.test(await waitLog(a, /Готово/)), 'хранилищ�
 await a.click('.xw .ext-acts button:has-text("Удалить черновик")'); await a.click('.xw .ext-acts button:has-text("Точно")');
 await a.keyboard.press('Escape');
 
+// две вкладки: черновики из обеих на месте (вторая не затирает первую)
+const a2 = await a.context().newPage(); a2.on('pageerror', (e) => errs.push(e.message));
+await a2.goto(B + '/'); await a2.waitForTimeout(1200);
+await cmd(a, 'Мастерская расширений'); await a.click('.xw-add'); await a.waitForTimeout(150);
+await a.fill('.xw-main input[aria-label="Название расширения"]', 'Из первой вкладки');
+await cmd(a2, 'Мастерская расширений'); await a2.click('.xw-add'); await a2.waitForTimeout(150);
+await a2.fill('.xw-main input[aria-label="Название расширения"]', 'Из второй вкладки');
+await a2.keyboard.press('Escape'); await a.keyboard.press('Escape'); await a.waitForTimeout(3000);
+await a2.close();
+await a.reload(); await a.waitForTimeout(1200);
+await cmd(a, 'Мастерская расширений');
+ok(await a.locator('.xw-item[data-draft]:has-text("Из первой вкладки")').count() === 1 && await a.locator('.xw-item[data-draft]:has-text("Из второй вкладки")').count() === 1, 'черновики из двух вкладок оба на месте');
+for (const t of ['Из первой вкладки', 'Из второй вкладки']) {
+  await a.click(`.xw-item[data-draft]:has-text("${t}")`); await a.waitForTimeout(100);
+  await a.click('.xw .ext-acts button:has-text("Удалить черновик")'); await a.click('.xw .ext-acts button:has-text("Точно")'); await a.waitForTimeout(100);
+}
+// размер — в байтах UTF-8, как считает сервер
+await a.click('.xw-add'); await a.waitForTimeout(150);
+await a.fill('.xw-code', '// ' + 'я'.repeat(500000));
+ok(/не сохраняется/.test(await a.textContent('.xw-probs')), 'кириллица считается в байтах: 500 000 букв — предупреждение');
+await a.fill('.xw-code', '// ок');
+await a.click('.xw .ext-acts button:has-text("Удалить черновик")'); await a.click('.xw .ext-acts button:has-text("Точно")');
+await a.keyboard.press('Escape');
+
 // много больших черновиков: каждый — своей записью, все переживают перезагрузку
 await cmd(a, 'Мастерская расширений');
 const big = '// ' + 'x'.repeat(220 * 1024) + '\ntriosteum.command("count", () => 1);';
