@@ -181,7 +181,11 @@ ok(await named('Для редактора') === 0 && await named('Медленн
 await k.keyboard.press('Control+z'); await k.waitForTimeout(400);
 ok(await named('Медленный 1') === 0 && await named('Медленный 2') === 0 && await k.locator('#nodes .node').count() === before, 'следующий Ctrl+Z — первую целиком');
 // больше 150 изменений одной командой — всё равно одна запись отмены, начало команды не вытесняется
-await cmd(k, 'Проверка схемы: Много блоков'); await k.waitForTimeout(4000);
+await cmd(k, 'Проверка схемы: Много блоков');
+const t160 = Date.now();
+for (let i = 0; i < 150 && await k.locator('#nodes .node').count() < before + 160; i++) await k.waitForTimeout(100);
+await k.waitForTimeout(800);
+console.log('    (160 блоков за ' + (Date.now() - t160) + ' мс)');
 ok(await k.locator('#nodes .node').count() === before + 160, 'команда добавила 160 блоков');
 await k.evaluate(() => document.activeElement && document.activeElement.blur());
 await k.keyboard.press('Control+z'); await k.waitForTimeout(600);

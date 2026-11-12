@@ -27,7 +27,8 @@ THEMES = {"burgundy", "emerald", "graphite", "midnight"}
 EXT_ID = re.compile(r"^x[a-z0-9]{5,15}$")
 CMD_ID = re.compile(r"^[a-z0-9_-]{1,30}$")
 # что расширение может попросить; всё остальное (сеть, сервер, другие пространства) ему недоступно в принципе
-EXT_PERMS = ("board.read", "board.write", "selection", "storage", "panel")
+EXT_PERMS = ("board.read", "board.write", "selection", "storage", "panel", "background")
+CMD_WHERE = ("palette", "block")   # где команда: в Ctrl+K и/или в окне настроек блока (правая кнопка мыши)
 EXT_CODE_MAX = 256 * 1024
 MAX_BYTES = 512 * 1024
 # поля плагина, которые хранятся в библиотеке; остальное (личные пометки) отбрасывается
@@ -119,10 +120,14 @@ def clean_ext(d: dict, src: str, prev: dict | None) -> dict:
         if not CMD_ID.match(cid) or cid in seen or not 1 <= len(label) <= 60:
             raise HTTPException(422, "У каждой команды нужен свой id (a-z, 0-9, -, _) и название до 60 символов")
         seen.add(cid)
-        out_cmds.append({"id": cid, "label": label, "desc": str(c.get("desc") or "").strip()[:120]})
+        where = c.get("where") or ["palette"]
+        if not isinstance(where, list) or not where or not all(isinstance(x, str) and x in CMD_WHERE for x in where):
+            raise HTTPException(422, "Место команды — «palette» (Ctrl+K) и/или «block» (меню блока)")
+        out_cmds.append({"id": cid, "label": label, "desc": str(c.get("desc") or "").strip()[:120],
+                         "where": [x for x in CMD_WHERE if x in where]})
     order = [p for p in EXT_PERMS if p in perms]
-    if not out_cmds and "panel" not in order:
-        raise HTTPException(422, "Расширению нужна хотя бы одна команда или панель")
+    if not out_cmds and "panel" not in order and "background" not in order:
+        raise HTTPException(422, "Расширению нужна хотя бы одна команда, панель или работа в фоне")
     out = {"id": xid, "name": name, "desc": str(d.get("desc") or "").strip()[:300], "ic": str(d.get("ic") or "plug")[:30],
            "perms": order, "commands": out_cmds, "code": code,
            "ver": int((prev or {}).get("ver") or 0) + 1}
