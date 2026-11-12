@@ -17,7 +17,7 @@
   }
   xwScan();
   var XW_API = [
-    'triosteum.command(id, async () => { … })   — команда (id как в списке команд)',
+    'triosteum.command(id, async ({ block }) => { … }) — команда (id как в списке); из меню блока приходит block — id блока',
     'await triosteum.board.get()                — { space, nodes:[{id,name,lang,code,desc,x,y}], edges:[{id,from,to}], notes, langs }',
     'await triosteum.board.selection()          — { ids:[…] } выделенные блоки',
     'await triosteum.board.add({ name, lang, code, desc, x, y }) — новый блок',
@@ -28,7 +28,10 @@
     'await triosteum.ui.toast("текст")          — уведомление',
     'await triosteum.ui.openPanel() / closePanel() — своя панель: рисуйте в document.body',
     'await triosteum.storage.get(key) / set(key, value) — свои настройки (до 256 КБ, у каждого пользователя свои)',
-    'triosteum.on("change", fn)                 — доска изменилась',
+    'triosteum.on("change", fn)                 — доска изменилась (нужно «читать доску»)',
+    'triosteum.on("selection", ({ ids }) => …)  — выделение изменилось (нужно «видеть выделение» или «читать доску»)',
+    'triosteum.on("space", ({ id, name }) => …) — открыли другое пространство (нужно «читать доску»)',
+    'События приходят работающему расширению: чтобы реагировать сразу, нужно разрешение «работать в фоне».',
     'Сети нет: fetch и подобное закрыты. Изменения доски отменяются Ctrl+Z.'
   ].join('\n');
   var XW_START = [
@@ -41,7 +44,9 @@
   ].join('\n');
   // что код вызывает → какие разрешения ему нужны
   var XW_USES = [
-    [ /board\.get\s*\(|on\(\s*['"]change/, 'board.read' ],
+    [ /board\.get\s*\(|on\(\s*['"](change|space)/, 'board.read' ],
+    [ /on\(\s*['"]selection/, 'selection' ],
+    [ /triosteum\.on\(/, 'background' ],
     [ /board\.(add|update|remove|connect|note)\s*\(/, 'board.write' ],
     [ /board\.selection\s*\(/, 'selection' ],
     [ /storage\.(get|set)\s*\(/, 'storage' ],
@@ -82,7 +87,7 @@
     if(!d.name.trim()) p.push('Назовите расширение');
     if(!d.code.trim()) p.push('Напишите код');
     else if(new TextEncoder().encode(d.code).length > 256 * 1024) p.push('Код больше 256 КБ — столько опубликовать нельзя');
-    if(!d.commands.length && d.perms.indexOf('panel') < 0) p.push('Нужна хотя бы одна команда или панель');
+    if(!d.commands.length && d.perms.indexOf('panel') < 0 && d.perms.indexOf('background') < 0) p.push('Нужна хотя бы одна команда, панель или работа в фоне');
     var seen = {};
     d.commands.forEach(function(c, i){
       if(!/^[a-z0-9_-]{1,30}$/.test(c.id)) p.push('Команда ' + (i + 1) + ': id — латиница, цифры, «-» и «_»');
@@ -91,8 +96,46 @@
     });
     return p;
   }
+  // обмен между компаниями — по желанию, файлом: расширение уходит и приходит только так, как его передали люди
+  var XW_FILE = 'triosteum-extension';
+  // имя файла латиницей: кириллица в имени скачиваемого файла теряется в части браузеров (получается «download»)
+  var XW_LAT = { а:'a', б:'b', в:'v', г:'g', д:'d', е:'e', ё:'e', ж:'zh', з:'z', и:'i', й:'y', к:'k', л:'l', м:'m', н:'n', о:'o', п:'p', р:'r', с:'s', т:'t', у:'u',
+    ф:'f', х:'h', ц:'ts', ч:'ch', ш:'sh', щ:'sch', ъ:'', ы:'y', ь:'', э:'e', ю:'yu', я:'ya' };
+  function xwFileName(name){
+    var t = String(name || '').toLowerCase().split('').map(function(ch){ return XW_LAT[ch] !== undefined ? XW_LAT[ch] : ch; }).join('');
+    t = t.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 50);
+    return t || 'extension';
+  }
+  function xwExport(d){
+    var def = xwDef(d); delete def.id; delete def.ver; delete def.ic;
+    var body = JSON.stringify({ format:XW_FILE, v:1, exported:new Date().toISOString(), extension:def }, null, 2);
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([ body ], { type:'application/json' }));
+    a.download = xwFileName(def.name) + '.triosteum-ext.json';
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ a.remove(); URL.revokeObjectURL(a.href); }, 5000);   // сразу убирать нельзя: браузер ещё берёт имя файла
+  }
+  // разбор файла: только известные поля, те же пределы, что на сервере; id — всегда новый
+  function xwImport(text){
+    var o; try { o = JSON.parse(text); } catch(e){ throw new Error('это не файл расширения (не JSON)'); }
+    if(!o || o.format !== XW_FILE || !o.extension || typeof o.extension !== 'object') throw new Error('это не файл расширения Triosteum');
+    var e = o.extension, str = function(v, n){ return typeof v === 'string' ? v.slice(0, n) : ''; };
+    if(typeof e.code !== 'string' || !e.code.trim()) throw new Error('в файле нет кода расширения');
+    if(new TextEncoder().encode(e.code).length > 256 * 1024) throw new Error('код в файле больше 256 КБ');
+    var perms = Array.isArray(e.perms) ? Object.keys(EXT_PERMS).filter(function(k){ return e.perms.indexOf(k) >= 0; }) : [];
+    var seen = {}, cmds = (Array.isArray(e.commands) ? e.commands : []).slice(0, 20).filter(function(c){
+      if(!c || typeof c.id !== 'string' || !/^[a-z0-9_-]{1,30}$/.test(c.id) || seen[c.id]) return false;
+      seen[c.id] = 1; return true;
+    }).map(function(c){
+      var w = Array.isArray(c.where) ? [ 'palette', 'block' ].filter(function(x){ return c.where.indexOf(x) >= 0; }) : [];
+      return { id:c.id, label:str(c.label, 60) || c.id, desc:str(c.desc, 120), where:w.length ? w : [ 'palette' ] };
+    });
+    return { id:xwNewId(), name:str(e.name, 40).trim() || 'Расширение из файла', desc:str(e.desc, 300), perms:perms, panel:str(e.panel, 40),
+      commands:cmds, code:e.code, imported:true, at:Date.now() };
+  }
   function xwWarnings(d){
     var w = [], need = xwNeeds(d.code);
+    if(d.imported) w.push('Расширение загружено из файла — прочитайте код и разрешения, прежде чем запускать и публиковать');
     need.forEach(function(k){ if(d.perms.indexOf(k) < 0) w.push('Код вызывает то, для чего нужно разрешение «' + EXT_PERMS[k] + '»'); });
     var ids = xwCmdIds(d.code);
     d.commands.forEach(function(c){ if(c.id && ids.indexOf(c.id) < 0) w.push('Команда «' + c.id + '» есть в списке, но код её не регистрирует'); });
@@ -101,7 +144,7 @@
   }
   function xwDef(d){
     var o = { id:d.id, name:d.name.trim(), desc:d.desc.trim(), ic:'plug', perms:Object.keys(EXT_PERMS).filter(function(k){ return d.perms.indexOf(k) >= 0; }),
-      commands:d.commands.map(function(c){ return { id:c.id, label:c.label.trim(), desc:(c.desc || '').trim() }; }), code:d.code, ver:0 };
+      commands:d.commands.map(function(c){ return { id:c.id, label:c.label.trim(), desc:(c.desc || '').trim(), where:c.where && c.where.length ? c.where.slice() : [ 'palette' ] }; }), code:d.code, ver:0 };
     if(o.perms.indexOf('panel') >= 0) o.panel = (d.panel || '').trim() || o.name;
     return o;
   }
@@ -130,6 +173,21 @@
       var add = h('button', { type:'button', 'class':'btn primary xw-add', text:'+ Новое расширение' });
       add.addEventListener('click', function(){ var d = xwNew(); XW.drafts[d.id] = d; xwSaveDraft(d); edit(d.id); });
       side.appendChild(add);
+      var file = h('input', { type:'file', accept:'.json,application/json', hidden:'', 'aria-label':'Файл расширения' });
+      var imp = h('button', { type:'button', 'class':'btn sm xw-import', text:'Загрузить из файла…' });
+      imp.addEventListener('click', function(){ file.click(); });
+      file.addEventListener('change', function(){
+        var f = file.files && file.files[0]; file.value = '';
+        if(!f) return;
+        if(f.size > 1024 * 1024){ toast('Файл больше 1 МБ — это не расширение'); return; }
+        f.text().then(function(t){
+          var d;
+          try { d = xwImport(t); } catch(e){ toast('Не получилось загрузить: ' + e.message); return; }
+          XW.drafts[d.id] = d; xwSaveDraft(d); edit(d.id);
+          toast('«' + d.name + '» загружено черновиком — проверьте код перед запуском');
+        });
+      });
+      side.appendChild(h('div', { 'class':'xw-io' }, [ imp, file ]));
       var ds = Object.keys(XW.drafts).map(function(k){ return XW.drafts[k]; }).sort(function(a, b){ return (b.at || 0) - (a.at || 0); });
       side.appendChild(h('b', { 'class':'xw-sh', text:'Черновики' }));
       if(!ds.length) side.appendChild(h('p', { 'class':'xw-none', text:'пока нет' }));
@@ -302,10 +360,14 @@
           var cid = h('input', { type:'text', maxlength:'30', value:c.id, placeholder:'id', 'aria-label':'id команды ' + (i + 1), 'class':'xw-cid' });
           var lab = h('input', { type:'text', maxlength:'60', value:c.label, placeholder:'название в Ctrl+K', 'aria-label':'Название команды ' + (i + 1) });
           var rm = h('button', { type:'button', 'class':'btn sm ghost', 'aria-label':'Убрать команду ' + (i + 1), html:'&times;' });
+          var wh = h('select', { 'class':'xw-where', 'aria-label':'Где команда ' + (i + 1) }, [
+            h('option', { value:'palette', text:'в Ctrl+K' }), h('option', { value:'block', text:'в меню блока' }), h('option', { value:'palette,block', text:'и там, и там' }) ]);
+          wh.value = (c.where && c.where.length ? c.where : [ 'palette' ]).join(',');
+          wh.addEventListener('change', function(){ c.where = wh.value.split(','); touch(); });
           cid.addEventListener('input', function(){ c.id = cid.value.trim(); touch(); });
           lab.addEventListener('input', function(){ c.label = lab.value; touch(); });
           rm.addEventListener('click', function(){ d.commands.splice(i, 1); touch(); drawCmds(); });
-          cmds.appendChild(h('div', { 'class':'xw-cmd' }, [ cid, lab, rm ]));
+          cmds.appendChild(h('div', { 'class':'xw-cmd' }, [ cid, lab, wh, rm ]));
         });
         if(d.commands.length < 20){
           var more = h('button', { type:'button', 'class':'btn sm', text:'+ команда' });
@@ -359,6 +421,8 @@
       var tryB = h('button', { type:'button', 'class':'btn', text:'Пробный запуск' });
       var pubB = h('button', { type:'button', 'class':'btn primary', text:extById(d.id) ? 'Опубликовать новую версию' : 'Опубликовать в компании' });
       var delB = h('button', { type:'button', 'class':'btn danger', text:'Удалить черновик' }), armed = 0;
+      var expB = h('button', { type:'button', 'class':'btn', text:'Скачать файлом', title:'Файл можно передать в другую компанию: там его загрузят в мастерскую' });
+      expB.addEventListener('click', function(){ var p = xwProblems(d); if(p.length){ err.textContent = p[0]; return; } xwExport(d); });
       var err = h('p', { 'class':'cenv-err', role:'alert' });
       if(!xwCanPublish()){ pubB.disabled = true; pubB.title = SERVER ? 'Публикует владелец организации' : 'Публикация — когда Triosteum открыт с сервера компании'; }
       function log(level, text){
@@ -395,6 +459,7 @@
         SERVER.api('POST', '/org/items', { kind:'ext', src:d.id, data:xwDef(d) }).then(function(r){
           pubB.disabled = false; pubB.focus();
           if(r.status !== 201){ err.textContent = (r.data && r.data.detail) || 'Не получилось опубликовать'; return; }
+          if(d.imported){ d.imported = false; xwSaveDraft(d); check(); }
           Promise.all([ extRefresh(), xwLoadItems() ]).then(function(){
             pubB.textContent = 'Опубликовать новую версию';
             log('info', 'Опубликовано в компании, версия ' + r.data.data.ver + '. Сотрудники включают расширение в «Расширения компании» (Ctrl+K).');
@@ -418,7 +483,7 @@
       main.appendChild(code);
       main.appendChild(h('details', { 'class':'xw-api' }, [ h('summary', { text:'Что умеет расширение' }), h('pre', { text:XW_API }) ]));
       main.appendChild(probs);
-      main.appendChild(h('div', { 'class':'ext-acts' }, [ tryB, pubB, delB ]));
+      main.appendChild(h('div', { 'class':'ext-acts' }, [ tryB, pubB, expB, delB ]));
       main.appendChild(err);
       main.appendChild(runBox);
       main.appendChild(logBox);

@@ -152,3 +152,21 @@ def test_ext_owner_only_and_validation(client):
     register(stranger, org="Чужой завод 2")
     client.post("/api/org/items", json={"kind": "ext", "src": "xkachestvo", "data": ok})
     assert stranger.get("/api/org/items?kind=ext").json()["items"] == []
+
+
+def test_ext_command_places_and_background(client):
+    register(client, org="Завод Места команд")
+    ok = {**EXT, "perms": ["board.read"]}
+    bad = {**ok, "commands": [{"id": "a", "label": "А", "where": ["toolbar"]}]}
+    assert client.post("/api/org/items", json={"kind": "ext", "src": "xkachestvo", "data": bad}).status_code == 422
+    bad2 = {**ok, "commands": [{"id": "a", "label": "А", "where": []}]}
+    # пустой список — значит «по умолчанию», то есть Ctrl+K
+    d = client.post("/api/org/items", json={"kind": "ext", "src": "xkachestvo", "data": bad2}).json()["data"]
+    assert d["commands"][0]["where"] == ["palette"]
+    d = client.post("/api/org/items", json={"kind": "ext", "src": "xkachestvo", "data": {
+        **ok, "commands": [{"id": "a", "label": "А", "where": ["block", "palette", "block"]}, {"id": "b", "label": "Б"}]}}).json()["data"]
+    assert [c["where"] for c in d["commands"]] == [["palette", "block"], ["palette"]]
+    # фоновое расширение без команд и панели — допустимо (реагирует на события)
+    r = client.post("/api/org/items", json={"kind": "ext", "src": "xfonovoe", "data": {**ok, "id": "xfonovoe", "commands": [], "perms": ["board.read", "background"]}})
+    assert r.status_code == 201 and r.json()["data"]["perms"] == ["board.read", "background"]
+    assert client.post("/api/org/items", json={"kind": "ext", "src": "xpustoe", "data": {**ok, "id": "xpustoe", "commands": [], "perms": ["board.read"]}}).status_code == 422

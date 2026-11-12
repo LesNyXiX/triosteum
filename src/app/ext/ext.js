@@ -13,7 +13,8 @@
     'board.write':'добавлять и менять блоки, связи и заметки (всё отменяется Ctrl+Z)',
     'selection':'видеть, какие блоки выделены',
     'storage':'хранить свои настройки (у вас, отдельно от других расширений)',
-    'panel':'показывать свою боковую панель'
+    'panel':'показывать свою боковую панель',
+    'background':'работать в фоне с открытия Triosteum и реагировать на события: смену пространства, выделения и доски'
   };
   var EXT_DENY = 'Расширению недоступны: интернет, сервер от вашего имени, другие пространства, ваши ключи и пароли.';
   var EXT_CSP = "default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; form-action 'none'; webrtc 'block'";
@@ -122,6 +123,13 @@
       var x = extById(id);
       if(!x || !extOn(x) || (x.def.ver || 0) !== (r.x.def.ver || 0)) extStop(id);
     });
+    setTimeout(extAutostart, 0);
+  }
+  // фоновые расширения (разрешение «background») запускаются сами — иначе им не на что реагировать
+  function extBg(x){ return (x.def.perms || []).indexOf('background') >= 0; }
+  function extAutostart(){
+    if(!document.body) return;
+    EXT.list.filter(function(x){ return extOn(x) && extBg(x) && !EXT.run[x.id]; }).forEach(function(x){ extStart(x).catch(function(){}); });
   }
   extFromItems(SERVER && window.TRIOSTEUM_BOOT && window.TRIOSTEUM_BOOT.org_items);
   function extById(id){ return EXT.list.filter(function(x){ return x.id === id; })[0] || null; }
@@ -130,7 +138,7 @@
   function extSetOn(x, on){
     if(on) EXT.pref[x.id] = { on:true, perms:(x.def.perms || []).slice() }; else delete EXT.pref[x.id];
     save('triosteum.ext', EXT.pref);
-    if(!on) extStop(x.id);
+    if(!on) extStop(x.id); else extAutostart();
   }
   function extRefresh(){
     if(!SERVER) return Promise.resolve();
@@ -423,7 +431,9 @@
   saveGraph = function(){ var v = extSaveGraph0.apply(this, arguments); if(Object.keys(EXT.run).length) extChanged(); return v; };
 
   // ---------- команды и панели ----------
-  function extInvoke(x, cmd){
+  function extCmdWhere(c){ return c.where && c.where.length ? c.where : [ 'palette' ]; }
+  // a — данные вызова: { block:id } для команды из меню блока (этот блок расширению становится известен)
+  function extInvoke(x, cmd, a){
     var name = x.def.name, slow = setTimeout(function(){ toast('«' + name + '»: выполняется…'); }, 800);
     // команды одного расширения выполняются по очереди: у каждой своя запись отмены, и правки одной не попадают в другую
     var r0 = null;
@@ -436,7 +446,8 @@
         // не ответила за минуту — останавливаем расширение целиком, чтобы зависшая команда не дописала доску потом
         var to = setTimeout(function(){ extStop(x.id, 'команда не ответила за минуту — расширение остановлено'); }, +window.__tsExtCmdTimeout || 60000   /* в тестах — короче */);
         r.runs[rid] = function(d){ clearTimeout(to); release(); if(d.err) rej(new Error(d.err)); else res(d.v); };
-        extPost(r, { cmd:cmd, run:rid, a:null });
+        if(a && a.block) extKnow(r, [ a.block ]);
+        extPost(r, { cmd:cmd, run:rid, a:a || null });
       });
     };
     return extStart(x).then(function(){
@@ -459,6 +470,7 @@
     C.push({ sec:'ext', label:'Расширения компании', d:'Включить или выключить расширения вашей организации', icon:'plug', act:openExtMgr, k:'расширения плагины компании ext' });
     EXT.list.filter(extOn).forEach(function(x){
       (x.def.commands || []).forEach(function(c){
+        if(extCmdWhere(c).indexOf('palette') < 0) return;
         C.push({ sec:'ext', label:x.def.name + ': ' + c.label, d:c.desc || '', icon:'plug', act:function(){ extInvoke(x, c.id).catch(function(){}); }, k:'расширение ' + x.def.name });
       });
       if((x.def.perms || []).indexOf('panel') >= 0)
@@ -466,6 +478,59 @@
     });
     return C;
   }
+
+  // ---------- события и меню блока ----------
+  function extEmit(ev, a, need){
+    Object.keys(EXT.run).forEach(function(k){
+      var r = EXT.run[k], perms = r.x.def.perms || [];
+      if(!need.some(function(p){ return perms.indexOf(p) >= 0; })) return;
+      if(ev === 'selection') extKnow(r, a.ids);
+      extPost(r, { ev:ev, a:a });
+    });
+  }
+  // выделение изменилось (не чаще раза в 250 мс) — расширениям с разрешением видеть выделение или читать доску
+  var extSelTimer = 0, extSelLast = '';
+  var extUpdateSel0 = updateSel;
+  updateSel = function(){
+    var v = extUpdateSel0.apply(this, arguments);
+    if(Object.keys(EXT.run).length){
+      clearTimeout(extSelTimer);
+      extSelTimer = setTimeout(function(){
+        var sl = extSelection(), key = curId() + ':' + sl.ids.join(',');
+        if(key === extSelLast) return; extSelLast = key;
+        extEmit('selection', sl, [ 'selection', 'board.read' ]);
+      }, 250);
+    }
+    return v;
+  };
+  // открыли другое пространство — расширениям, которым можно читать доску
+  var extShowProj0 = showProjName, extSpaceLast = null;
+  try { extSpaceLast = curProj().id; } catch(e){}
+  showProjName = function(){
+    var v = extShowProj0.apply(this, arguments);
+    try {
+      var p = curProj();
+      if(p && p.id !== extSpaceLast){ extSpaceLast = p.id; extEmit('space', { id:p.id, name:p.name, env:ENV.id }, [ 'board.read' ]); }
+    } catch(e){}
+    return v;
+  };
+  // окно настроек блока (правая кнопка мыши): команды расширений «для блока»
+  var extNodePop0 = renderNodePop;
+  renderNodePop = function(p, n){
+    var v = extNodePop0.apply(this, arguments);
+    if(!SERVER || !n) return v;
+    var btns = [];
+    EXT.list.filter(extOn).forEach(function(x){
+      (x.def.commands || []).forEach(function(c){
+        if(extCmdWhere(c).indexOf('block') < 0) return;
+        btns.push(h('button', { type:'button', 'class':'btn sm ext-block-cmd', 'data-ext':x.id, 'data-cmd':c.id, title:(c.desc || '') + ' — расширение «' + x.def.name + '»', text:c.label,
+          on:{ click:function(){ extInvoke(x, c.id, { block:n.id }).catch(function(){}); } } }));
+      });
+    });
+    if(btns.length) p.appendChild(section('Расширения компании', h('div', { 'class':'ext-block-cmds' }, btns)));
+    return v;
+  };
+  setTimeout(extAutostart, 1200);
 
   // ---------- окно «Расширения компании» ----------
   function extPermList(perms){
@@ -497,8 +562,9 @@
       var box = h('article', { 'class':'ext-card', 'data-ext':x.id }, [
         h('div', { 'class':'ext-card-h' }, [ h('b', { text:d.name }), h('span', { 'class':'ext-ver', text:'версия ' + (d.ver || 1) + (x.byName ? ' · ' + x.byName : '') }), state ]),
         d.desc ? h('p', { 'class':'ext-desc', text:d.desc }) : null ]);
-      var cmds = (d.commands || []).map(function(c){ return c.label; });
-      if(cmds.length) box.appendChild(h('p', { 'class':'ext-cmds', text:'Команды (Ctrl+K): ' + cmds.join(', ') }));
+      var cmds = (d.commands || []).map(function(c){ var w = extCmdWhere(c); return c.label + ' (' + w.map(function(x){ return x === 'block' ? 'меню блока' : 'Ctrl+K'; }).join(', ') + ')'; });
+      if(cmds.length) box.appendChild(h('p', { 'class':'ext-cmds', text:'Команды: ' + cmds.join('; ') }));
+      if(extBg(x)) box.appendChild(h('p', { 'class':'ext-cmds', text:'Работает в фоне: запускается вместе с Triosteum.' }));
       var acts = h('div', { 'class':'ext-acts' });
       var confirm = h('div', { 'class':'ext-confirm', hidden:'' }, [
         h('b', { text:'Расширению будет разрешено:' }), extPermList(d.perms), h('p', { 'class':'ext-deny', text:EXT_DENY }) ]);
