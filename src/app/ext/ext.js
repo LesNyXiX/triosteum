@@ -424,17 +424,25 @@
   // ---------- команды и панели ----------
   function extInvoke(x, cmd){
     var name = x.def.name, slow = setTimeout(function(){ toast('«' + name + '»: выполняется…'); }, 800);
-    return extStart(x).then(function(){
-      var r = EXT.run[x.id]; if(!r) throw new Error('расширение остановлено');
+    // команды одного расширения выполняются по очереди: у каждой своя запись отмены, и правки одной не попадают в другую
+    var r0 = null;
+    var run = function(){
+      var r = EXT.run[x.id]; if(!r || r !== r0) throw new Error('расширение остановлено');   // пока ждали очереди, его остановили
       var rid = 'r' + (++EXT.seq), hold = extHold();
-      r.active = (r.active || 0) + 1; r.cmdSpace = curId(); r.group = 'c' + rid;
-      var release = function(){ hold(); r.active = Math.max(0, (r.active || 1) - 1); if(!r.active) r.group = null; };
+      r.active = 1; r.cmdSpace = curId(); r.group = 'c' + rid;
+      var release = function(){ hold(); r.active = 0; r.group = null; };
       return new Promise(function(res, rej){
         // не ответила за минуту — останавливаем расширение целиком, чтобы зависшая команда не дописала доску потом
         var to = setTimeout(function(){ extStop(x.id, 'команда не ответила за минуту — расширение остановлено'); }, +window.__tsExtCmdTimeout || 60000   /* в тестах — короче */);
         r.runs[rid] = function(d){ clearTimeout(to); release(); if(d.err) rej(new Error(d.err)); else res(d.v); };
         extPost(r, { cmd:cmd, run:rid, a:null });
       });
+    };
+    return extStart(x).then(function(){
+      var r = r0 = EXT.run[x.id]; if(!r) throw new Error('расширение остановлено');
+      var p = (r.tail || Promise.resolve()).then(run, run);
+      r.tail = p.catch(function(){});
+      return p;
     }).then(function(v){ clearTimeout(slow); return v; }, function(err){
       clearTimeout(slow);
       var r = EXT.run[x.id]; if(r) extLog(r, 'error', err.message);

@@ -169,6 +169,17 @@ ok(await k.locator('#nodes .node').count() === before + 2 && await named('Мед
 await k.keyboard.press('Control+y'); await k.waitForTimeout(300);
 ok(await k.locator('#nodes .node').count() === before + 3, 'и последнее действие команды');
 for (let i = 0; i < 3; i++) { await k.keyboard.press('Control+z'); await k.waitForTimeout(300); }
+// две команды подряд: вторая ждёт первую, у каждой своя запись отмены
+await cmd(k, 'Проверка схемы: С паузой'); await k.waitForTimeout(200);
+await cmd(k, 'Проверка схемы: Блок для редактора'); await k.waitForTimeout(3300);
+await k.evaluate(() => document.activeElement && document.activeElement.blur());
+ok(await named('Медленный 2') === 1 && await named('Для редактора') === 1, 'обе команды выполнились');
+const order = await k.locator('#nodes .node').evaluateAll((els) => els.map((e) => e.textContent).filter((t) => /Медленный 2|Для редактора/.test(t)).map((t) => /Медленный/.test(t) ? 'A' : 'B').join(''));
+ok(order === 'AB', 'вторая команда начала после первой: ' + order);
+await k.keyboard.press('Control+z'); await k.waitForTimeout(400);
+ok(await named('Для редактора') === 0 && await named('Медленный 2') === 1 && await named('Медленный 1') === 1, 'Ctrl+Z отменяет только вторую команду');
+await k.keyboard.press('Control+z'); await k.waitForTimeout(400);
+ok(await named('Медленный 1') === 0 && await named('Медленный 2') === 0 && await k.locator('#nodes .node').count() === before, 'следующий Ctrl+Z — первую целиком');
 // больше 150 изменений одной командой — всё равно одна запись отмены, начало команды не вытесняется
 await cmd(k, 'Проверка схемы: Много блоков'); await k.waitForTimeout(4000);
 ok(await k.locator('#nodes .node').count() === before + 160, 'команда добавила 160 блоков');
