@@ -58,11 +58,23 @@ triosteum.command('probe', async () => {
 triosteum.command('panel', async () => { document.body.innerHTML = '<h3 id="hi">Привет из панели</h3>'; await triosteum.ui.openPanel(); });
 triosteum.command('boom', () => { throw new Error('сломалось нарочно'); });
 triosteum.command('nav', () => { location.href = 'about:blank'; });
+triosteum.command('slow', async () => {
+  await triosteum.board.add({ name: 'Медленный 1' });
+  await new Promise((r) => setTimeout(r, 700));
+  await triosteum.board.add({ name: 'Медленный 2' });
+});
 `;
+// только запись, без чтения: изменить блок можно, а узнать его содержимое — нет
+const WRITER = { id: 'xpisatel', name: 'Писатель', perms: ['board.write'], commands: [{ id: 'peek', label: 'Подсмотреть' }],
+  code: `triosteum.command('peek', async () => {
+  const n = await triosteum.board.add({ name: 'Свой блок', code: 'x = 1' });
+  const u = await triosteum.board.update(n.id, {});
+  await triosteum.ui.toast('ключи: ' + Object.keys(u).join(','));
+});` };
 const EXT = {
   id: 'xproverka', name: 'Проверка схемы', desc: 'Тестовое расширение', perms: ['board.read', 'board.write', 'panel'], panel: 'Проверка',
   commands: [{ id: 'count', label: 'Посчитать и добавить' }, { id: 'probe', label: 'Проверить песочницу' }, { id: 'panel', label: 'Показать панель' },
-    { id: 'boom', label: 'Упасть' }, { id: 'nav', label: 'Уйти со страницы' }],
+    { id: 'boom', label: 'Упасть' }, { id: 'nav', label: 'Уйти со страницы' }, { id: 'slow', label: 'Медленно' }],
   code: CODE,
 };
 
@@ -103,6 +115,10 @@ ok(await k.locator('#nodes .node').count() === before + 2, 'расширение
 ok(await k.locator('#nodes .node:has-text("Из расширения")').count() === 1, 'с нужным названием');
 await k.keyboard.press('Control+z'); await k.waitForTimeout(500);
 ok(await k.locator('#nodes .node').count() === before, 'Ctrl+Z отменяет всё, что сделала команда');
+await cmd(k, 'Проверка схемы: Медленно'); await k.waitForTimeout(1500);
+ok(await k.locator('#nodes .node').count() === before + 2, 'медленная команда добавила два блока с паузой');
+await k.keyboard.press('Control+z'); await k.waitForTimeout(500);
+ok(await k.locator('#nodes .node').count() === before, 'один Ctrl+Z отменяет всю медленную команду');
 await cmd(k, 'Проверка схемы: Проверить песочницу');
 const t2 = await toastAfter(k);
 ok(/fetch:no/.test(t2) && /net:no/.test(t2), 'запросы к серверу и в интернет закрыты: ' + t2);
@@ -124,6 +140,15 @@ ok(await k.locator('.ext-pane').count() === 0, 'расширение остан�
 await cmd(k, 'Проверка схемы: Посчитать');
 ok(/было \d+/.test(await toastAfter(k, 4000)), 'при следующем вызове расширение запускается заново');
 
+console.log('Только запись — без чтения');
+await api(a, 'POST', '/org/items', { kind: 'ext', src: WRITER.id, data: WRITER });
+await cmd(k, 'Расширения компании'); await k.waitForTimeout(800);
+await k.locator('.ext-card[data-ext="xpisatel"] button:has-text("Включить…")').click();
+await k.locator('.ext-card[data-ext="xpisatel"] button:has-text("Разрешить и включить")').click(); await k.waitForTimeout(200);
+await k.keyboard.press('Escape');
+await cmd(k, 'Писатель: Подсмотреть');
+ok(/ключи: id$/.test(await toastAfter(k)), 'без «читать доску» правка блока возвращает только id');
+
 console.log('Новая версия с новыми разрешениями');
 const v2 = await api(a, 'POST', '/org/items', { kind: 'ext', src: EXT.id, data: { ...EXT, perms: [...EXT.perms, 'storage'] } });
 ok(v2.status === 201 && v2.data.data.ver === 2, 'владелец выпустил версию 2 с хранилищем');
@@ -144,6 +169,8 @@ await cmd(a, 'Расширения компании'); await a.waitForTimeout(60
 const cardA = a.locator('.ext-card[data-ext="xproverka"]');
 await cardA.locator('button:has-text("Убрать из компании")').click();
 await cardA.locator('button:has-text("Точно")').click(); await a.waitForTimeout(800);
+await a.locator('.ext-card[data-ext="xpisatel"] button:has-text("Убрать из компании")').click();
+await a.locator('.ext-card[data-ext="xpisatel"] button:has-text("Точно")').click(); await a.waitForTimeout(800);
 ok(await a.locator('.ext-card').count() === 0 && /пока нет/.test(await a.textContent('.ext-list')), 'расширение убрано из компании');
 const other = await page();
 await register(other, 'Чужой завод ' + T, 'Петя', `petya${T}@zavod.ru`);

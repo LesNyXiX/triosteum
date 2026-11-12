@@ -192,7 +192,7 @@
         if(perms.indexOf('selection') < 0) need('board.read');
         return extSelection();
       case 'board.add': write(); return extAdd(r, a);
-      case 'board.update': write(); return extUpdate(a);
+      case 'board.update': write(); return extUpdate(a, perms.indexOf('board.read') >= 0);
       case 'board.remove': write(); return extRemove(a);
       case 'board.connect': write(); return extConnect(a);
       case 'board.note': write(); return extNote(a);
@@ -247,7 +247,8 @@
     saveGraph(); renderGraph();
     return extNodeOut(n);
   }
-  function extUpdate(a){
+  // без разрешения «читать доску» содержимое существующего блока не отдаём — только id
+  function extUpdate(a, canRead){
     var n = nodeById(a.id); if(!n) throw new Error('блока с id «' + a.id + '» нет на доске');
     var p = a.patch || {};
     if(p.name !== undefined) n.name = extStr(p.name, 200) || n.name;
@@ -256,7 +257,7 @@
     if(extNum(p.x) !== null) n.x = extNum(p.x);
     if(extNum(p.y) !== null) n.y = extNum(p.y);
     saveGraph(); renderGraph();
-    return extNodeOut(n);
+    return canRead ? extNodeOut(n) : { id:n.id };
   }
   function extRemove(a){
     var id = String(a.id || '');
@@ -305,6 +306,12 @@
       Object.keys(EXT.run).forEach(function(k){ var r = EXT.run[k]; if((r.x.def.perms || []).indexOf('board.read') >= 0) extPost(r, { ev:'change', a:null }); });
     }, 500);
   }
+  // всё, что сделала одна команда, — одна запись отмены: пока команда выполняется, снимки истории не фиксируем,
+  // а по её завершении фиксируем один раз (до команды → после команды)
+  EXT.hold = 0;
+  var extCommit0 = commitHist;
+  commitHist = function(){ if(EXT.hold > 0 && hist.last !== null) return; return extCommit0.apply(this, arguments); };
+  function extHold(){ EXT.hold++; var done = false; return function(){ if(done) return; done = true; EXT.hold = Math.max(0, EXT.hold - 1); if(!EXT.hold){ flushSave(); extCommit0(); } }; }
   var extSaveGraph0 = saveGraph;
   saveGraph = function(){ var v = extSaveGraph0.apply(this, arguments); if(Object.keys(EXT.run).length) extChanged(); return v; };
 
@@ -313,10 +320,10 @@
     var name = x.def.name, slow = setTimeout(function(){ toast('«' + name + '»: выполняется…'); }, 800);
     return extStart(x).then(function(){
       var r = EXT.run[x.id]; if(!r) throw new Error('расширение остановлено');
-      var rid = 'r' + (++EXT.seq);
+      var rid = 'r' + (++EXT.seq), release = extHold();
       return new Promise(function(res, rej){
-        var to = setTimeout(function(){ delete r.runs[rid]; rej(new Error('команда не ответила за минуту')); }, 60000);
-        r.runs[rid] = function(d){ clearTimeout(to); if(d.err) rej(new Error(d.err)); else res(d.v); };
+        var to = setTimeout(function(){ delete r.runs[rid]; release(); rej(new Error('команда не ответила за минуту')); }, 60000);
+        r.runs[rid] = function(d){ clearTimeout(to); release(); if(d.err) rej(new Error(d.err)); else res(d.v); };
         extPost(r, { cmd:cmd, run:rid, a:null });
       });
     }).then(function(v){ clearTimeout(slow); return v; }, function(err){
