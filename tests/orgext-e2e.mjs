@@ -74,6 +74,11 @@ triosteum.command('hang', async () => {
   await new Promise((r) => setTimeout(r, 1500));
   await triosteum.board.add({ name: 'Опоздавший' });
 });
+triosteum.command('pause', async () => {
+  await triosteum.board.add({ name: 'Медленный 1' });
+  await new Promise((r) => setTimeout(r, 2500));
+  await triosteum.board.add({ name: 'Медленный 2' });
+});
 triosteum.command('slow', async () => {
   await triosteum.board.add({ name: 'Медленный 1' });
   await new Promise((r) => setTimeout(r, 700));
@@ -93,7 +98,7 @@ const EXT = {
   id: 'xproverka', name: 'Проверка схемы', desc: 'Тестовое расширение', perms: ['board.read', 'board.write', 'panel'], panel: 'Проверка',
   commands: [{ id: 'count', label: 'Посчитать и добавить' }, { id: 'probe', label: 'Проверить песочницу' }, { id: 'panel', label: 'Показать панель' },
     { id: 'boom', label: 'Упасть' }, { id: 'nav', label: 'Уйти со страницы' }, { id: 'slow', label: 'Медленно' },
-    { id: 'mk', label: 'Блок для редактора' }, { id: 'recode', label: 'Переписать код' }, { id: 'switchy', label: 'Долгая правка' }, { id: 'hang', label: 'Зависнуть' }],
+    { id: 'mk', label: 'Блок для редактора' }, { id: 'recode', label: 'Переписать код' }, { id: 'switchy', label: 'Долгая правка' }, { id: 'hang', label: 'Зависнуть' }, { id: 'pause', label: 'С паузой' }],
   code: CODE,
 };
 
@@ -141,6 +146,23 @@ await k.waitForTimeout(1300);
 ok(await k.locator('#nodes .node').count() === before + 2, 'медленная команда добавила два блока с паузой');
 await k.keyboard.press('Control+z'); await k.waitForTimeout(500);
 ok(await k.locator('#nodes .node').count() === before, 'один Ctrl+Z отменяет всю медленную команду');
+// пользователь правит доску, пока команда ждёт: его правка — отдельная запись отмены и не пропадает с командой
+await cmd(k, 'Проверка схемы: С паузой'); await k.waitForTimeout(250);
+await cmd(k, 'Новый блок'); await k.waitForTimeout(3000);
+await k.keyboard.press('Escape'); await k.evaluate(() => document.activeElement && document.activeElement.blur());
+ok(await k.locator('#nodes .node').count() === before + 3, 'команда добавила два блока, пользователь — один');
+const named = async (t) => k.locator('#nodes .node', { hasText: t }).count();
+await k.keyboard.press('Control+z'); await k.waitForTimeout(400);
+ok(await k.locator('#nodes .node').count() === before + 2 && await named('Медленный 2') === 0, 'первый Ctrl+Z — последнее действие команды');
+await k.keyboard.press('Control+z'); await k.waitForTimeout(400);
+ok(await k.locator('#nodes .node').count() === before + 1 && await named('Медленный 1') === 1, 'второй — блок пользователя; начало команды на месте');
+await k.keyboard.press('Control+z'); await k.waitForTimeout(400);
+ok(await k.locator('#nodes .node').count() === before, 'третий — начало команды');
+await k.keyboard.press('Control+y'); await k.waitForTimeout(300); await k.keyboard.press('Control+y'); await k.waitForTimeout(300);
+ok(await k.locator('#nodes .node').count() === before + 2 && await named('Медленный 1') === 1, 'повтор возвращает по одному действию');
+await k.keyboard.press('Control+y'); await k.waitForTimeout(300);
+ok(await k.locator('#nodes .node').count() === before + 3, 'и последнее действие команды');
+for (let i = 0; i < 3; i++) { await k.keyboard.press('Control+z'); await k.waitForTimeout(300); }
 await cmd(k, 'Проверка схемы: Проверить песочницу');
 const t2 = await toastAfter(k);
 ok(/fetch:no/.test(t2) && /net:no/.test(t2), 'запросы к серверу и в интернет закрыты: ' + t2);

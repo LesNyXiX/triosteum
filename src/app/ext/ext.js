@@ -210,11 +210,11 @@
         if(perms.indexOf('selection') < 0) need('board.read');
         var sl = extSelection(); extKnow(r, sl.ids); return sl;
       }
-      case 'board.add': { write(); var an = extAdd(r, a); extKnow(r, [ an.id ]); return an; }
-      case 'board.update': write([ String(a.id) ]); return extUpdate(a, perms.indexOf('board.read') >= 0);
-      case 'board.remove': write([ String(a.id) ]); return extRemove(a);
-      case 'board.connect': { write([ String(a.from), String(a.to) ]); var ce = extConnect(a); extKnow(r, [ ce.id ]); return ce; }
-      case 'board.note': { write(a.attach ? [ String(a.attach) ] : []); var nt = extNote(a); extKnow(r, [ nt.id ]); return nt; }
+      case 'board.add': { write(); var an = extTx(r, function(){ return extAdd(r, a); }); extKnow(r, [ an.id ]); return an; }
+      case 'board.update': write([ String(a.id) ]); return extTx(r, function(){ return extUpdate(a, perms.indexOf('board.read') >= 0); });
+      case 'board.remove': write([ String(a.id) ]); return extTx(r, function(){ return extRemove(a); });
+      case 'board.connect': { write([ String(a.from), String(a.to) ]); var ce = extTx(r, function(){ return extConnect(a); }); extKnow(r, [ ce.id ]); return ce; }
+      case 'board.note': { write(a.attach ? [ String(a.attach) ] : []); var nt = extTx(r, function(){ return extNote(a); }); extKnow(r, [ nt.id ]); return nt; }
       case 'ui.toast': toast('«' + def.name + '»: ' + String(a.text || '').slice(0, 200)); return true;
       case 'ui.panel': need('panel'); extPanel(r.x, a.open !== false); return true;
       case 'storage.get': need('storage'); return extStore(r.x)[String(a.k)] === undefined ? null : extStore(r.x)[String(a.k)];
@@ -275,6 +275,9 @@
   function extUpdate(a, canRead){
     var n = nodeById(a.id); if(!n) throw new Error('блока с id «' + a.id + '» нет на доске');
     var p = a.patch || {};
+    // блок показывает файл пространства — его код живёт в файле, а не в блоке
+    if(p.code !== undefined && n.src && typeof ofFile === 'function' && ofFile(n.src))
+      throw new Error('блок «' + (n.name || n.id) + '» связан с файлом — его содержимое меняется в самом файле, а не через код блока');
     if(p.name !== undefined) n.name = extStr(p.name, 200) || n.name;
     if(p.desc !== undefined) n.desc = extStr(p.desc, 1000);
     if(p.code !== undefined) n.codes[n.lang] = extStr(p.code, 200000);
@@ -334,16 +337,53 @@
       Object.keys(EXT.run).forEach(function(k){ var r = EXT.run[k]; if((r.x.def.perms || []).indexOf('board.read') >= 0) extPost(r, { ev:'change', a:null }); });
     }, 500);
   }
-  // всё, что сделала одна команда, — одна запись отмены: пока команда выполняется, снимки истории не фиксируем,
-  // а по её завершении фиксируем один раз (до команды → после команды)
-  EXT.hold = 0;
+  /* История и расширения. Каждое изменение расширения фиксируется отдельным снимком сразу (до него — фиксируем то,
+     что успел сделать пользователь), и снимок помечается группой: одна команда — одна группа. Ctrl+Z снимает
+     подряд идущие снимки одной группы разом. Поэтому правки пользователя во время команды остаются отдельными
+     записями отмены и не пропадают вместе с результатом команды. Пока команда выполняется, отмена и повтор ждут. */
+  EXT.hold = 0; EXT.tags = []; EXT.rtags = []; EXT.tagNow = null;
+  function extFitTags(){
+    var fit = function(t, n){ if(t.length > n) return t.slice(t.length - n); while(t.length < n) t.unshift(null); return t; };
+    EXT.tags = fit(EXT.tags, hist.undo.length); EXT.rtags = fit(EXT.rtags, hist.redo.length);
+  }
   var extCommit0 = commitHist;
-  commitHist = function(){ if(EXT.hold > 0 && hist.last !== null) return; return extCommit0.apply(this, arguments); };
-  // пока команда выполняется, отмена и повтор ждут: иначе отменилось бы предыдущее действие вместе с половиной команды
+  commitHist = function(){
+    extFitTags();
+    var was = hist.last, v = extCommit0.apply(this, arguments);
+    if(was !== null && hist.last !== was){ EXT.tags.push(EXT.tagNow); EXT.rtags = []; extFitTags(); }
+    return v;
+  };
+  function extTx(r, fn){
+    var now = Date.now();
+    var g = r.group || (r.burstG && now - r.burstAt < 1000 ? r.burstG : 'b' + (++EXT.seq));   // панель: серия правок за секунду — одна группа
+    if(!r.group){ r.burstG = g; r.burstAt = now; }
+    flushSave(); commitHist();        // сначала — то, что успел изменить пользователь (отдельной записью)
+    var v = fn();
+    EXT.tagNow = g; try { flushSave(); commitHist(); } finally { EXT.tagNow = null; }
+    return v;
+  }
   var extUndo0 = undo, extRedo0 = redo;
-  undo = function(){ if(EXT.hold > 0){ toast('Подождите: расширение ещё выполняет команду — отменить можно будет после неё'); return; } return extUndo0.apply(this, arguments); };
-  redo = function(){ if(EXT.hold > 0){ toast('Подождите: расширение ещё выполняет команду'); return; } return extRedo0.apply(this, arguments); };
-  function extHold(){ EXT.hold++; var done = false; return function(){ if(done) return; done = true; EXT.hold = Math.max(0, EXT.hold - 1); if(!EXT.hold){ flushSave(); extCommit0(); } }; }
+  undo = function(){
+    if(EXT.hold > 0){ toast('Подождите: расширение ещё выполняет команду — отменить можно будет после неё'); return; }
+    flushSave(); extFitTags();
+    var g = EXT.tags[EXT.tags.length - 1];
+    do {
+      var n = hist.undo.length; extUndo0.apply(this, arguments);
+      if(hist.undo.length === n) break;
+      EXT.rtags.push(EXT.tags.pop());
+    } while(g && EXT.tags.length && EXT.tags[EXT.tags.length - 1] === g);
+  };
+  redo = function(){
+    if(EXT.hold > 0){ toast('Подождите: расширение ещё выполняет команду'); return; }
+    flushSave(); extFitTags();
+    var g = EXT.rtags[EXT.rtags.length - 1];
+    do {
+      var n = hist.redo.length; extRedo0.apply(this, arguments);
+      if(hist.redo.length === n) break;
+      EXT.tags.push(EXT.rtags.pop());
+    } while(g && EXT.rtags.length && EXT.rtags[EXT.rtags.length - 1] === g);
+  };
+  function extHold(){ EXT.hold++; var done = false; return function(){ if(done) return; done = true; EXT.hold = Math.max(0, EXT.hold - 1); }; }
   var extSaveGraph0 = saveGraph;
   saveGraph = function(){ var v = extSaveGraph0.apply(this, arguments); if(Object.keys(EXT.run).length) extChanged(); return v; };
 
@@ -353,8 +393,8 @@
     return extStart(x).then(function(){
       var r = EXT.run[x.id]; if(!r) throw new Error('расширение остановлено');
       var rid = 'r' + (++EXT.seq), hold = extHold();
-      r.active = (r.active || 0) + 1; r.cmdSpace = curId();
-      var release = function(){ hold(); r.active = Math.max(0, (r.active || 1) - 1); };
+      r.active = (r.active || 0) + 1; r.cmdSpace = curId(); r.group = 'c' + rid;
+      var release = function(){ hold(); r.active = Math.max(0, (r.active || 1) - 1); if(!r.active) r.group = null; };
       return new Promise(function(res, rej){
         // не ответила за минуту — останавливаем расширение целиком, чтобы зависшая команда не дописала доску потом
         var to = setTimeout(function(){ extStop(x.id, 'команда не ответила за минуту — расширение остановлено'); }, +window.__tsExtCmdTimeout || 60000   /* в тестах — короче */);
