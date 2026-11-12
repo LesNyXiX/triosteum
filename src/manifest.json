@@ -17,7 +17,8 @@
     "styles/audit.css",
     "styles/admin.css",
     "styles/docgen.css",
-    "styles/import-flows.css"
+    "styles/import-flows.css",
+    "styles/ext.css"
   ],
   "js": [
     "app/core/langs-plugins.js",
@@ -98,6 +99,7 @@
     "app/envs/industry-deep.js",
     "app/envs/graphics.js",
     "app/envs/custom.js",
+    "app/ext/ext.js",
     "app/envs/switch.js",
     "app/envs/ecosystem-screen.js",
     "app/office/shell.js",

@@ -1,0 +1,26 @@
+  /* ---------- расширения компании ---------- */
+  .ext-host{position:fixed;right:0;top:0;width:0;height:0;z-index:60}
+  .ext-pane{display:none;position:fixed;right:12px;top:64px;bottom:12px;width:min(380px,calc(100vw - 24px));flex-direction:column;border-radius:14px;overflow:hidden;
+    background:var(--panel);border:1px solid var(--line2);box-shadow:0 24px 64px rgba(0,0,0,.5);zoom:var(--ui,1)}
+  .ext-pane.open{display:flex}
+  .ext-pane header{flex:none;display:flex;align-items:center;gap:8px;padding:8px 8px 8px 14px;border-bottom:1px solid var(--line)}
+  .ext-pane header b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ext-by{font-size:11px;color:var(--dim)}
+  .ext-x{width:30px;height:30px;border:0;border-radius:8px;background:none;font-size:20px;line-height:1;cursor:pointer;color:var(--muted)}
+  .ext-x:hover{background:var(--line)}
+  .ext-frame{flex:1;width:100%;border:0;background:var(--panel)}
+  .ext-mgr{width:min(720px,100%)}
+  .ext-list{display:flex;flex-direction:column;gap:10px}
+  .ext-card{padding:12px 14px;border:1px solid var(--line2);border-radius:12px;background:color-mix(in srgb,var(--bg) 40%,var(--panel))}
+  .ext-card-h{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px}
+  .ext-ver{font-size:12px;color:var(--dim)}
+  .ext-state{margin-left:auto;font-size:12px;padding:2px 8px;border-radius:99px;border:1px solid var(--line2);color:var(--muted)}
+  .ext-state.on{color:#4ADE80;border-color:color-mix(in srgb,#4ADE80 45%,transparent)}
+  .ext-state.ask{color:#FBBF24;border-color:color-mix(in srgb,#FBBF24 45%,transparent)}
+  .ext-desc,.ext-cmds{margin:6px 0 0;color:var(--muted);font-size:13px}
+  .ext-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+  .ext-confirm{margin-top:10px;padding:10px 12px;border-radius:10px;border:1px dashed var(--line2)}
+  .ext-perms{margin:6px 0;padding-left:20px}
+  .ext-perms li{margin:2px 0}
+  .ext-deny{margin:6px 0 0;font-size:12px;color:var(--dim)}
+  .ext-empty{color:var(--muted)}
