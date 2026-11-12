@@ -341,7 +341,7 @@
      что успел сделать пользователь), и снимок помечается группой: одна команда — одна группа. Ctrl+Z снимает
      подряд идущие снимки одной группы разом. Поэтому правки пользователя во время команды остаются отдельными
      записями отмены и не пропадают вместе с результатом команды. Пока команда выполняется, отмена и повтор ждут. */
-  EXT.hold = 0; EXT.tags = []; EXT.rtags = []; EXT.tagNow = null;
+  EXT.hold = 0; EXT.tags = []; EXT.rtags = []; EXT.tagNow = null; EXT.lastTagged = null;
   function extFitTags(){
     var fit = function(t, n){ if(t.length > n) return t.slice(t.length - n); while(t.length < n) t.unshift(null); return t; };
     EXT.tags = fit(EXT.tags, hist.undo.length); EXT.rtags = fit(EXT.rtags, hist.redo.length);
@@ -349,8 +349,16 @@
   var extCommit0 = commitHist;
   commitHist = function(){
     extFitTags();
+    // следующее изменение той же команды сразу за её же снимком — не новая запись, а продолжение прежней:
+    // так у команды остаётся одна запись с её началом, и длинная команда не вытесняет его из истории (150 записей)
+    if(EXT.tagNow && hist.last !== null && EXT.tags[EXT.tags.length - 1] === EXT.tagNow && EXT.lastTagged === hist.last){
+      var s = snap();
+      if(s !== hist.last){ hist.last = s; hist.redo = []; EXT.rtags = []; EXT.lastTagged = s; }
+      return;
+    }
     var was = hist.last, v = extCommit0.apply(this, arguments);
     if(was !== null && hist.last !== was){ EXT.tags.push(EXT.tagNow); EXT.rtags = []; extFitTags(); }
+    if(hist.last !== was) EXT.lastTagged = EXT.tagNow ? hist.last : null;   // ничего не изменилось — прежняя запись команды остаётся последней
     return v;
   };
   function extTx(r, fn){

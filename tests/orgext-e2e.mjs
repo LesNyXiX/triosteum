@@ -74,6 +74,7 @@ triosteum.command('hang', async () => {
   await new Promise((r) => setTimeout(r, 1500));
   await triosteum.board.add({ name: 'Опоздавший' });
 });
+triosteum.command('many', async () => { for (let i = 0; i < 160; i++) await triosteum.board.add({ name: 'Много ' + i, x: (i % 16) * 260, y: 2000 + Math.floor(i / 16) * 140 }); });
 triosteum.command('pause', async () => {
   await triosteum.board.add({ name: 'Медленный 1' });
   await new Promise((r) => setTimeout(r, 2500));
@@ -98,7 +99,7 @@ const EXT = {
   id: 'xproverka', name: 'Проверка схемы', desc: 'Тестовое расширение', perms: ['board.read', 'board.write', 'panel'], panel: 'Проверка',
   commands: [{ id: 'count', label: 'Посчитать и добавить' }, { id: 'probe', label: 'Проверить песочницу' }, { id: 'panel', label: 'Показать панель' },
     { id: 'boom', label: 'Упасть' }, { id: 'nav', label: 'Уйти со страницы' }, { id: 'slow', label: 'Медленно' },
-    { id: 'mk', label: 'Блок для редактора' }, { id: 'recode', label: 'Переписать код' }, { id: 'switchy', label: 'Долгая правка' }, { id: 'hang', label: 'Зависнуть' }, { id: 'pause', label: 'С паузой' }],
+    { id: 'mk', label: 'Блок для редактора' }, { id: 'recode', label: 'Переписать код' }, { id: 'switchy', label: 'Долгая правка' }, { id: 'hang', label: 'Зависнуть' }, { id: 'pause', label: 'С паузой' }, { id: 'many', label: 'Много блоков' }],
   code: CODE,
 };
 
@@ -163,6 +164,12 @@ ok(await k.locator('#nodes .node').count() === before + 2 && await named('Мед
 await k.keyboard.press('Control+y'); await k.waitForTimeout(300);
 ok(await k.locator('#nodes .node').count() === before + 3, 'и последнее действие команды');
 for (let i = 0; i < 3; i++) { await k.keyboard.press('Control+z'); await k.waitForTimeout(300); }
+// больше 150 изменений одной командой — всё равно одна запись отмены, начало команды не вытесняется
+await cmd(k, 'Проверка схемы: Много блоков'); await k.waitForTimeout(4000);
+ok(await k.locator('#nodes .node').count() === before + 160, 'команда добавила 160 блоков');
+await k.evaluate(() => document.activeElement && document.activeElement.blur());
+await k.keyboard.press('Control+z'); await k.waitForTimeout(600);
+ok(await k.locator('#nodes .node').count() === before, 'один Ctrl+Z отменяет все 160 — начало команды сохранилось');
 await cmd(k, 'Проверка схемы: Проверить песочницу');
 const t2 = await toastAfter(k);
 ok(/fetch:no/.test(t2) && /net:no/.test(t2), 'запросы к серверу и в интернет закрыты: ' + t2);
