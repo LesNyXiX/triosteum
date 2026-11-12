@@ -28,6 +28,8 @@
     'await triosteum.ui.toast("текст")          — уведомление',
     'await triosteum.ui.openPanel() / closePanel() — своя панель: рисуйте в document.body',
     'await triosteum.storage.get(key) / set(key, value) — свои настройки (до 256 КБ, у каждого пользователя свои)',
+    'await triosteum.org.get(key) / set(key, value) / all() — общие данные компании (значение до 64 КБ, всего до 2 МБ; set(key, null) — удалить).',
+    '   Их видят все, у кого расширение включено; менять может редактор и владелец. В пробном запуске — учебная копия только у вас.',
     'triosteum.on("change", fn)                 — доска изменилась (нужно «читать доску»)',
     'triosteum.on("selection", ({ ids }) => …)  — выделение изменилось (нужно «видеть выделение» или «читать доску»)',
     'triosteum.on("space", ({ id, name }) => …) — открыли другое пространство (нужно «читать доску»)',
@@ -49,7 +51,8 @@
     [ /triosteum\.on\(/, 'background' ],
     [ /board\.(add|update|remove|connect|note)\s*\(/, 'board.write' ],
     [ /board\.selection\s*\(/, 'selection' ],
-    [ /storage\.(get|set)\s*\(/, 'storage' ],
+    [ /triosteum\.storage\.(get|set)\s*\(/, 'storage' ],
+    [ /triosteum\.org\.(get|set|all)\s*\(/, 'org.storage' ],
     [ /ui\.(openPanel|closePanel)\s*\(|document\.body/, 'panel' ]
   ];
   var XW_KINDS = [ { id:'ext', many:'Расширения компании', one:'Расширение' }, { id:'plugin', many:'Плагины компании', one:'Плагин' }, { id:'env', many:'Среды компании', one:'Среда' } ];

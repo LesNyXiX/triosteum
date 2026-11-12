@@ -1216,3 +1216,5 @@ from . import agents as _agents   # noqa: E402  (задачи для ИИ: Claud
 app.include_router(_agents.router)
 from . import orglib as _orglib   # noqa: E402  (библиотека организации: плагины, общие для компании)
 app.include_router(_orglib.router)
+from . import extdata as _extdata   # noqa: E402  (общие данные расширений внутри компании)
+app.include_router(_extdata.router)
