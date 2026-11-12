@@ -115,8 +115,8 @@ Store.use(serverAdapter);
 ## Выкладка на GitHub Pages
 
 1. Загрузите репозиторий на GitHub.
-2. Откройте Settings → Pages и выберите: Source — Deploy from a branch, ветка `main`, папка `/docs`.
-3. Через минуту сайт откроется по адресу `https://<логин>.github.io/<репозиторий>/`.
+2. Откройте Settings → Pages и выберите: Source — **GitHub Actions**. Сайт собирает и публикует workflow «Сайт на GitHub Pages» (`.github/workflows/pages.yml`) при каждом изменении `main`; первый раз его можно запустить вручную во вкладке Actions.
+3. Через пару минут сайт откроется по адресу `https://<логин>.github.io/<репозиторий>/`.
 
 После правки выполните `npm run build`, чтобы проверить результат. Собранный `docs/index.html` коммитить не нужно — он в `.gitignore`: GitHub Pages и сервер собирают его сами.
 
