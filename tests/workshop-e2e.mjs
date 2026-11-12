@@ -89,7 +89,7 @@ document.body.innerHTML = '<p id="sv">Сводка завода</p>';`);
 await a.click('.xw .ext-acts button:has-text("Пробный запуск")');
 await waitLog(a, /Запущено/);
 await a.click('.xw-run button:has-text("Панель «Сводка»")'); await a.waitForTimeout(400);
-ok(await a.frameLocator('.ext-pane.open iframe').locator('#sv').textContent() === 'Сводка завода', 'панель черновика открылась и рисует');
+ok(await a.frameLocator('.ext-pane.open iframe').frameLocator('iframe').locator('#sv').textContent() === 'Сводка завода', 'панель черновика открылась и рисует');
 ok(await a.locator('.ext-pane.open').evaluate((e) => { const r = e.getBoundingClientRect(); const top = document.elementFromPoint(r.left + r.width / 2, r.top + 20); return e.contains(top); }), 'панель поверх мастерской');
 if (SHOTS) await a.screenshot({ path: `${SHOTS}/workshop.png` });
 
