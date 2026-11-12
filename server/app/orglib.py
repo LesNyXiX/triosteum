@@ -36,18 +36,20 @@ PLUGIN_FIELDS = ("name", "lang", "desc", "family", "codes", "params", "tpl", "io
 
 def item_out(r) -> dict:
     return {"id": str(r["id"]), "kind": r["kind"], "src": r["src"], "name": r["name"], "data": r["data"],
+            "disabled": bool(r.get("disabled")),
             "by": str(r["created_by"]) if r["created_by"] else None, "by_name": r.get("by_name") or "",
             "updated_at": r["updated_at"].isoformat()}
 
 
-SELECT = """SELECT i.id, i.kind, i.src, i.name, i.data, i.created_by, i.updated_at,
+SELECT = """SELECT i.id, i.kind, i.src, i.name, i.data, i.created_by, i.updated_at, i.disabled,
                    coalesce(nullif(u.name, ''), u.email) AS by_name
             FROM org_items i LEFT JOIN users u ON u.id = i.created_by
             WHERE i.deleted_at IS NULL"""
 
 
-def list_items(c, kind: str | None = None) -> list[dict]:
-    q = SELECT + (" AND i.kind = :k" if kind else "") + " ORDER BY i.updated_at DESC"
+def list_items(c, kind: str | None = None, with_disabled: bool = False) -> list[dict]:
+    # выключенное для компании сотрудникам не отдаём; мастерская просит всё (with_disabled)
+    q = SELECT + (" AND i.kind = :k" if kind else "") + ("" if with_disabled else " AND NOT i.disabled") + " ORDER BY i.updated_at DESC"
     return [item_out(r) for r in c.execute(text(q), {"k": kind} if kind else {}).mappings()]
 
 
@@ -129,10 +131,126 @@ def clean_ext(d: dict, src: str, prev: dict | None) -> dict:
     return out
 
 
+KEEP_SNAPSHOTS = 30   # сколько последних снимков хранить для отката; старые записи журнала остаются без снимка
+
+
+def add_version(c, org_id: str, item_id, user_id: str, action: str, name: str, data: dict | None = None) -> None:
+    c.execute(text("""INSERT INTO org_item_versions (org_id, item_id, action, name, data, created_by)
+                      VALUES (:o, :i, :a, :n, CAST(:d AS jsonb), :u)"""),
+              {"o": org_id, "i": item_id, "a": action, "n": name, "u": user_id,
+               "d": json.dumps(data, ensure_ascii=False) if data is not None else None})
+    if data is not None:
+        c.execute(text("""UPDATE org_item_versions SET data = NULL WHERE item_id = :i AND data IS NOT NULL AND id NOT IN (
+                            SELECT id FROM org_item_versions WHERE item_id = :i AND data IS NOT NULL
+                            ORDER BY created_at DESC LIMIT :k)"""), {"i": item_id, "k": KEEP_SNAPSHOTS})
+
+
+def can_manage(w: Who, kind: str, created_by) -> bool:
+    if kind == "ext":
+        return w.role == "owner"
+    return w.role == "owner" or (created_by is not None and str(created_by) == w.user_id)
+
+
+def locked_item(c, item_id: str):
+    try:
+        r = c.execute(text("""SELECT id, kind, src, name, data, created_by, disabled FROM org_items
+                              WHERE id = CAST(:i AS uuid) AND deleted_at IS NULL FOR UPDATE"""), {"i": item_id}).mappings().first()
+    except Exception:
+        r = None
+    if not r:
+        raise HTTPException(404, "В библиотеке компании такого нет")
+    return r
+
+
 @router.get("")
-def get_items(kind: str | None = None, w: Who = Depends(need)):
+def get_items(kind: str | None = None, all: bool = False, w: Who = Depends(need)):
     with tx(w.org_id) as c:
-        return {"items": list_items(c, kind)}
+        return {"items": list_items(c, kind, with_disabled=all)}
+
+
+@router.get("/journal")
+def journal(limit: int = 100, w: Who = Depends(need)):
+    """Журнал доработок компании: кто, что и когда опубликовал, изменил, откатил, выключил или убрал."""
+    limit = max(1, min(limit, 500))
+    with tx(w.org_id) as c:
+        rows = c.execute(text("""SELECT v.id, v.item_id, v.action, v.name, v.created_at, i.kind, i.deleted_at IS NOT NULL AS gone,
+                                        coalesce(nullif(u.name, ''), u.email) AS by_name
+                                 FROM org_item_versions v JOIN org_items i ON i.id = v.item_id
+                                 LEFT JOIN users u ON u.id = v.created_by
+                                 ORDER BY v.created_at DESC LIMIT :l"""), {"l": limit}).mappings()
+        return {"entries": [{"id": str(r["id"]), "item": str(r["item_id"]), "kind": r["kind"], "action": r["action"], "name": r["name"],
+                             "at": r["created_at"].isoformat(), "by_name": r["by_name"] or "", "gone": r["gone"]} for r in rows]}
+
+
+@router.get("/{item_id}/versions")
+def versions(item_id: str, w: Who = Depends(need)):
+    """История одной доработки. current — снимок, который сейчас опубликован."""
+    with tx(w.org_id) as c:
+        try:
+            it = c.execute(text("SELECT id, data FROM org_items WHERE id = CAST(:i AS uuid) AND deleted_at IS NULL"), {"i": item_id}).mappings().first()
+        except Exception:
+            it = None
+        if not it:
+            raise HTTPException(404, "В библиотеке компании такого нет")
+        rows = c.execute(text("""SELECT v.id, v.action, v.name, v.created_at, v.data IS NOT NULL AS has_data, v.data->>'ver' AS ver,
+                                        coalesce(nullif(u.name, ''), u.email) AS by_name
+                                 FROM org_item_versions v LEFT JOIN users u ON u.id = v.created_by
+                                 WHERE v.item_id = :i ORDER BY v.created_at DESC LIMIT 200"""), {"i": it["id"]}).mappings().all()
+        cur = next((r["id"] for r in rows if r["has_data"]), None)
+        return {"versions": [{"id": str(r["id"]), "action": r["action"], "name": r["name"], "at": r["created_at"].isoformat(),
+                              "by_name": r["by_name"] or "", "can_restore": bool(r["has_data"]) and r["id"] != cur,
+                              "current": r["id"] == cur, "ver": int(r["ver"]) if r["ver"] and str(r["ver"]).isdigit() else None}
+                             for r in rows]}
+
+
+class RollbackIn(BaseModel):
+    version: str = Field(min_length=1, max_length=64)
+
+
+@router.post("/{item_id}/rollback")
+def rollback(item_id: str, body: RollbackIn, request: Request, w: Who = Depends(need_writer)):
+    """Вернуть прежнюю версию: её снимок становится текущим (для расширения — с новым номером версии)."""
+    with tx(w.org_id) as c:
+        r = locked_item(c, item_id)
+        if not can_manage(w, r["kind"], r["created_by"]):
+            raise HTTPException(403, "Вернуть прежнюю версию может " + ("владелец организации" if r["kind"] == "ext" else "автор или владелец организации"))
+        try:
+            v = c.execute(text("SELECT id, data FROM org_item_versions WHERE id = CAST(:v AS uuid) AND item_id = :i AND data IS NOT NULL"),
+                          {"v": body.version, "i": r["id"]}).mappings().first()
+        except Exception:
+            v = None
+        if not v:
+            raise HTTPException(404, "Такой версии нет — возможно, её снимок уже очищен")
+        data = dict(v["data"])
+        if r["kind"] == "ext":
+            data["ver"] = int((r["data"] or {}).get("ver") or 0) + 1   # у сотрудников расширение перезапустится
+        c.execute(text("UPDATE org_items SET name = :n, data = CAST(:d AS jsonb), updated_by = :u, updated_at = now() WHERE id = :i"),
+                  {"n": data["name"], "d": json.dumps(data, ensure_ascii=False), "u": w.user_id, "i": r["id"]})
+        add_version(c, w.org_id, r["id"], w.user_id, "rollback", data["name"], data)
+        audit(c, w.org_id, w.user_id, "orglib.rollback", request, "org_item", item_id, {"name": data["name"], "version": body.version})
+        out = c.execute(text(SELECT.replace("WHERE i.deleted_at IS NULL", "WHERE i.deleted_at IS NULL AND i.id = :id")), {"id": r["id"]}).mappings().first()
+    return item_out(out)
+
+
+class StateIn(BaseModel):
+    disabled: bool
+
+
+@router.patch("/{item_id}")
+def set_state(item_id: str, body: StateIn, request: Request, w: Who = Depends(need_writer)):
+    """Выключить или включить плагин или расширение для всей компании."""
+    with tx(w.org_id) as c:
+        r = locked_item(c, item_id)
+        if r["kind"] == "env":
+            raise HTTPException(422, "Среду нельзя выключить: в ней могут быть пространства. Удалить её можно, когда пространств в ней нет.")
+        if not can_manage(w, r["kind"], r["created_by"]):
+            raise HTTPException(403, "Выключить для всех может " + ("владелец организации" if r["kind"] == "ext" else "автор или владелец организации"))
+        if bool(r["disabled"]) != body.disabled:
+            c.execute(text("UPDATE org_items SET disabled = :d, updated_by = :u, updated_at = now() WHERE id = :i"),
+                      {"d": body.disabled, "u": w.user_id, "i": r["id"]})
+            add_version(c, w.org_id, r["id"], w.user_id, "disable" if body.disabled else "enable", r["name"])
+            audit(c, w.org_id, w.user_id, "orglib.disable" if body.disabled else "orglib.enable", request, "org_item", item_id, {"name": r["name"]})
+    return {"ok": True, "disabled": body.disabled}
 
 
 @router.post("", status_code=201)
@@ -163,11 +281,13 @@ def share_item(body: ItemIn, request: Request, w: Who = Depends(need_writer)):
             c.execute(text("""UPDATE org_items SET name = :n, data = CAST(:d AS jsonb), updated_by = :u, updated_at = now()
                               WHERE id = :id"""), {"n": data["name"], "d": raw, "u": w.user_id, "id": cur["id"]})
             iid, action = cur["id"], "orglib.update"
+            add_version(c, w.org_id, iid, w.user_id, "update", data["name"], data)
         else:
             iid = c.execute(text("""INSERT INTO org_items (org_id, kind, src, name, data, created_by, updated_by)
                                     VALUES (:o, :k, :s, :n, CAST(:d AS jsonb), :u, :u) RETURNING id"""),
                             {"o": w.org_id, "k": body.kind, "s": body.src, "n": data["name"], "d": raw, "u": w.user_id}).scalar_one()
             action = "orglib.share"
+            add_version(c, w.org_id, iid, w.user_id, "publish", data["name"], data)
         audit(c, w.org_id, w.user_id, action, request, "org_item", str(iid), {"name": data["name"], "kind": body.kind})
         r = c.execute(text(SELECT + " AND i.id = :id"), {"id": iid}).mappings().first()
     return item_out(r)
@@ -192,5 +312,6 @@ def remove_item(item_id: str, request: Request, w: Who = Depends(need_writer)):
             if n:
                 raise HTTPException(409, f"В среде есть пространства ({n}). Сначала удалите или перенесите их — потом удалите среду.")
         c.execute(text("UPDATE org_items SET deleted_at = now(), updated_by = :u WHERE id = :i"), {"u": w.user_id, "i": r["id"]})
+        add_version(c, w.org_id, r["id"], w.user_id, "remove", r["name"])
         audit(c, w.org_id, w.user_id, "orglib.remove", request, "org_item", item_id, {"name": r["name"]})
     return {"ok": True}

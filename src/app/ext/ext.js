@@ -12,7 +12,7 @@
     'board.read':'читать блоки, связи и заметки открытого пространства',
     'board.write':'добавлять и менять блоки, связи и заметки (всё отменяется Ctrl+Z)',
     'selection':'видеть, какие блоки выделены',
-    'storage':'хранить свои настройки на этом устройстве',
+    'storage':'хранить свои настройки (у вас, отдельно от других расширений)',
     'panel':'показывать свою боковую панель'
   };
   var EXT_DENY = 'Расширению недоступны: интернет, сервер от вашего имени, другие пространства, ваши ключи и пароли.';
@@ -259,7 +259,8 @@
     ids.forEach(function(id){ r.known.ids[id] = 1; });
   }
   function extKnows(r, id){ return !!(r.known && r.known.space === curId() && r.known.ids[id]); }
-  function extStoreKey(x){ return 'triosteum.extdata.' + (x.draft ? 'draft.' : '') + x.id; }
+  // имя настройки на сервере — только [A-Za-z0-9_.-]: id пробного запуска начинается с «~», его отбрасываем
+  function extStoreKey(x){ return 'triosteum.extdata.' + (x.draft ? 'draft.' : '') + String(x.id).replace(/[^a-z0-9]/g, ''); }
   function extStore(x){ var v = load(extStoreKey(x), {}); return v && typeof v === 'object' ? v : {}; }
   function extNodeOut(n){
     return { id:n.id, name:n.name || '', lang:n.lang, kind:n.kind || 'block', code:typeof nodeCode === 'function' ? String(nodeCode(n) || '') : String((n.codes || {})[n.lang] || ''),
@@ -453,8 +454,9 @@
   }
   function extOpenPanel(x){ return extStart(x).then(function(){ extPanel(x, true); }, function(err){ toast('«' + x.def.name + '»: ' + err.message); }); }
   function extCommands(){
-    if(!SERVER) return [];
-    var C = [ { sec:'ext', label:'Расширения компании', d:'Включить или выключить расширения вашей организации', icon:'plug', act:openExtMgr, k:'расширения плагины компании ext' } ];
+    var C = [ { sec:'ext', label:'Мастерская компании', d:'Расширения, плагины и среды компании: новое расширение, история версий, откат, журнал', icon:'edit', act:function(){ openWorkshop(); }, k:'мастерская расширений расширение создать написать код история откат журнал доработки ext' } ];
+    if(!SERVER) return C;
+    C.push({ sec:'ext', label:'Расширения компании', d:'Включить или выключить расширения вашей организации', icon:'plug', act:openExtMgr, k:'расширения плагины компании ext' });
     EXT.list.filter(extOn).forEach(function(x){
       (x.def.commands || []).forEach(function(c){
         C.push({ sec:'ext', label:x.def.name + ': ' + c.label, d:c.desc || '', icon:'plug', act:function(){ extInvoke(x, c.id).catch(function(){}); }, k:'расширение ' + x.def.name });
@@ -476,15 +478,19 @@
     var back = h('div', { 'class':'cenv-back ext-back', role:'dialog', 'aria-modal':'true', 'aria-label':'Расширения компании' });
     var list = h('div', { 'class':'ext-list' });
     var close = h('button', { type:'button', 'class':'btn', text:'Закрыть' });
+    var shop = h('button', { type:'button', 'class':'btn ghost', text:'Мастерская компании' });
+    shop.addEventListener('click', function(){ shut(); openWorkshop(); });
     back.appendChild(h('div', { 'class':'cenv ext-mgr' }, [
       h('header', { 'class':'cenv-h' }, [ h('h2', { text:'Расширения компании' }),
         h('p', { text:'Программы вашей организации: свои команды и панели в Triosteum. Работают в песочнице; что можно каждому — вы решаете сами.' }) ]),
       h('div', { 'class':'cenv-body' }, [ list ]),
-      h('footer', { 'class':'cenv-f' }, [ close ]) ]));
-    function shut(){ back.remove(); }
+      h('footer', { 'class':'cenv-f' }, [ shop, close ]) ]));
+    function shut(){ back.remove(); document.removeEventListener('keydown', onEsc, true); }
+    function onEsc(ev){ if(ev.key === 'Escape' && document.contains(back)){ ev.stopPropagation(); ev.preventDefault(); shut(); } }
+    document.addEventListener('keydown', onEsc, true);
     close.addEventListener('click', shut);
     back.addEventListener('mousedown', function(ev){ if(ev.target === back) shut(); });
-    back.addEventListener('keydown', function(ev){ ev.stopPropagation(); if(ev.key === 'Escape') shut(); });
+    back.addEventListener('keydown', function(ev){ ev.stopPropagation(); });
     function card(x){
       var d = x.def, on = extOn(x), ask = extNeedsOk(x);
       var state = h('span', { 'class':'ext-state' + (on ? ' on' : ask ? ' ask' : ''), text:on ? 'включено' : ask ? 'просит новые разрешения' : 'выключено' });
@@ -528,7 +534,7 @@
     function draw(focusId){
       list.textContent = '';
       setTimeout(function(){ var f = focusId && list.querySelector('[data-ext="' + focusId + '"] .ext-acts button'); (f || close).focus(); }, 0);
-      if(!EXT.list.length){ list.appendChild(h('p', { 'class':'ext-empty', text:'В компании пока нет расширений.' })); return; }
+      if(!EXT.list.length){ list.appendChild(h('p', { 'class':'ext-empty', text:'В компании пока нет расширений. Собрать своё можно в мастерской компании.' })); return; }
       EXT.list.forEach(function(x){ list.appendChild(card(x)); });
     }
     draw();
