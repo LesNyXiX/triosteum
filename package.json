@@ -15,6 +15,7 @@
     "test:workshop": "node tests/workshop-e2e.mjs",
     "test:orgshop": "node tests/orgshop-e2e.mjs",
     "test:extevents": "node tests/extevents-e2e.mjs",
+    "test:extorgdata": "node tests/extorgdata-e2e.mjs",
     "test:orglib": "node tests/orglib-e2e.mjs",
     "test:orgenvs": "node tests/orgenvs-e2e.mjs",
     "test:server": "node tests/server-e2e.mjs",

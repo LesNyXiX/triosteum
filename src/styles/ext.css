@@ -81,3 +81,4 @@
   .ext-block-cmds{display:flex;flex-wrap:wrap;gap:6px}
   .xw-where{font:inherit;color:inherit;background:var(--bg);border:1px solid var(--line2);border-radius:8px;padding:6px 8px}
   .xw-io{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+  .ext-pin{padding:4px 8px;font-size:12px}

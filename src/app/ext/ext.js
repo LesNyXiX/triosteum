@@ -13,6 +13,7 @@
     'board.write':'добавлять и менять блоки, связи и заметки (всё отменяется Ctrl+Z)',
     'selection':'видеть, какие блоки выделены',
     'storage':'хранить свои настройки (у вас, отдельно от других расширений)',
+    'org.storage':'хранить общие данные компании для этого расширения (их видят все сотрудники, у кого оно включено)',
     'panel':'показывать свою боковую панель',
     'background':'работать в фоне с открытия Triosteum и реагировать на события: смену пространства, выделения и доски'
   };
@@ -71,6 +72,11 @@
         get:function(k){ return call('storage.get', { k:String(k) }); },
         set:function(k, v){ return call('storage.set', { k:String(k), v:v }); }
       },
+      org:{
+        all:function(){ return call('org.all'); },
+        get:function(k){ return call('org.get', { k:String(k) }); },
+        set:function(k, v){ return call('org.set', { k:String(k), v:v === undefined ? null : v }); }
+      },
       command:function(id, fn){ cmds[String(id)] = fn; },
       on:function(ev, fn){ (evs[ev] = evs[ev] || []).push(fn); }
     };
@@ -127,9 +133,22 @@
   }
   // фоновые расширения (разрешение «background») запускаются сами — иначе им не на что реагировать
   function extBg(x){ return (x.def.perms || []).indexOf('background') >= 0; }
+  function extPinned(x){ var p = EXT.pref[x.id]; return !!(p && p.pin) && (x.def.perms || []).indexOf('panel') >= 0; }
+  EXT.pinShown = {};
   function extAutostart(){
     if(!document.body) return;
     EXT.list.filter(function(x){ return extOn(x) && extBg(x) && !EXT.run[x.id]; }).forEach(function(x){ extStart(x).catch(function(){}); });
+    // закреплённая панель открывается сама — один раз за сеанс (закрыли крестиком — до следующего открытия Triosteum)
+    EXT.list.filter(function(x){ return extOn(x) && extPinned(x) && !EXT.pinShown[x.id]; }).forEach(function(x){
+      EXT.pinShown[x.id] = 1;
+      extStart(x).then(function(){ extPanel(x, true); }, function(){});
+    });
+  }
+  function extSetPin(x, pin){
+    Object.keys(EXT.pref).forEach(function(k){ if(EXT.pref[k]) delete EXT.pref[k].pin; });   // закреплена одна панель
+    if(pin && EXT.pref[x.id]) EXT.pref[x.id].pin = true;
+    save('triosteum.ext', EXT.pref);
+    EXT.list.forEach(function(y){ var r = EXT.run[y.id]; if(r && r.pinB) r.pinB.textContent = extPinned(y) ? 'Открепить' : 'Закрепить'; });
   }
   extFromItems(SERVER && window.TRIOSTEUM_BOOT && window.TRIOSTEUM_BOOT.org_items);
   function extById(id){ return EXT.list.filter(function(x){ return x.id === id; })[0] || null; }
@@ -157,10 +176,12 @@
     var name = x.def.name;
     var fr = h('iframe', { sandbox:'allow-scripts', title:'Расширение «' + name + '»', referrerpolicy:'no-referrer', 'class':'ext-frame' });
     var close = h('button', { type:'button', 'class':'ext-x', 'aria-label':'Закрыть панель', html:'&times;' });
+    var pinB = x.draft ? null : h('button', { type:'button', 'class':'btn sm ghost ext-pin', title:'Закреплённая панель открывается сама при каждом запуске Triosteum', text:extPinned(x) ? 'Открепить' : 'Закрепить' });
+    if(pinB) pinB.addEventListener('click', function(){ var on = !extPinned(x); extSetPin(x, on); toast(on ? 'Панель «' + (x.def.panel || name) + '» будет открываться сама' : 'Панель откреплена'); });
     var pane = h('section', { 'class':'ext-pane', 'aria-label':'Панель расширения «' + name + '»' }, [
-      h('header', null, [ h('b', { text:x.def.panel || name }), h('span', { 'class':'ext-by', text:x.draft ? 'черновик' : 'расширение компании' }), close ]), fr ]);
+      h('header', null, [ h('b', { text:x.def.panel || name }), h('span', { 'class':'ext-by', text:x.draft ? 'черновик' : 'расширение компании' }), pinB, close ]), fr ]);
     close.addEventListener('click', function(){ pane.classList.remove('open'); });
-    r = EXT.run[x.id] = { x:x, fr:fr, pane:pane, loads:0, win:0, winAt:0, runs:{}, log:[] };
+    r = EXT.run[x.id] = { x:x, fr:fr, pane:pane, pinB:pinB, loads:0, win:0, winAt:0, runs:{}, log:[] };
     r.ready = new Promise(function(res, rej){
       r.ok = res;
       r.fail = rej;
@@ -259,6 +280,9 @@
         if(JSON.stringify(all).length > EXT_STORE_MAX) throw new Error('хранилище расширения переполнено (больше 256 КБ)');
         save(extStoreKey(r.x), all); return true;
       }
+      case 'org.all': need('org.storage'); return extOrg(r, 'all');
+      case 'org.get': need('org.storage'); return extOrg(r, 'get', String(a.k));
+      case 'org.set': need('org.storage'); return extOrg(r, 'set', String(a.k), a.v);
     }
     throw new Error('неизвестный вызов «' + m + '»');
   }
@@ -268,6 +292,33 @@
   }
   function extKnows(r, id){ return !!(r.known && r.known.space === curId() && r.known.ids[id]); }
   // имя настройки на сервере — только [A-Za-z0-9_.-]: id пробного запуска начинается с «~», его отбрасываем
+  /* общие данные компании: запрос делает Triosteum от имени сотрудника, сервер ещё раз проверяет расширение.
+     В пробном запуске черновика — учебная копия только у этого пользователя: настоящие данные компании черновик не трогает. */
+  function extOrg(r, op, k, v){
+    if(op !== 'all' && (!k || k.length > 100 || k.indexOf('/') >= 0)) return Promise.reject(new Error('ключ — от 1 до 100 символов, без «/»'));
+    if(op === 'set'){
+      var now = Date.now();
+      r.orgW = (r.orgW || []).filter(function(t){ return now - t < 60000; });
+      if(r.orgW.length >= 120) return Promise.reject(new Error('не больше 120 записей общих данных в минуту'));
+      r.orgW.push(now);
+      if(SERVER && SERVER.role === 'viewer') return Promise.reject(new Error('у вас доступ только для просмотра — общие данные менять нельзя'));
+    }
+    if(r.x.draft || !SERVER){
+      var key = 'triosteum.extdata.draftorg.' + String(r.x.id).replace(/[^a-z0-9]/g, ''), all = load(key, {}) || {};
+      if(op === 'all') return Promise.resolve(all);
+      if(op === 'get') return Promise.resolve(all[k] === undefined ? null : all[k]);
+      if(v === null) delete all[k]; else all[k] = v;
+      if(JSON.stringify(all).length > 256 * 1024) return Promise.reject(new Error('учебные общие данные черновика — не больше 256 КБ'));
+      save(key, all); return Promise.resolve(true);
+    }
+    var base = '/org/ext-data/' + encodeURIComponent(r.x.def.id);
+    var fail = function(res){ throw new Error((res.data && res.data.detail) || 'сервер не принял запрос (' + res.status + ')'); };
+    if(op === 'set') return SERVER.api('PUT', base + '/' + encodeURIComponent(k), { value:v }).then(function(res){ if(res.status !== 200) fail(res); return true; });
+    return SERVER.api('GET', base).then(function(res){
+      if(res.status !== 200) fail(res);
+      return op === 'all' ? res.data.data : (res.data.data[k] === undefined ? null : res.data.data[k]);
+    });
+  }
   function extStoreKey(x){ return 'triosteum.extdata.' + (x.draft ? 'draft.' : '') + String(x.id).replace(/[^a-z0-9]/g, ''); }
   function extStore(x){ var v = load(extStoreKey(x), {}); return v && typeof v === 'object' ? v : {}; }
   function extNodeOut(n){
@@ -575,6 +626,15 @@
         var off = h('button', { type:'button', 'class':'btn', text:'Выключить' });
         off.addEventListener('click', function(){ extSetOn(x, false); toast('Расширение «' + d.name + '» выключено'); draw(x.id); });
         acts.appendChild(off);
+        if((d.perms || []).indexOf('panel') >= 0){
+          var pin = h('button', { type:'button', 'class':'btn', text:extPinned(x) ? 'Открепить панель' : 'Закрепить панель', title:'Закреплённая панель открывается сама при каждом запуске Triosteum' });
+          pin.addEventListener('click', function(){
+            var on2 = !extPinned(x); extSetPin(x, on2);
+            if(on2) extStart(x).then(function(){ extPanel(x, true); }, function(){});
+            toast(on2 ? 'Панель «' + (d.panel || d.name) + '» закреплена' : 'Панель откреплена'); draw(x.id);
+          });
+          acts.appendChild(pin);
+        }
       } else {
         var en = h('button', { type:'button', 'class':'btn primary', text:ask ? 'Посмотреть разрешения' : 'Включить…' });
         en.addEventListener('click', function(){ confirm.hidden = false; acts.hidden = true; yes.focus(); });

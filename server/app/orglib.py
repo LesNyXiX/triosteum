@@ -27,7 +27,7 @@ THEMES = {"burgundy", "emerald", "graphite", "midnight"}
 EXT_ID = re.compile(r"^x[a-z0-9]{5,15}$")
 CMD_ID = re.compile(r"^[a-z0-9_-]{1,30}$")
 # что расширение может попросить; всё остальное (сеть, сервер, другие пространства) ему недоступно в принципе
-EXT_PERMS = ("board.read", "board.write", "selection", "storage", "panel", "background")
+EXT_PERMS = ("board.read", "board.write", "selection", "storage", "org.storage", "panel", "background")
 CMD_WHERE = ("palette", "block")   # где команда: в Ctrl+K и/или в окне настроек блока (правая кнопка мыши)
 EXT_CODE_MAX = 256 * 1024
 MAX_BYTES = 512 * 1024
