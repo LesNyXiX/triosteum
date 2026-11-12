@@ -51,6 +51,11 @@
     // убранные из библиотеки — убираем и из списка сред (кроме той, где пользователь сейчас)
     Object.keys(ENVS).forEach(function(k){ if(ENVS[k].custom && !live[k] && ENV.id !== k) delete ENVS[k]; });
     ALLP = null;
+    // автор изменил среду, в которой сотрудник сейчас работает: подхватываем новые блоки и библиотеку, доску не трогаем
+    if(ENV && ENV.custom && ENVS[ENV.id] && ENVS[ENV.id] !== ENV){
+      setEnv(ENV.id);
+      try { renderChips(); renderList(); } catch(e){}
+    }
   }
   cenvLoad(SERVER && window.TRIOSTEUM_BOOT && window.TRIOSTEUM_BOOT.org_items);
   function cenvCanEdit(e){ return !!(SERVER && SERVER.user && (SERVER.role === 'owner' || (SERVER.role === 'editor' && (!e || e.by === SERVER.user.id)))); }

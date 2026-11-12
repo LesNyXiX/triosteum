@@ -517,11 +517,26 @@ def _announce(w: Who, space_id: str, rev: int, updated_at, content: dict, reques
                                          "uid": w.user_id, "content": content}, except_sid=request.headers.get("x-live-sid"))
 
 
+CUSTOM_ENV = re.compile(r"^u[a-z]{5,11}$")
+
+
+def env_guard(c, org_id: str, env: str) -> None:
+    """Своя среда компании: пространство в ней можно создать, только пока среда есть в библиотеке.
+    Та же блокировка, что и при удалении среды, — удаление и создание пространства не проскочат друг мимо друга."""
+    if not CUSTOM_ENV.match(env or ""):
+        return
+    c.execute(text("SELECT pg_advisory_xact_lock(hashtext('triosteum-env:' || :o || ':' || :e))"), {"o": org_id, "e": env})
+    ok = c.execute(text("SELECT 1 FROM org_items WHERE kind = 'env' AND src = :e AND deleted_at IS NULL"), {"e": env}).first()
+    if not ok:
+        raise HTTPException(422, "Такой среды в вашей организации нет — возможно, её удалили")
+
+
 @app.put("/api/spaces/{space_id}")
 def put_space(space_id: str, body: SpaceIn, request: Request, w: Who = Depends(need_writer)):
     check_id(space_id)
     content_json = json.dumps(body.content, ensure_ascii=False)
     with tx(w.org_id) as c:
+        env_guard(c, w.org_id, body.env)
         # сохраняем, только если никто не успел сохранить раньше нас (номер правки совпадает)
         r = c.execute(text("""UPDATE spaces SET name = :n, env = :e, content = CAST(:c AS jsonb), rev = rev + 1,
                                      updated_by = :u, updated_at = now()
@@ -541,6 +556,7 @@ def put_space(space_id: str, body: SpaceIn, request: Request, w: Who = Depends(n
             return JSONResponse(space_out(live), status_code=409)
         if body.base_rev != 0:
             raise HTTPException(404, "Пространство удалено")
+        env_guard(c, w.org_id, body.env)
         # новое пространство (или повторное создание удалённого с тем же id)
         r = c.execute(text("""INSERT INTO spaces (org_id, id, name, env, content, rev, created_by, updated_by)
                               VALUES (:o, :id, :n, :e, CAST(:c AS jsonb), 1, :u, :u)

@@ -54,7 +54,7 @@
     });
     var rec = $('ecoRecent'); rec.innerHTML = '';
     PROJ.list.slice().sort(function(a, b){ return b.t - a.t; }).slice(0, 8).forEach(function(p){
-      var e = ENVS[p.env || 'code'];
+      var e = ENVS[p.env || 'code'] || ENVS.code;          // среда могла исчезнуть — показываем как «Разработку», а не падаем
       rec.appendChild(h('button', { type:'button', 'class':'eco-rec' + (p.id === PROJ.cur ? ' on' : ''), on:{ click:function(){ closeEco(); switchProj(p.id); } } }, [
         h('i', { style:'background:' + e.color }), h('span', { 'class':'nm', text:p.name }), h('span', { 'class':'ev', text:e.name })
       ]));

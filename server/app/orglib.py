@@ -124,7 +124,7 @@ def share_item(body: ItemIn, request: Request, w: Who = Depends(need_writer)):
 def remove_item(item_id: str, request: Request, w: Who = Depends(need_writer)):
     with tx(w.org_id) as c:
         try:
-            r = c.execute(text("SELECT id, name, created_by FROM org_items WHERE id = CAST(:i AS uuid) AND deleted_at IS NULL FOR UPDATE"),
+            r = c.execute(text("SELECT id, kind, src, name, created_by FROM org_items WHERE id = CAST(:i AS uuid) AND deleted_at IS NULL FOR UPDATE"),
                           {"i": item_id}).mappings().first()
         except Exception:
             r = None
@@ -132,6 +132,12 @@ def remove_item(item_id: str, request: Request, w: Who = Depends(need_writer)):
             raise HTTPException(404, "В библиотеке компании такого нет")
         if str(r["created_by"]) != w.user_id and w.role != "owner":
             raise HTTPException(403, "Убрать из библиотеки может автор или владелец организации")
+        if r["kind"] == "env":
+            # среду с пространствами не удаляем; блокировка общая с созданием пространства (main.env_guard)
+            c.execute(text("SELECT pg_advisory_xact_lock(hashtext('triosteum-env:' || :o || ':' || :e))"), {"o": w.org_id, "e": r["src"]})
+            n = c.execute(text("SELECT count(*) FROM spaces WHERE env = :e AND deleted_at IS NULL"), {"e": r["src"]}).scalar_one()
+            if n:
+                raise HTTPException(409, f"В среде есть пространства ({n}). Сначала удалите или перенесите их — потом удалите среду.")
         c.execute(text("UPDATE org_items SET deleted_at = now(), updated_by = :u WHERE id = :i"), {"u": w.user_id, "i": r["id"]})
         audit(c, w.org_id, w.user_id, "orglib.remove", request, "org_item", item_id, {"name": r["name"]})
     return {"ok": True}

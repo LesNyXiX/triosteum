@@ -74,6 +74,11 @@ await a.fill('.cenv input[aria-label="Название среды"]', 'Лабо�
 await a.click('.cenv-f .btn.primary'); await a.waitForTimeout(1200);
 await eco(a);
 ok(await a.locator('.eco-card:has-text("Лаборатория ОТК и метрологии")').count() === 1, 'название среды изменено');
+await eco(k); await k.waitForTimeout(800);
+ok((await k.textContent('#envName')) === 'Лаборатория ОТК и метрологии', 'у коллеги, работающего в среде, она обновилась без перезагрузки');
+await k.keyboard.press('Escape');
+const direct = await api(k, 'GET', '/org/items?kind=env');
+ok((await api(a, 'DELETE', '/org/items/' + direct.data.items[0].id)).status === 409, 'и прямым запросом сервер не удаляет среду с пространствами');
 await a.click('.eco-card:has-text("Лаборатория ОТК и метрологии") button:has-text("Настроить")'); await a.waitForTimeout(400);
 await a.click('.cenv-del'); await a.waitForTimeout(300);
 ok(/пространства \(2\)/.test(await a.textContent('.cenv-err')), 'среду с пространствами удалить нельзя — объясняет почему');
