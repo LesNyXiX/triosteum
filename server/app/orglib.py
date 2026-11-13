@@ -91,6 +91,34 @@ def clean_env(d: dict, src: str) -> dict:
            "ic": str(d.get("ic") or "box")[:30], "desc": str(d.get("desc") or "").strip()[:300], "step": bool(d.get("step"))}
     if d.get("theme") in THEMES:
         out["theme"] = d["theme"]
+    tpl = d.get("tpl")
+    if tpl is not None:
+        out["tpl"] = clean_tpl(tpl)
+    return out
+
+
+TPL_MAX = 256 * 1024
+
+
+def clean_tpl(t) -> dict:
+    """Шаблон нового пространства среды: доска (блоки, связи, заметки) без файлов и прочего."""
+    if not isinstance(t, dict) or not isinstance(t.get("nodes"), list):
+        raise HTTPException(422, "Шаблон среды в неверном формате")
+    out = {}
+    for k, lim in (("nodes", 300), ("edges", 1000), ("notes", 300)):
+        v = t.get(k) or []
+        if not isinstance(v, list) or len(v) > lim or not all(isinstance(x, dict) for x in v):
+            raise HTTPException(422, f"В шаблоне среды не больше {lim} элементов «{k}»")
+        out[k] = v
+    if not out["nodes"] and not out["notes"]:
+        raise HTTPException(422, "Шаблон среды пустой — на доске нет ни блоков, ни заметок")
+    if isinstance(t.get("seq"), int) and 0 <= t["seq"] < 10**9:
+        out["seq"] = t["seq"]
+    cam = t.get("cam")
+    if isinstance(cam, dict) and all(isinstance(cam.get(k), (int, float)) for k in ("x", "y", "k")):
+        out["cam"] = {"x": cam["x"], "y": cam["y"], "k": cam["k"]}
+    if len(json.dumps(out, ensure_ascii=False).encode()) > TPL_MAX:
+        raise HTTPException(413, "Шаблон среды больше 256 КБ — уберите часть блоков")
     return out
 
 

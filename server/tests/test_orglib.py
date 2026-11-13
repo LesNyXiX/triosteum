@@ -170,3 +170,19 @@ def test_ext_command_places_and_background(client):
     r = client.post("/api/org/items", json={"kind": "ext", "src": "xfonovoe", "data": {**ok, "id": "xfonovoe", "commands": [], "perms": ["board.read", "background"]}})
     assert r.status_code == 201 and r.json()["data"]["perms"] == ["board.read", "background"]
     assert client.post("/api/org/items", json={"kind": "ext", "src": "xpustoe", "data": {**ok, "id": "xpustoe", "commands": [], "perms": ["board.read"]}}).status_code == 422
+
+
+def test_env_template(client):
+    register(client, org="Завод Шаблон среды")
+    tpl = {"nodes": [{"id": "n1", "name": "Брак", "lang": "defects", "x": 0, "y": 0}], "edges": [], "notes": [{"id": "t1", "text": "Начните отсюда"}],
+           "seq": 3, "cam": {"x": 1, "y": 2, "k": 1}, "files": {"items": ["лишнее"]}}
+    d = client.post("/api/org/items", json={"kind": "env", "src": "ulabotk", "data": {**ENV, "tpl": tpl}}).json()["data"]
+    assert d["tpl"]["nodes"][0]["name"] == "Брак" and d["tpl"]["seq"] == 3 and "files" not in d["tpl"]
+    for bad in ({"nodes": "x"}, {"nodes": [], "notes": []}, {"nodes": [1]}, {"nodes": [{}] * 301}):
+        r = client.post("/api/org/items", json={"kind": "env", "src": "ulabotk", "data": {**ENV, "tpl": bad}})
+        assert r.status_code == 422, (bad if not isinstance(bad.get("nodes"), list) or len(bad["nodes"]) < 5 else "301", r.text)
+    big = {"nodes": [{"id": f"n{i}", "code": "x" * 1000} for i in range(290)]}
+    assert client.post("/api/org/items", json={"kind": "env", "src": "ulabotk", "data": {**ENV, "tpl": big}}).status_code == 413
+    # шаблон можно убрать
+    d = client.post("/api/org/items", json={"kind": "env", "src": "ulabotk", "data": ENV}).json()["data"]
+    assert "tpl" not in d

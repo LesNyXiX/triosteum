@@ -121,3 +121,6 @@
   .cenv-f{display:flex;justify-content:flex-end;gap:10px;padding:14px 22px;border-top:1px solid var(--line)}
   .cenv-f .cenv-del{margin-right:auto}
   @media (max-width:640px){ .cenv-row{grid-template-columns:1fr} }
+  .cenv-tpl{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border:1px dashed var(--line2);border-radius:10px}
+  .cenv-tpl-st{font-size:13px;color:var(--muted)}
+  .cenv-tpl .ext-acts{margin-top:0}
