@@ -55,6 +55,7 @@ jobs:
           npm run test:a11y
           npm run test:library
           npm run test:envdock
+          node tests/space-template-scope-e2e.mjs
           npm run test:errai
           npm run test:touch
           npm run test:docgen

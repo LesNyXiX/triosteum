@@ -54,7 +54,7 @@
       PANE ? null : { sec:'view', label:'Две среды рядом', d:'Открыть справа ещё одно пространство', icon:'layout', act:function(){ setTimeout(function(){ splitPick($('splitBtn')); }, 120); }, k:'разделить экран окна рядом сплит две среды' },
       { sec:'ai', label:'ИИ-архитектор: собрать схему по описанию', d:'Опишите задачу словами — ИИ соберёт блоки и связи', icon:'plug', act:openArc, k:'ai ии промт сгенерировать' },
       { sec:'ai', label:ENV.word.scheme, d:'Вся схема одним файлом кода', icon:'file', kb:bk('bScheme', 'C'), act:openScheme, k:'бэкенд backend код python регламент' },
-      { sec:'space', label:'Создать пространство', icon:'plus', act:function(){ newProj('Новое пространство'); }, k:'новое проект' },
+      { sec:'space', label:'Создать пространство', icon:'plus', act:function(){ newProj('Новое пространство', envStarter(ENV.id)); }, k:'новое проект' },
       { sec:'space', label:'Переименовать пространство', icon:'edit', act:renameProj, k:'проект название' },
       { sec:'space', label:'Дублировать пространство', icon:'copy', act:dupProj, k:'проект копия' },
       { sec:'file', label:'Сохранить пространство (.tsm)', d:'Скачать файл пространства', icon:'download', kb:MOD + 'S', act:exportFile, k:'экспорт скачать tsm json' },

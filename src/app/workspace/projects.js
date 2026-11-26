@@ -222,7 +222,7 @@
       list.forEach(function(p){ items.push({ label:p.name, icon:p.id === PROJ.cur ? 'check' : 'folder', act:function(){ switchProj(p.id); } }); });
     });
     return items.concat([{ sep:true },
-      { label:'Создать пространство', icon:'plus', sub:Object.keys(ENVS).map(function(k){ return { label:'В среде «' + ENVS[k].name + '»', swatch:ENVS[k].color, act:function(){ newProj(k === 'docs' ? 'Документооборот' : 'Новое пространство', null, k); toast('Создано пустое пространство · ' + ENVS[k].name); } }; }) },
+      { label:'Создать пространство', icon:'plus', sub:Object.keys(ENVS).map(function(k){ return { label:'В среде «' + ENVS[k].name + '»', swatch:ENVS[k].color, act:function(){ var tpl = envStarter(k); newProj(k === 'docs' ? 'Документооборот' : 'Новое пространство', tpl, k); toast('Создано пространство · ' + ENVS[k].name + (tpl ? ' — по шаблону' : '')); } }; }) },
       { label:'Экосистема — все среды…', icon:'all', act:openEco },
       { label:'Переименовать…', icon:'edit', act:renameProj },
       { label:'Дублировать', icon:'copy', act:dupProj },
