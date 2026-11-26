@@ -66,6 +66,7 @@
       { sec:'help', label:'Горячие клавиши', d:'Все сочетания клавиш', icon:'keys', kb:'?', act:function(){ showTip($('bKeys'), 6000); }, k:'клавиши сочетания' },
       { sec:'help', label:'Тур по Triosteum', d:'Короткое знакомство за минуту', icon:'map', act:function(){ setTimeout(tourStart, 120); }, k:'обучение помощь подсказки знакомство' }
     ]);
+    if(SERVER) C.push({ sec:'space', label:'Контроль брака', icon:'check', act:function(){ location.href = '/quality/' + encodeURIComponent(curId()); }, k:'отк партия реестр задачи' });
     if(typeof extCommands === 'function') C = C.concat(extCommands());
     return C.filter(Boolean);
   }
