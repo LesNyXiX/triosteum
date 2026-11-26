@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Контроль брака — Triosteum</title>
+  <link rel="icon" href="/brand/favicon.svg">
+  <link rel="stylesheet" href="/quality-assets/quality.css">
+  <script src="/quality-assets/quality.js" defer></script>
+</head>
+<body>
+  <main>
+    <header>
+      <a href="/">Рабочие пространства</a>
+      <h1>Контроль брака</h1>
+      <p id="space"></p>
+    </header>
+    <nav aria-label="Контроль брака" id="sections" hidden>
+      <a href="?view=register">Реестр</a>
+      <a href="?view=tasks">Мои задачи</a>
+      <a href="?view=form" id="form-link" hidden>Новая проверка</a>
+      <a href="?view=import" id="import-link" hidden>Импорт XLSX / CSV</a>
+      <a href="?view=settings" id="settings-link" hidden>Настройки</a>
+    </nav>
+    <p id="notice" role="status" aria-live="polite"></p>
+    <section id="content" aria-labelledby="section-title"></section>
+  </main>
+</body>
+</html>

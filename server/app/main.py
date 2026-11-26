@@ -1218,3 +1218,5 @@ from . import orglib as _orglib   # noqa: E402  (библиотека орган
 app.include_router(_orglib.router)
 from . import extdata as _extdata   # noqa: E402  (общие данные расширений внутри компании)
 app.include_router(_extdata.router)
+from . import quality as _quality   # noqa: E402  (контроль брака)
+app.include_router(_quality.router)

@@ -13,8 +13,56 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  quality:
+    name: Контроль брака
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      TEST_ADMIN_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: API на PostgreSQL
+        run: |
+          pip install -r server/requirements.txt pytest
+          pytest -q server/tests/test_quality.py
+      - name: Браузерный сценарий
+        env:
+          DATABASE_URL: postgresql+psycopg://triosteum_app:app-test-pw@127.0.0.1:5432/postgres
+          MIGRATE_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          APP_DB_PASSWORD: app-test-pw
+          REGISTRATION: open
+          COOKIE_SECURE: '0'
+        run: |
+          npm install --no-audit --no-fund
+          npx playwright install chromium
+          node build.mjs
+          python -m uvicorn --app-dir server app.main:app --host 127.0.0.1 --port 8000 &
+          for attempt in {1..30}; do
+            if curl -fsS http://127.0.0.1:8000/api/health; then break; fi
+            sleep 1
+          done
+          node tests/quality-e2e.mjs
   web:
     name: Сайт
+    needs: quality
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
