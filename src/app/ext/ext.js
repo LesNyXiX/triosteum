@@ -485,13 +485,15 @@
   function extCmdWhere(c){ return c.where && c.where.length ? c.where : [ 'palette' ]; }
   // a — данные вызова: { block:id } для команды из меню блока (этот блок расширению становится известен)
   function extInvoke(x, cmd, a){
+    var space = curId();
     var name = x.def.name, slow = setTimeout(function(){ toast('«' + name + '»: выполняется…'); }, 800);
     // команды одного расширения выполняются по очереди: у каждой своя запись отмены, и правки одной не попадают в другую
     var r0 = null;
     var run = function(){
       var r = EXT.run[x.id]; if(!r || r !== r0) throw new Error('расширение остановлено');   // пока ждали очереди, его остановили
+      if(space !== curId()) throw new Error('пространство сменилось до запуска команды');
       var rid = 'r' + (++EXT.seq), hold = extHold();
-      r.active = 1; r.cmdSpace = curId(); r.group = 'c' + rid;
+      r.active = 1; r.cmdSpace = space; r.group = 'c' + rid;
       var release = function(){ hold(); r.active = 0; r.group = null; };
       return new Promise(function(res, rej){
         // не ответила за минуту — останавливаем расширение целиком, чтобы зависшая команда не дописала доску потом

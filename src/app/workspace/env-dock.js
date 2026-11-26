@@ -178,7 +178,7 @@
     var e = ENVS[k], list = envProjects(k), n = list.length, here = ENV.id === k;
     var items = [{ head:e.name + ' · ' + (n ? spWord(n) : 'пространств нет') }];
     if(!here) items.push({ label:n ? 'Открыть среду' : 'Открыть среду (создать пространство)', icon:'folder', act:function(){ goEnv(k); } });
-    items.push({ label:'Новое пространство', icon:'plus', act:function(){ newProj(envNewName(k), null, k); toast('Создано пространство «' + curProj().name + '» в среде «' + e.name + '»'); } });
+    items.push({ label:'Новое пространство', icon:'plus', act:function(){ newProj(envNewName(k), envStarter(k), k); toast('Создано пространство «' + curProj().name + '» в среде «' + e.name + '»'); } });
     if(!n) return envDockUndo(items);
     items.push({ label:'Открыть пространство', icon:'file', sub:list.map(function(p){
       var on = p.id === PROJ.cur;
